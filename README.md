@@ -98,6 +98,8 @@ Key settings (full list in the [design doc](.dextree/design.md) §9.2):
 
 This project is built fully agentically — Claude Code Workspace handles implementation, GitHub Copilot handles review and docs, GitHub Actions handles CI and release. See [.dextree/build.md](.dextree/build.md) for the full operations manual.
 
+For the incremental slice order and the spec-to-code workflow, see [ROADMAP.md](ROADMAP.md).
+
 ### Prerequisites
 
 - Node.js >= 22.0.0

@@ -1,7 +1,11 @@
 # Meta data
+.DS_Store
+.idea
 .claude
 .dextree
 .github/agents
 .github/prompts/
 .specify/
 .vscode
+specs/
+.github/copilot-instructions.md
