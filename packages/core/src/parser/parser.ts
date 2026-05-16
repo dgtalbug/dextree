@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { Language, Parser, type Tree } from "web-tree-sitter";
+import type { Language, Parser, Tree } from "web-tree-sitter";
 
 export const TREE_SITTER_WASM = "tree-sitter.wasm";
 export const TREE_SITTER_TYPESCRIPT_WASM = "tree-sitter-typescript.wasm";
@@ -8,11 +8,15 @@ let parserRuntimePromise: Promise<void> | undefined;
 const languageCache = new Map<string, Promise<Language>>();
 
 export async function initializeParserRuntime(wasmDir: string): Promise<void> {
-  parserRuntimePromise ??= Parser.init({
-    locateFile(scriptName: string) {
-      return resolve(wasmDir, "web-tree-sitter", scriptName);
-    },
-  });
+  if (parserRuntimePromise === undefined) {
+    parserRuntimePromise = import("web-tree-sitter").then(({ Parser }) =>
+      Parser.init({
+        locateFile(scriptName: string) {
+          return resolve(wasmDir, "web-tree-sitter", scriptName);
+        },
+      }),
+    );
+  }
 
   await parserRuntimePromise;
 }
@@ -24,6 +28,7 @@ export async function loadTypeScriptLanguage(wasmDir: string): Promise<Language>
   if (languagePromise === undefined) {
     languagePromise = (async () => {
       await initializeParserRuntime(wasmDir);
+      const { Language } = await import("web-tree-sitter");
       return Language.load(resolve(wasmDir, "tree-sitter-typescript", TREE_SITTER_TYPESCRIPT_WASM));
     })();
 
@@ -36,6 +41,7 @@ export async function loadTypeScriptLanguage(wasmDir: string): Promise<Language>
 export async function createTypeScriptParser(wasmDir: string): Promise<Parser> {
   await initializeParserRuntime(wasmDir);
 
+  const { Parser } = await import("web-tree-sitter");
   const parser = new Parser();
   parser.setLanguage(await loadTypeScriptLanguage(wasmDir));
   return parser;

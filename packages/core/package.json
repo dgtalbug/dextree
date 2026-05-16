@@ -44,7 +44,7 @@
   "scripts": {
     "build": "tsup --config tsup.config.ts",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "vitest run --root ../.. --config vitest.workspace.ts --project core",
+    "test": "vitest run --root ../.. --config vitest.config.ts --project core",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -1,6 +1,8 @@
 packages:
   - packages/*
 allowBuilds:
+  '@vscode/vsce-sign': true
   esbuild: true
+  keytar: true
   tree-sitter-javascript: false
   tree-sitter-typescript: false

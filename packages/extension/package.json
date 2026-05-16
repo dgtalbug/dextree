@@ -40,23 +40,71 @@
     "pnpm": ">=11.1.2",
     "vscode": "^1.85.0"
   },
-  "dependencies": {
-    "@dextree/core": "workspace:*"
+  "dependencies": {},
+  "devDependencies": {
+    "@dextree/core": "workspace:*",
+    "@duckdb/node-api": "^1.5.2-r.1",
+    "@vscode/vsce": "^3.4.0",
+    "web-tree-sitter": "^0.26.8"
   },
   "scripts": {
     "build": "node esbuild.mjs",
+    "package": "vsce package --no-dependencies --allow-missing-repository",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "vitest run --root ../.. --config vitest.workspace.ts --project extension",
+    "test": "vitest run --root ../.. --config vitest.config.ts --project extension",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "activationEvents": [
-    "onCommand:dextree.indexFile"
+    "onView:dextree.symbolsView",
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact",
+    "onLanguage:python",
+    "onLanguage:markdown"
   ],
   "contributes": {
     "commands": [
       {
         "command": "dextree.indexFile",
         "title": "Dextree: Index File"
+      },
+      {
+        "command": "dextree.indexWorkspace",
+        "title": "Dextree: Index Workspace",
+        "icon": "$(sync)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "dextree.indexWorkspace",
+          "when": "view == dextree.symbolsView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dextree",
+          "title": "Dextree",
+          "icon": "resources/dextree.svg"
+        }
+      ]
+    },
+    "views": {
+      "dextree": [
+        {
+          "id": "dextree.symbolsView",
+          "name": "Symbols"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "dextree.symbolsView",
+        "contents": "No symbols indexed yet.\n\n[$(sync) Index Workspace](command:dextree.indexWorkspace)\n\nOr run [Dextree: Index File](command:dextree.indexFile) on a single open file."
       }
     ]
   }

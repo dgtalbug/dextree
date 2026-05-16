@@ -1,12 +1,27 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { relative, sep } from "node:path";
+import { extname, relative, sep } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
 import type { Node } from "web-tree-sitter";
 
 import type { ExtractedIndexData, StoredSymbol, SymbolKind, SymbolRange } from "../types.js";
 import { parseTypeScriptSource } from "./parser.js";
+
+const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
+  ".ts": "typescript",
+  ".js": "javascript",
+  ".tsx": "typescriptreact",
+  ".jsx": "javascriptreact",
+  ".py": "python",
+  ".md": "markdown",
+  ".mjs": "javascript",
+  ".cjs": "javascript",
+};
+
+export function detectLanguage(absolutePath: string): string {
+  return LANGUAGE_BY_EXTENSION[extname(absolutePath).toLowerCase()] ?? "plaintext";
+}
 
 const DECLARATION_KIND_BY_TYPE: Record<string, SymbolKind> = {
   function_declaration: "function",
@@ -155,11 +170,31 @@ export async function extractTypeScriptSource(
       id: fileId,
       path: absolutePath,
       relativePath,
-      language: "typescript",
+      language: detectLanguage(absolutePath),
       loc: getLoc(source),
       hash: hashSource(source),
     },
     symbols,
+  };
+}
+
+export async function extractPlainFile(
+  absolutePath: string,
+  workspaceRoot: string,
+): Promise<ExtractedIndexData> {
+  const source = await readFile(absolutePath, "utf8");
+  const fileId = uuidv4();
+  const relativePath = toPosixRelativePath(workspaceRoot, absolutePath);
+  return {
+    file: {
+      id: fileId,
+      path: absolutePath,
+      relativePath,
+      language: detectLanguage(absolutePath),
+      loc: getLoc(source),
+      hash: hashSource(source),
+    },
+    symbols: [],
   };
 }
 

@@ -17,9 +17,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "paths": {
-      "@dextree/core": ["packages/core/src/index.ts"]
+      "@dextree/core": ["./packages/core/src/index.ts"]
     },
     "types": ["node"]
   }

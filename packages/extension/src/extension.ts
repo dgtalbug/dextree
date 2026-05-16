@@ -3,7 +3,9 @@ import { join } from "node:path";
 import * as vscode from "vscode";
 
 import { createIndexFileCommand } from "./commands/indexFile.js";
+import { createIndexWorkspaceCommand } from "./commands/indexWorkspace.js";
 import { createLogger, type Logger } from "./logger.js";
+import { SymbolsTreeProvider } from "./tree/SymbolsTreeProvider.js";
 
 let activeIndexer: Indexer | null = null;
 let activeLogger: Logger | null = null;
@@ -18,6 +20,8 @@ export async function activate(context: ActivationContext): Promise<void> {
   const outputChannel = vscode.window.createOutputChannel("Dextree");
   const logger = createLogger(outputChannel);
   activeLogger = logger;
+
+  logger.debug("activated");
 
   let indexerPromise: Promise<Indexer> | null = null;
 
@@ -56,9 +60,30 @@ export async function activate(context: ActivationContext): Promise<void> {
         context,
         logger,
         getIndexer,
+        onIndexed: () => symbolsProvider.refresh(),
+      }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.indexWorkspace",
+      createIndexWorkspaceCommand({
+        logger,
+        getIndexer,
+        onIndexed: () => symbolsProvider.refresh(),
       }),
     ),
   );
+
+  const symbolsProvider = new SymbolsTreeProvider(
+    () => activeIndexer,
+    logger,
+    () => vscode.workspace.workspaceFolders?.[0]?.uri,
+  );
+
+  const treeView = vscode.window.createTreeView("dextree.symbolsView", {
+    treeDataProvider: symbolsProvider,
+  });
+
+  context.subscriptions.push(treeView);
 }
 
 export async function deactivate(): Promise<void> {
