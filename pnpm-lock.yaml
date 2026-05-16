@@ -33,7 +33,7 @@ importers:
         specifier: ^3.2.2
         version: 3.2.4(vitest@3.2.4(@types/node@22.19.19)(jsdom@29.1.1))
       esbuild:
-        specifier: ^0.25.4
+        specifier: ^0.25.12
         version: 0.25.12
       eslint:
         specifier: ^9.27.0
