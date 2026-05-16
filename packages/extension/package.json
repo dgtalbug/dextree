@@ -37,7 +37,7 @@
   ],
   "engines": {
     "node": ">=22.0.0",
-    "pnpm": ">=11.1.2",
+    "pnpm": "11.1.2",
     "vscode": "^1.85.0"
   },
   "devDependencies": {
@@ -61,8 +61,9 @@
     "build": "node esbuild.mjs && vite build",
     "build:extension": "node esbuild.mjs",
     "build:webview": "vite build",
-    "package": "vsce package --no-dependencies --allow-missing-repository",
-    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
+    "prepackage": "pnpm build",
+    "package": "vsce package --no-dependencies",
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --max-warnings=0",
     "test": "vitest run --root ../.. --config vitest.config.ts --project extension --project webview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json"
   },

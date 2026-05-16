@@ -45,6 +45,7 @@ export default [
       },
       globals: {
         ...globals.browser,
+        acquireVsCodeApi: "readonly",
       },
     },
     plugins: {

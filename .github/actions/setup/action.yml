@@ -1,0 +1,38 @@
+name: Setup Dextree workspace
+description: Checkout, install pnpm 11.1.2, set up Node 22, and install dependencies (frozen lockfile).
+
+inputs:
+  node-version:
+    description: Node version to install.
+    required: false
+    default: "22"
+  fetch-depth:
+    description: Git fetch depth for the checkout step.
+    required: false
+    default: "1"
+
+runs:
+  using: composite
+  steps:
+    # NOTE: Pin to full SHA before merging. Use:
+    #   gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq .object.sha
+    - name: Checkout repository
+      uses: actions/checkout@v4 # TODO: replace with SHA before merging
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4 # TODO: replace with SHA before merging
+      with:
+        version: "11.1.2"
+        run_install: false
+
+    - name: Setup Node ${{ inputs.node-version }}
+      uses: actions/setup-node@v4 # TODO: replace with SHA before merging
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

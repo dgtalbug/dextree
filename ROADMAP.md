@@ -162,19 +162,34 @@ At the end of every slice:
 - tighten the next slice based on what was learned
 - keep later slices coarse until they are near-term work
 
+## Current Slice State
+
+Actual state as of 2026-05-16.
+
+| Spec dir                    | Design slice | State       | Notes                                                                            |
+| --------------------------- | ------------ | ----------- | -------------------------------------------------------------------------------- |
+| `001-hello-symbol`          | S1           | `done`      | Parser → DuckDB → extension command end-to-end                                   |
+| `002-hello-tree-view`       | S2           | `done`      | Sidebar TreeView with file → symbol hierarchy                                    |
+| `003-hello-webview`         | S3           | `in-review` | React webview, message protocol, symbol list, directory tree, nav; on branch 003 |
+| `004-cicd-foundation-fixes` | —            | `in-spec`   | Fix lint/typecheck/coverage scripts before CI is wired; intermediate slice       |
+| `005-cicd-github-actions`   | —            | `in-spec`   | GitHub Actions CI/CD workflow; depends on 004                                    |
+| `006-hello-graph`           | S4           | `in-spec`   | Sigma + graphology graph render; **active spec**                                 |
+
+> Intermediate slices 004 and 005 are CI/CD prerequisites inserted before S4.
+> The design slice numbering (S0–S12) and spec directory numbering are independent.
+
 ## Recommended Execution Queue
 
 This is the practical queue, not just the long-range sequence.
 
-| Priority | Slice | Suggested state               | Why now                                                                     |
-| -------- | ----- | ----------------------------- | --------------------------------------------------------------------------- |
-| 1        | `S0`  | `in-implementation` or `done` | The scaffold must be actually green before later specs become actionable.   |
-| 2        | `S1`  | `in-spec`                     | It is the smallest end-to-end proof of parser → storage → extension wiring. |
-| 3        | `S2`  | `next-up`                     | It converts indexed data into the first native VS Code UI.                  |
-| 4        | `S3`  | `roadmap`                     | Useful only after S1 and S2 prove extension messaging and symbol flow.      |
+| Priority | Spec dir                    | State       | Why now                                                                    |
+| -------- | --------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 1        | `003-hello-webview`         | `in-review` | Merge 003 branch; validates S3 before CI exists.                           |
+| 2        | `004-cicd-foundation-fixes` | `in-spec`   | Fix scripts so CI can trust them; prerequisite for 005.                    |
+| 3        | `005-cicd-github-actions`   | `in-spec`   | Wire CI once scripts are honest.                                           |
+| 4        | `006-hello-graph`           | `in-spec`   | First real graph render — the "wow" moment; ready to move to plan + tasks. |
 
-Anything after `S3` should stay at roadmap level until the current slice is merged or
-nearly merged.
+Anything after `006` should stay at roadmap level until 006 is merged or nearly merged.
 
 ## Recommended Incremental Slice Sequence
 

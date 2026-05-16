@@ -28,6 +28,7 @@ function buildTree(files: FileWithSymbols[]): TreeNode[] {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const segment = parts[i];
+      if (segment === undefined) continue;
       let dir = current.children.find((n): n is DirNode => n.kind === "dir" && n.name === segment);
       if (dir === undefined) {
         dir = { kind: "dir", name: segment, children: [] };
@@ -36,7 +37,9 @@ function buildTree(files: FileWithSymbols[]): TreeNode[] {
       current = dir;
     }
 
-    current.children.push({ kind: "file", name: parts[parts.length - 1], file });
+    const fileName = parts[parts.length - 1];
+    if (fileName === undefined) continue;
+    current.children.push({ kind: "file", name: fileName, file });
   }
 
   return root.children;
