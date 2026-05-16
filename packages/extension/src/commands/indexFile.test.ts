@@ -35,6 +35,7 @@ function createMockIndexer() {
     initialize: vi.fn(),
     indexFile: vi.fn(),
     getSymbols: vi.fn(),
+    getAllFiles: vi.fn(),
     dispose: vi.fn(),
   };
 }
@@ -110,8 +111,8 @@ describe("createIndexFileCommand", () => {
 
     mockState.activeTextEditor = {
       document: {
-        languageId: "markdown",
-        uri: { fsPath: "/workspace/README.md" },
+        languageId: "go",
+        uri: { fsPath: "/workspace/main.go" },
       },
     };
 
@@ -123,9 +124,7 @@ describe("createIndexFileCommand", () => {
 
     await command();
 
-    expect(showInformationMessage).toHaveBeenCalledWith(
-      "Dextree supports only TypeScript files in S1.",
-    );
+    expect(showInformationMessage).toHaveBeenCalledWith("Dextree does not support go files yet.");
   });
 
   it("shows an informational message when workspace storage is unavailable", async () => {
@@ -179,6 +178,75 @@ describe("createIndexFileCommand", () => {
 
     expect(showErrorMessage).toHaveBeenCalledWith("Dextree failed to index the active file.");
     expect(logger.error).toHaveBeenCalled();
+  });
+
+  it("calls onIndexed callback once after a successful index", async () => {
+    const { createIndexFileCommand } = await import("./indexFile.js");
+    const indexer = createMockIndexer();
+    const onIndexed = vi.fn();
+
+    mockState.activeTextEditor = {
+      document: {
+        languageId: "typescript",
+        uri: { fsPath: "/workspace/src/greet.ts" },
+      },
+    };
+
+    getWorkspaceFolder.mockReturnValue({ uri: { fsPath: "/workspace" } });
+    indexer.indexFile.mockResolvedValue({
+      relativePath: "src/greet.ts",
+      symbolCount: 1,
+      elapsedMs: 5,
+      symbols: [
+        {
+          id: "symbol-1",
+          fqn: "src/greet.ts:greet",
+          name: "greet",
+          kind: "function",
+          fileId: "file-1",
+          range: { startLine: 0, startCol: 0, endLine: 0, endCol: 5 },
+          language: "typescript",
+        },
+      ],
+    });
+
+    const command = createIndexFileCommand({
+      context: createContext(),
+      logger: createLogger(),
+      getIndexer: async () => indexer,
+      onIndexed,
+    });
+
+    await command();
+
+    expect(onIndexed).toHaveBeenCalledOnce();
+  });
+
+  it("does not call onIndexed when indexing fails", async () => {
+    const { createIndexFileCommand } = await import("./indexFile.js");
+    const indexer = createMockIndexer();
+    const onIndexed = vi.fn();
+
+    mockState.activeTextEditor = {
+      document: {
+        languageId: "typescript",
+        uri: { fsPath: "/workspace/src/bad.ts" },
+      },
+    };
+
+    getWorkspaceFolder.mockReturnValue({ uri: { fsPath: "/workspace" } });
+    indexer.indexFile.mockRejectedValue(new Error("DB error"));
+
+    const command = createIndexFileCommand({
+      context: createContext(),
+      logger: createLogger(),
+      getIndexer: async () => indexer,
+      onIndexed,
+    });
+
+    await command();
+
+    expect(onIndexed).not.toHaveBeenCalled();
   });
 
   it("silently ignores a concurrent invocation for the same file", async () => {

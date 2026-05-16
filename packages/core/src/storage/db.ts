@@ -1,4 +1,4 @@
-import { DuckDBConnection, DuckDBInstance, type DuckDBMaterializedResult } from "@duckdb/node-api";
+import type { DuckDBConnection, DuckDBInstance, DuckDBMaterializedResult } from "@duckdb/node-api";
 
 export interface DatabaseHandle {
   instance: DuckDBInstance;
@@ -7,6 +7,7 @@ export interface DatabaseHandle {
 }
 
 export async function openDatabase(dbPath: string): Promise<DatabaseHandle> {
+  const { DuckDBInstance } = await import("@duckdb/node-api");
   const instance = await DuckDBInstance.create(dbPath);
   const connection = await instance.connect();
 

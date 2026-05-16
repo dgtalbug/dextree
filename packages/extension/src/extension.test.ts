@@ -8,13 +8,23 @@ const registerCommand = vi.fn((_command, handler) => ({
   dispose: vi.fn(),
   handler,
 }));
+const createTreeView = vi.fn(() => ({ dispose: vi.fn() }));
 
 vi.mock("vscode", () => ({
   window: {
     createOutputChannel,
+    createTreeView,
   },
   commands: {
     registerCommand,
+  },
+  EventEmitter: class MockEventEmitter {
+    fire = vi.fn();
+    event = vi.fn();
+    dispose = vi.fn();
+  },
+  workspace: {
+    workspaceFolders: undefined,
   },
 }));
 

@@ -4,7 +4,8 @@
     "tsconfig.base.json",
     "eslint.config.js",
     ".prettierrc",
-    "vitest.workspace.ts"
+    "vitest.config.ts",
+    "vitest.webview.config.ts"
   ],
   "tasks": {
     "build": {
@@ -13,18 +14,15 @@
       "outputs": ["dist/**"]
     },
     "typecheck": {
-      "inputs": ["src/**/*.ts", "tsconfig.json"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json", "tsconfig.webview.json"],
       "outputs": []
     },
     "lint": {
-      "inputs": ["src/**/*.ts"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx"],
       "outputs": []
     },
     "test": {
-      "inputs": ["src/**/*.ts"],
-      "outputs": []
-    },
-    "format:check": {
+      "inputs": ["src/**/*.ts", "src/**/*.tsx"],
       "outputs": []
     }
   }

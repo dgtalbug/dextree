@@ -1,4 +1,4 @@
-import { defineConfig, defineProject } from "vitest/config";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
@@ -7,22 +7,23 @@ export default defineConfig({
       reporter: ["text", "lcov"],
     },
     projects: [
-      defineProject({
+      {
         test: {
           name: "core",
           include: ["packages/core/src/**/*.test.ts"],
           environment: "node",
           globals: false,
         },
-      }),
-      defineProject({
+      },
+      {
         test: {
           name: "extension",
           include: ["packages/extension/src/**/*.test.ts"],
           environment: "node",
           globals: false,
         },
-      }),
+      },
+      "packages/extension/vitest.webview.config.ts",
     ],
   },
 });

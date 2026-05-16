@@ -16,6 +16,7 @@ export interface IndexFileCommandDependencies {
   context: CommandContext;
   logger: Logger;
   getIndexer: () => Promise<Indexer>;
+  onIndexed?: () => void;
 }
 
 function formatKind(result: IndexResult): string | null {
@@ -37,14 +38,27 @@ export function createIndexFileCommand(
     const editor = vscode.window.activeTextEditor;
 
     if (editor === undefined) {
-      await vscode.window.showInformationMessage("Dextree: Open a TypeScript file to index.");
+      await vscode.window.showInformationMessage(
+        "Dextree: Open a supported file to index (TypeScript, JavaScript, Python, Markdown).",
+      );
       return;
     }
 
     const { document } = editor;
 
-    if (document.languageId !== "typescript") {
-      await vscode.window.showInformationMessage("Dextree supports only TypeScript files in S1.");
+    const SUPPORTED_LANGUAGES = new Set([
+      "typescript",
+      "javascript",
+      "typescriptreact",
+      "javascriptreact",
+      "python",
+      "markdown",
+    ]);
+
+    if (!SUPPORTED_LANGUAGES.has(document.languageId)) {
+      await vscode.window.showInformationMessage(
+        `Dextree does not support ${document.languageId} files yet.`,
+      );
       return;
     }
 
@@ -92,6 +106,8 @@ export function createIndexFileCommand(
       } else {
         await vscode.window.showInformationMessage(`Dextree found: ${formattedKind}`);
       }
+
+      dependencies.onIndexed?.();
     } catch (error) {
       dependencies.logger.error(`Failed to index ${absolutePath}`, error);
       await vscode.window.showErrorMessage("Dextree failed to index the active file.");

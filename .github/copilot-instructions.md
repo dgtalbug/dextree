@@ -133,15 +133,15 @@ Tone should be direct, specific, and free of marketing fluff.
 
 ## Active implementation plan
 
-**Branch**: `001-first- S1 Hello Symbolspec`
+**Branch**: `003-hello-webview`
 
-- Spec: [`specs/001-hello-symbol/spec.md`](../specs/001-hello-symbol/spec.md)
-- Plan: [`specs/001-hello-symbol/plan.md`](../specs/001-hello-symbol/plan.md)
-- Research: [`specs/001-hello-symbol/research.md`](../specs/001-hello-symbol/research.md)
-- Data model: [`specs/001-hello-symbol/data-model.md`](../specs/001-hello-symbol/data-model.md)
-- Contracts: [`specs/001-hello-symbol/contracts/core-api.ts`](../specs/001-hello-symbol/contracts/core-api.ts)
-- Quickstart: [`specs/001-hello-symbol/quickstart.md`](../specs/001-hello-symbol/quickstart.md)
+- Spec: [`specs/003-hello-webview/spec.md`](../specs/003-hello-webview/spec.md)
+- Plan: [`specs/003-hello-webview/plan.md`](../specs/003-hello-webview/plan.md)
+- Research: [`specs/003-hello-webview/research.md`](../specs/003-hello-webview/research.md)
+- Data model: [`specs/003-hello-webview/data-model.md`](../specs/003-hello-webview/data-model.md)
+- Contracts: [`specs/003-hello-webview/contracts/webview-protocol.ts`](../specs/003-hello-webview/contracts/webview-protocol.ts)
+- Quickstart: [`specs/003-hello-webview/quickstart.md`](../specs/003-hello-webview/quickstart.md)
 
-Review focus for this slice: `packages/core` (new) and `packages/extension` (new activation + command).
+Review focus for this slice: `packages/extension` — new `src/webview/` subtree, Vite build, typed message protocol, `dextree.openGraphView` command.
 
 <!-- SPECKIT END -->

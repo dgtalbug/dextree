@@ -13,6 +13,8 @@ vitest.config.*
 
 # Workspace and editor config
 .vscode/**
-node_modules/**
 **/.gitignore
 **/tsconfig*.json
+
+# Exclude node_modules — runtime deps are bundled into extension.cjs by esbuild
+node_modules/**

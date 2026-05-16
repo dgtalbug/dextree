@@ -1,12 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { extractTypeScriptFile } from "./parser/extractor.js";
+import { detectLanguage, extractPlainFile, extractTypeScriptFile } from "./parser/extractor.js";
+import { getAllFilesQuery } from "./query/files.js";
 import { getSymbolsForFile } from "./query/symbols.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
 import { replaceFileGraph } from "./storage/repository.js";
 import { initializeSchema } from "./storage/schema.js";
-import type { IndexResult, Indexer, StoredSymbol } from "./types.js";
+import type { IndexResult, Indexer, StoredFile, StoredSymbol } from "./types.js";
 
 export type {
   ExtractedFileRecord,
@@ -14,6 +15,7 @@ export type {
   FileRecord,
   IndexResult,
   Indexer,
+  StoredFile,
   StoredSymbol,
   SymbolKind,
   SymbolRange,
@@ -50,7 +52,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
 
     const database = this.requireDatabaseHandle();
-    const extracted = await extractTypeScriptFile(absolutePath, workspaceRoot, this.wasmDir);
+
+    const TS_LIKE = new Set(["typescript", "javascript", "typescriptreact", "javascriptreact"]);
+    const language = detectLanguage(absolutePath);
+    const extracted = TS_LIKE.has(language)
+      ? await extractTypeScriptFile(absolutePath, workspaceRoot, this.wasmDir)
+      : await extractPlainFile(absolutePath, workspaceRoot);
 
     await replaceFileGraph(database.connection, extracted);
 
@@ -68,6 +75,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return getSymbolsForFile(database.connection, relativePath);
+  }
+
+  async getAllFiles(): Promise<StoredFile[]> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return getAllFilesQuery(database.connection);
   }
 
   async dispose(): Promise<void> {

@@ -29,6 +29,12 @@ export interface FileRecord {
   lastIndexed: Date;
 }
 
+export interface StoredFile {
+  id: string;
+  relativePath: string;
+  language: string;
+}
+
 export interface IndexResult {
   relativePath: string;
   symbolCount: number;
@@ -40,6 +46,7 @@ export interface Indexer {
   initialize(): Promise<void>;
   indexFile(absolutePath: string, workspaceRoot: string): Promise<IndexResult>;
   getSymbols(relativePath: string): Promise<StoredSymbol[]>;
+  getAllFiles(): Promise<StoredFile[]>;
   dispose(): Promise<void>;
 }
 
