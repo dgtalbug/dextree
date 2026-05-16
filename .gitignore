@@ -1,7 +1,30 @@
-# Meta data
+# Local editor metadata
+# User Meta data
+.DS_Store
+.idea
 .claude
 .dextree
 .github/agents
 .github/prompts/
 .specify/
-.vscode
+.turbo/cache
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+!.vscode/settings.json
+specs/
+.github/copilot-instructions.md
+
+# Additional local artifacts
+Thumbs.db
+*.tmp
+*.swp
+
+# Node / TypeScript build artifacts
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env*

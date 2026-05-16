@@ -1,0 +1,60 @@
+{
+  "name": "dextree",
+  "description": "VS Code-first semantic graph tooling for code intelligence.",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.1.2",
+  "author": {
+    "name": "DgtalBug",
+    "url": "https://github.com/dgtalbug"
+  },
+  "homepage": "https://github.com/dgtalbug/dextree#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dgtalbug/dextree.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dgtalbug/dextree/issues"
+  },
+  "keywords": [
+    "dextree",
+    "code-intelligence",
+    "vscode",
+    "semantic-graph",
+    "duckdb",
+    "tree-sitter"
+  ],
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": "11.1.2"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "check": "prettier --write . && eslint --fix \"packages/**/*.ts\" && prettier --check . && turbo run lint && turbo run test && turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "lint:fix": "eslint --fix \"packages/**/*.ts\"",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "@types/node": "^22.15.21",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^8.32.0",
+    "@typescript-eslint/parser": "^8.32.0",
+    "@vitest/coverage-v8": "^3.2.2",
+    "esbuild": "^0.25.4",
+    "eslint": "^9.27.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.1.0",
+    "prettier": "^3.8.3",
+    "tsup": "^8.4.0",
+    "turbo": "^2.5.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.2"
+  }
+}

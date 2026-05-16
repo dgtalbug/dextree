@@ -1,0 +1,18 @@
+# Keep test and source files out of the published .vsix
+src/**
+**/*.test.*
+**/*.spec.*
+**/*.ts
+**/*.map
+
+# Build tooling
+esbuild.mjs
+tsconfig*.json
+vitest.config.*
+.turbo/**
+
+# Workspace and editor config
+.vscode/**
+node_modules/**
+**/.gitignore
+**/tsconfig*.json
