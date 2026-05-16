@@ -113,6 +113,21 @@ const assetMatrix = [
       resolve(repoRoot, "node_modules/@duckdb/node-bindings-win32-x64/duckdb.dll"),
     ],
   },
+  // Codicons font and CSS for webview panel
+  {
+    target: "codicons/codicon.css",
+    candidates: [
+      resolve(repoRoot, "node_modules/@vscode/codicons/dist/codicon.css"),
+      ...pnpmStore("@vscode+codicons@", "@vscode/codicons/dist/codicon.css"),
+    ],
+  },
+  {
+    target: "codicons/codicon.ttf",
+    candidates: [
+      resolve(repoRoot, "node_modules/@vscode/codicons/dist/codicon.ttf"),
+      ...pnpmStore("@vscode+codicons@", "@vscode/codicons/dist/codicon.ttf"),
+    ],
+  },
 ];
 
 async function pathExists(path) {

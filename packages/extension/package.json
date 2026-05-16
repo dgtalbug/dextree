@@ -40,21 +40,34 @@
     "pnpm": ">=11.1.2",
     "vscode": "^1.85.0"
   },
-  "dependencies": {},
   "devDependencies": {
     "@dextree/core": "workspace:*",
     "@duckdb/node-api": "^1.5.2-r.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vscode/codicons": "^0.0.36",
     "@vscode/vsce": "^3.4.0",
+    "framer-motion": "^11.11.11",
+    "jsdom": "^29.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11",
     "web-tree-sitter": "^0.26.8"
   },
   "scripts": {
-    "build": "node esbuild.mjs",
+    "build": "node esbuild.mjs && vite build",
+    "build:extension": "node esbuild.mjs",
+    "build:webview": "vite build",
     "package": "vsce package --no-dependencies --allow-missing-repository",
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
     "test": "vitest run --root ../.. --config vitest.config.ts --project extension",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json"
   },
   "activationEvents": [
+    "onCommand:dextree.openGraphView",
     "onView:dextree.symbolsView",
     "onLanguage:typescript",
     "onLanguage:javascript",
@@ -65,6 +78,11 @@
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "dextree.openGraphView",
+        "title": "Dextree: Open Graph View",
+        "icon": "$(type-hierarchy)"
+      },
       {
         "command": "dextree.indexFile",
         "title": "Dextree: Index File"

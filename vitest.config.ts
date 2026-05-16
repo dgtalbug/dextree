@@ -23,6 +23,7 @@ export default defineConfig({
           globals: false,
         },
       },
+      "packages/extension/vitest.webview.config.ts",
     ],
   },
 });
