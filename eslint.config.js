@@ -1,18 +1,12 @@
 import js from "@eslint/js";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
+import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 export default [
   {
-    ignores: [
-      ".idea/**",
-      ".vscode/**",
-      "build/**",
-      "coverage/**",
-      "dist/**",
-      "node_modules/**",
-    ],
+    ignores: [".idea/**", ".vscode/**", "build/**", "coverage/**", "dist/**", "node_modules/**"],
   },
   js.configs.recommended,
   {
@@ -40,4 +34,5 @@ export default [
       ],
     },
   },
+  prettier,
 ];

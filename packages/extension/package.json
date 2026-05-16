@@ -6,7 +6,8 @@
   "version": "0.0.0",
   "license": "MIT",
   "private": false,
-  "main": "./dist/extension.js",
+  "type": "module",
+  "main": "./dist/extension.cjs",
   "preview": true,
   "author": {
     "name": "DgtalBug",
@@ -45,11 +46,18 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "vitest run --config ../../vitest.workspace.ts --project extension",
+    "test": "vitest run --root ../.. --config vitest.workspace.ts --project extension",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:dextree.indexFile"
+  ],
   "contributes": {
-    "commands": []
+    "commands": [
+      {
+        "command": "dextree.indexFile",
+        "title": "Dextree: Index File"
+      }
+    ]
   }
 }

@@ -11,17 +11,12 @@ const distDir = resolve(packageDir, "dist");
 const assetMatrix = [
   {
     target: "tree-sitter.wasm",
-    candidates: [
-      resolve(repoRoot, "node_modules/web-tree-sitter/tree-sitter.wasm"),
-    ],
+    candidates: [resolve(repoRoot, "node_modules/web-tree-sitter/tree-sitter.wasm")],
   },
   {
     target: "tree-sitter-typescript.wasm",
     candidates: [
-      resolve(
-        repoRoot,
-        "node_modules/tree-sitter-typescript/tree-sitter-typescript.wasm",
-      ),
+      resolve(repoRoot, "node_modules/tree-sitter-typescript/tree-sitter-typescript.wasm"),
       resolve(
         repoRoot,
         "node_modules/tree-sitter-typescript/bindings/node/tree-sitter-typescript.wasm",
@@ -32,10 +27,7 @@ const assetMatrix = [
     target: "duckdb-binding.node",
     candidates: [
       resolve(repoRoot, "node_modules/@duckdb/node-api/dist/duckdb.node"),
-      resolve(
-        repoRoot,
-        "node_modules/@duckdb/node-api/dist/duckdb-binding.node",
-      ),
+      resolve(repoRoot, "node_modules/@duckdb/node-api/dist/duckdb-binding.node"),
     ],
   },
 ];
@@ -65,7 +57,7 @@ async function bundleExtension() {
 
   await build({
     entryPoints: [resolve(packageDir, "src/extension.ts")],
-    outfile: resolve(distDir, "extension.js"),
+    outfile: resolve(distDir, "extension.cjs"),
     bundle: true,
     external: ["vscode", "@dextree/core"],
     format: "cjs",
@@ -74,11 +66,7 @@ async function bundleExtension() {
     target: "node22",
   });
 
-  await Promise.all(
-    assetMatrix.map((asset) =>
-      copyOptionalAsset(asset.target, asset.candidates),
-    ),
-  );
+  await Promise.all(assetMatrix.map((asset) => copyOptionalAsset(asset.target, asset.candidates)));
 }
 
 bundleExtension().catch((error) => {

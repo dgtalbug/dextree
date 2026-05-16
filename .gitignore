@@ -7,7 +7,12 @@
 .github/agents
 .github/prompts/
 .specify/
-.vscode
+.turbo/cache
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+!.vscode/settings.json
 specs/
 .github/copilot-instructions.md
 

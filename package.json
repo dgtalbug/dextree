@@ -32,7 +32,11 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "check": "prettier --write . && eslint --fix \"packages/**/*.ts\" && prettier --check . && turbo run lint && turbo run test && turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "turbo run lint",
+    "lint:fix": "eslint --fix \"packages/**/*.ts\"",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck"
   },
@@ -45,7 +49,9 @@
     "@vitest/coverage-v8": "^3.2.2",
     "esbuild": "^0.25.4",
     "eslint": "^9.27.0",
+    "eslint-config-prettier": "^10.1.8",
     "globals": "^16.1.0",
+    "prettier": "^3.8.3",
     "tsup": "^8.4.0",
     "turbo": "^2.5.3",
     "typescript": "^5.8.3",

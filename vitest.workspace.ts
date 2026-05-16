@@ -1,28 +1,28 @@
-import { defineWorkspace } from "vitest/config";
+import { defineConfig, defineProject } from "vitest/config";
 
-export default defineWorkspace([
-  {
-    test: {
-      name: "core",
-      include: ["packages/core/src/**/*.test.ts"],
-      environment: "node",
-      globals: false,
-      coverage: {
-        provider: "v8",
-        reporter: ["text", "lcov"]
-      }
-    }
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+    },
+    projects: [
+      defineProject({
+        test: {
+          name: "core",
+          include: ["packages/core/src/**/*.test.ts"],
+          environment: "node",
+          globals: false,
+        },
+      }),
+      defineProject({
+        test: {
+          name: "extension",
+          include: ["packages/extension/src/**/*.test.ts"],
+          environment: "node",
+          globals: false,
+        },
+      }),
+    ],
   },
-  {
-    test: {
-      name: "extension",
-      include: ["packages/extension/src/**/*.test.ts"],
-      environment: "node",
-      globals: false,
-      coverage: {
-        provider: "v8",
-        reporter: ["text", "lcov"]
-      }
-    }
-  }
-]);
+});
