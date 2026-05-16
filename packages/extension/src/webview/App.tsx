@@ -1,8 +1,8 @@
 import { useEffect, useReducer } from "react";
-import { isHostToWebviewMessage, type FileWithSymbols } from "./protocol/messages.js";
-import { LoadingState } from "./components/LoadingState.js";
 import { EmptyState } from "./components/EmptyState.js";
+import { LoadingState } from "./components/LoadingState.js";
 import { SymbolList } from "./components/SymbolList.js";
+import { isHostToWebviewMessage, type FileWithSymbols } from "./protocol/messages.js";
 
 // ---------------------------------------------------------------------------
 // State model — discriminated union (FR-002, FR-008)
@@ -48,8 +48,11 @@ export function App({ vscodeApi }: AppProps) {
     }
 
     window.addEventListener("message", handleMessage);
+    // Signal the extension host that the listener is registered.
+    // The host will re-push any cached symbols to handle the startup race condition.
+    vscodeApi.postMessage({ type: "ready" });
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [vscodeApi]);
 
   function handleNavigate(filePath: string, line: number) {
     vscodeApi.postMessage({ type: "navigate", filePath, line });

@@ -7,6 +7,12 @@ const packageDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // framer-motion and other packages reference process.env.NODE_ENV.
+    // process is a Node.js global not available in the webview browser context,
+    // so we replace it at build time.
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     lib: {
       entry: resolve(packageDir, "src/webview/main.tsx"),

@@ -48,7 +48,12 @@ vi.mock("vscode", () => ({
   },
 }));
 
-import { SymbolsTreeProvider, TreeFileNode, TreeSymbolNode } from "./SymbolsTreeProvider.js";
+import {
+  SymbolsTreeProvider,
+  TreeDirNode,
+  TreeFileNode,
+  TreeSymbolNode,
+} from "./SymbolsTreeProvider.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -105,7 +110,7 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     expect(children).toHaveLength(0);
   });
 
-  it("returns TreeFileNode[] from getAllFiles results", async () => {
+  it("groups files under a shared directory into a TreeDirNode", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([
       { id: "f1", relativePath: "src/greet.ts", language: "typescript" },
@@ -113,21 +118,35 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
-    expect(children).toHaveLength(2);
-    expect(children[0]).toBeInstanceOf(TreeFileNode);
-    expect(children[0]?.treeItem.description).toBe("src/greet.ts");
+    expect(children).toHaveLength(1);
+    expect(children[0]).toBeInstanceOf(TreeDirNode);
+    expect(children[0]?.treeItem.label).toBe("src");
   });
 
-  it("file node label is the basename only", async () => {
+  it("root-level files (no directory) appear as TreeFileNodes directly", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([
-      { id: "f1", relativePath: "packages/core/src/index.ts", language: "typescript" },
+      { id: "f1", relativePath: "index.ts", language: "typescript" },
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
+    expect(children).toHaveLength(1);
+    expect(children[0]).toBeInstanceOf(TreeFileNode);
     expect(children[0]?.treeItem.label).toBe("index.ts");
-    expect(children[0]?.treeItem.description).toBe("packages/core/src/index.ts");
-    expect(children[0]?.treeItem.tooltip).toBe("packages/core/src/index.ts");
+  });
+
+  it("multiple directories produce one TreeDirNode per directory", async () => {
+    const indexer = makeIndexer();
+    indexer.getAllFiles.mockResolvedValue([
+      { id: "f1", relativePath: "src/greet.ts", language: "typescript" },
+      { id: "f2", relativePath: "test/greet.test.ts", language: "typescript" },
+    ]);
+    const provider = makeProvider(indexer);
+    const children = await provider.getChildren(undefined);
+    expect(children).toHaveLength(2);
+    const labels = children.map((c) => c.treeItem.label);
+    expect(labels).toContain("src");
+    expect(labels).toContain("test");
   });
 
   it("catches getAllFiles error, logs it, and returns [] (FR-009)", async () => {
@@ -148,6 +167,46 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     const provider = makeProvider();
     provider.refresh();
     expect(fireTreeData).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US1: Dir node children (files)
+// ---------------------------------------------------------------------------
+
+describe("SymbolsTreeProvider — dir children", () => {
+  it("returns pre-built children for a dir node", async () => {
+    const fileNode = new TreeFileNode({
+      id: "f1",
+      relativePath: "src/greet.ts",
+      language: "typescript",
+    });
+    const dirNode = new TreeDirNode("src", [fileNode]);
+    const provider = makeProvider();
+    const children = await provider.getChildren(dirNode);
+    expect(children).toHaveLength(1);
+    expect(children[0]).toBeInstanceOf(TreeFileNode);
+  });
+
+  it("nests directories recursively", async () => {
+    const indexer = makeIndexer();
+    indexer.getAllFiles.mockResolvedValue([
+      { id: "f1", relativePath: "src/parser/greet.ts", language: "typescript" },
+    ]);
+    const provider = makeProvider(indexer);
+    const root = await provider.getChildren(undefined);
+    // src/ dir
+    expect(root).toHaveLength(1);
+    expect(root[0]).toBeInstanceOf(TreeDirNode);
+    expect(root[0]?.treeItem.label).toBe("src");
+    // src/parser/ sub-dir
+    const srcChildren = await provider.getChildren(root[0]);
+    expect(srcChildren[0]).toBeInstanceOf(TreeDirNode);
+    expect(srcChildren[0]?.treeItem.label).toBe("parser");
+    // src/parser/greet.ts file
+    const parserChildren = await provider.getChildren(srcChildren[0]);
+    expect(parserChildren[0]).toBeInstanceOf(TreeFileNode);
+    expect(parserChildren[0]?.treeItem.label).toBe("greet.ts");
   });
 });
 

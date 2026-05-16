@@ -26,6 +26,21 @@ function kindCodicon(kind: SymbolKind): string {
 // Tree nodes
 // ---------------------------------------------------------------------------
 
+export class TreeDirNode {
+  readonly kind = "dir" as const;
+  readonly treeItem: vscode.TreeItem;
+
+  constructor(
+    readonly dirName: string,
+    readonly children: TreeNode[],
+  ) {
+    const item = new vscode.TreeItem(dirName, vscode.TreeItemCollapsibleState.Expanded);
+    item.iconPath = new vscode.ThemeIcon("folder");
+    item.contextValue = "dextreeDir";
+    this.treeItem = item;
+  }
+}
+
 export class TreeFileNode {
   readonly kind = "file" as const;
   readonly treeItem: vscode.TreeItem;
@@ -66,7 +81,46 @@ export class TreeSymbolNode {
   }
 }
 
-export type TreeNode = TreeFileNode | TreeSymbolNode;
+export type TreeNode = TreeDirNode | TreeFileNode | TreeSymbolNode;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Recursively groups files into a directory tree.
+ * Each path segment becomes a TreeDirNode; leaf files become TreeFileNodes.
+ */
+function buildDirTree(files: StoredFile[], prefix: string): TreeNode[] {
+  const dirMap = new Map<string, StoredFile[]>();
+  const rootFiles: StoredFile[] = [];
+
+  for (const file of files) {
+    const relative = prefix ? file.relativePath.slice(prefix.length + 1) : file.relativePath;
+    const slashIdx = relative.indexOf("/");
+    if (slashIdx === -1) {
+      rootFiles.push(file);
+    } else {
+      const segment = relative.slice(0, slashIdx);
+      const existing = dirMap.get(segment);
+      if (existing !== undefined) {
+        existing.push(file);
+      } else {
+        dirMap.set(segment, [file]);
+      }
+    }
+  }
+
+  const nodes: TreeNode[] = [];
+  for (const [segment, segFiles] of dirMap) {
+    const childPrefix = prefix ? `${prefix}/${segment}` : segment;
+    nodes.push(new TreeDirNode(segment, buildDirTree(segFiles, childPrefix)));
+  }
+  for (const file of rootFiles) {
+    nodes.push(new TreeFileNode(file));
+  }
+  return nodes;
+}
 
 // ---------------------------------------------------------------------------
 // TreeDataProvider
@@ -93,7 +147,7 @@ export class SymbolsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   async getChildren(element?: TreeNode): Promise<TreeNode[]> {
-    // Root call — return all indexed files
+    // Root call — return files grouped by top-level directory
     if (element === undefined) {
       const indexer = this.getIndexer();
       if (indexer === null) {
@@ -101,11 +155,16 @@ export class SymbolsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       }
       try {
         const files = await indexer.getAllFiles();
-        return files.map((file) => new TreeFileNode(file));
+        return buildDirTree(files, "");
       } catch (error) {
         this.logger.error("Failed to load indexed files", error);
         return [];
       }
+    }
+
+    // Dir node — return its pre-built children
+    if (element.kind === "dir") {
+      return element.children;
     }
 
     // File node — return its symbols

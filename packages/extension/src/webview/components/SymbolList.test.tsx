@@ -20,10 +20,14 @@ const mockFiles: FileWithSymbols[] = [
 ];
 
 describe("SymbolList", () => {
-  it("renders file relative paths", () => {
-    render(<SymbolList files={mockFiles} onNavigate={vi.fn()} />);
-    expect(screen.getByText("src/app.ts")).toBeTruthy();
-    expect(screen.getByText("src/util.ts")).toBeTruthy();
+  it("renders file and directory names in tree", () => {
+    const { container } = render(<SymbolList files={mockFiles} onNavigate={vi.fn()} />);
+    // Directory node shows segment name
+    expect(screen.getByText("src")).toBeTruthy();
+    // File nodes show filename only
+    const names = Array.from(container.querySelectorAll(".dxt-dir-name")).map((n) => n.textContent);
+    expect(names).toContain("app.ts");
+    expect(names).toContain("util.ts");
   });
 
   it("renders symbol names", () => {

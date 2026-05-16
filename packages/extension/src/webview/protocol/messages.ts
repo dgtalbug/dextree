@@ -63,8 +63,16 @@ export interface NavigateMessage {
   line: number;
 }
 
+/**
+ * Sent by the webview once the React app has mounted and its message listener
+ * is registered. The extension host re-pushes any cached symbols on receipt.
+ */
+export interface ReadyMessage {
+  type: "ready";
+}
+
 /** Union of all messages the webview can send to the extension host. */
-export type WebviewToHostMessage = NavigateMessage;
+export type WebviewToHostMessage = NavigateMessage | ReadyMessage;
 
 // ---------------------------------------------------------------------------
 // Type guard helpers

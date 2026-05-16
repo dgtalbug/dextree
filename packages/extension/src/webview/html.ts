@@ -89,16 +89,33 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       font-size: 32px;
     }
 
-    .dxt-file-list {
+    .dxt-tree {
       width: 100%;
     }
 
-    .dxt-file-label {
-      display: block;
-      font-size: 0.85em;
-      opacity: 0.6;
-      padding: 6px 0 2px;
+    .dxt-tree-children {
+      padding-left: 16px;
+    }
+
+    .dxt-dir-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: 100%;
+      padding: 3px 4px;
+      border-radius: 3px;
+      font-size: 0.9em;
       font-weight: 600;
+    }
+
+    .dxt-dir-btn:hover,
+    .dxt-dir-btn:focus-visible {
+      background-color: var(--vscode-list-hoverBackground);
+      outline: 1px solid var(--vscode-focusBorder);
+    }
+
+    .dxt-dir-name {
+      opacity: 0.75;
     }
 
     .dxt-symbol-btn {

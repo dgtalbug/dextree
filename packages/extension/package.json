@@ -63,7 +63,7 @@
     "build:webview": "vite build",
     "package": "vsce package --no-dependencies --allow-missing-repository",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
-    "test": "vitest run --root ../.. --config vitest.config.ts --project extension",
+    "test": "vitest run --root ../.. --config vitest.config.ts --project extension --project webview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json"
   },
   "activationEvents": [

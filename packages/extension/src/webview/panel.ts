@@ -5,6 +5,8 @@ import { validateNavigateMessage } from "./validate.js";
 
 // Module-level singleton — exactly one panel per extension session.
 let currentPanel: vscode.WebviewPanel | undefined;
+// Last symbols pushed — re-sent when webview posts 'ready' (handles race condition).
+let cachedFiles: FileWithSymbols[] | undefined;
 
 /**
  * Manages the Dextree Graph View webview panel (FR-001 through FR-013).
@@ -39,6 +41,17 @@ export const WebviewPanelManager = {
     // Navigation messages from the webview (FR-007, FR-013)
     currentPanel.webview.onDidReceiveMessage(
       (msg: unknown) => {
+        // Webview signals it's ready — re-push cached symbols to avoid race condition
+        if (
+          typeof msg === "object" &&
+          msg !== null &&
+          (msg as Record<string, unknown>)["type"] === "ready"
+        ) {
+          if (cachedFiles !== undefined) {
+            void currentPanel?.webview.postMessage({ type: "symbols", files: cachedFiles });
+          }
+          return;
+        }
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const validated = validateNavigateMessage(msg, workspaceRoot);
         if (validated === null) {
@@ -55,6 +68,7 @@ export const WebviewPanelManager = {
     currentPanel.onDidDispose(
       () => {
         currentPanel = undefined;
+        cachedFiles = undefined;
       },
       undefined,
       context.subscriptions,
@@ -68,6 +82,7 @@ export const WebviewPanelManager = {
    * No-op if no panel is currently open.
    */
   pushSymbols(files: FileWithSymbols[]): void {
+    cachedFiles = files;
     if (currentPanel === undefined) return;
     void currentPanel.webview.postMessage({ type: "symbols", files });
   },
