@@ -103,7 +103,7 @@ For the incremental slice order and the spec-to-code workflow, see [ROADMAP.md](
 ### Prerequisites
 
 - Node.js >= 22.0.0
-- pnpm 11.3.0
+- pnpm 11.1.2
 - VS Code >= 1.85
 
 ### Setup

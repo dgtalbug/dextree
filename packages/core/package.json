@@ -1,0 +1,56 @@
+{
+  "name": "@dextree/core",
+  "description": "Shared parser, storage, and query engine for Dextree.",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "author": {
+    "name": "DgtalBug",
+    "url": "https://github.com/dgtalbug"
+  },
+  "homepage": "https://github.com/dgtalbug/dextree#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dgtalbug/dextree.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/dgtalbug/dextree/issues"
+  },
+  "keywords": [
+    "dextree",
+    "code-intelligence",
+    "vscode",
+    "graph",
+    "ast",
+    "tree-sitter",
+    "duckdb"
+  ],
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.1.2"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "vitest run --config ../../vitest.workspace.ts --project core",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "^1.5.2-r.1",
+    "tree-sitter-typescript": "^0.23.2",
+    "uuid": "^14.0.0",
+    "web-tree-sitter": "^0.26.8"
+  }
+}

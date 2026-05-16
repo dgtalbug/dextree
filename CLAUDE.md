@@ -51,6 +51,7 @@ packages/              ← ALL CODE lives here
 ```
 
 **Read order for any task:**
+
 1. `.dextree/rules.md` — what's binding
 2. `.dextree/design.md` — what we're building
 3. `.dextree/memory/decisions.md` — why key decisions were made
@@ -61,11 +62,13 @@ packages/              ← ALL CODE lives here
 ## Your lane (Claude)
 
 **You own:**
+
 - `packages/*/src/` — implementation code
 - `packages/*/test/` — tests
 - Inline JSDoc comments
 
 **You do NOT touch (Copilot's lane):**
+
 - `README.md`
 - `CHANGELOG.md`
 - `packages/*/README.md`
@@ -74,15 +77,17 @@ packages/              ← ALL CODE lives here
 - Anything in `.dextree/alfred/` unless the spec explicitly says to add a prompt
 
 **You do NOT touch (SpecKit's lane):**
+
 - `.specify/` — entirely SpecKit-managed
 - `.github/prompts/` — SpecKit-managed
 - Existing entries in `.github/agents/` that belong to SpecKit
 
 **You do NOT modify architectural documents without a spec:**
+
 - `.dextree/design.md`
 - `.dextree/rules.md`
 - `.dextree/memory/decisions.md`
-If you think a document needs updating, flag it in the PR description.
+  If you think a document needs updating, flag it in the PR description.
 
 ---
 
@@ -90,7 +95,7 @@ If you think a document needs updating, flag it in the PR description.
 
 - **Language:** TypeScript. Strict mode. No `any` without a justifying comment.
 - **Runtime:** Node ≥ 22.0.0
-- **Package manager:** pnpm 11.3.0 exact. Never npm, yarn, or bun.
+- **Package manager:** pnpm 11.1.2 exact. Never npm, yarn, or bun.
 - **Monorepo:** pnpm workspaces + turborepo. Internal refs use `workspace:*`.
 - **Build:** esbuild (extension host), Vite (webview + web), tsup (core/alfred/mcp/cli)
 - **Tests:** vitest. Co-locate with code. Coverage ≥ 70% on touched files.
@@ -104,18 +109,18 @@ If you think a document needs updating, flag it in the PR description.
 
 ## Approved libraries (binding — see `.dextree/rules.md` for full list)
 
-| Concern | Approved | Banned |
-|---|---|---|
-| UI framework | React | Vue, Svelte, Solid, Preact |
-| Graph (main view) | Sigma.js + graphology | D3 (direct), cytoscape, vis-network |
-| Graph (focused/blast radius) | `@xyflow/react` v12+ | `reactflow` (legacy), `vue-flow` |
-| Animation | framer-motion | react-spring, gsap, animejs |
-| State management | zustand | redux, mobx, jotai, recoil |
-| Template engine | handlebars | mustache, nunjucks, ejs, pug |
-| Test runner | vitest | jest, mocha, ava |
-| PDF | pdf-lib | puppeteer, playwright, jspdf |
-| LLM clients | @anthropic-ai/sdk, openai, fetch (Ollama) | langchain, @vercel/ai, @ai-sdk/* |
-| Utilities | native ES2022+ | lodash, underscore, ramda |
+| Concern                      | Approved                                  | Banned                              |
+| ---------------------------- | ----------------------------------------- | ----------------------------------- |
+| UI framework                 | React                                     | Vue, Svelte, Solid, Preact          |
+| Graph (main view)            | Sigma.js + graphology                     | D3 (direct), cytoscape, vis-network |
+| Graph (focused/blast radius) | `@xyflow/react` v12+                      | `reactflow` (legacy), `vue-flow`    |
+| Animation                    | framer-motion                             | react-spring, gsap, animejs         |
+| State management             | zustand                                   | redux, mobx, jotai, recoil          |
+| Template engine              | handlebars                                | mustache, nunjucks, ejs, pug        |
+| Test runner                  | vitest                                    | jest, mocha, ava                    |
+| PDF                          | pdf-lib                                   | puppeteer, playwright, jspdf        |
+| LLM clients                  | @anthropic-ai/sdk, openai, fetch (Ollama) | langchain, @vercel/ai, @ai-sdk/\*   |
+| Utilities                    | native ES2022+                            | lodash, underscore, ramda           |
 
 ---
 

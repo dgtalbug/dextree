@@ -23,7 +23,7 @@ You own:
 - User-facing docs: `README.md`, `CHANGELOG.md`, `packages/*/README.md`
 - Release notes and other user-facing release communication
 - Extension marketplace metadata in `packages/extension/package.json`
-	(`displayName`, `description`, `keywords`, `categories`)
+  (`displayName`, `description`, `keywords`, `categories`)
 - `.github/copilot-instructions.md`
 
 You do NOT own:
@@ -44,14 +44,14 @@ instead of editing implementation files.
 
 - Dextree is VS Code first. The product thesis is "index once, render everywhere."
 - The graph must be useful from fast pass 1 structural indexing before lazy pass 2
-	semantic enrichment completes.
+  semantic enrichment completes.
 - Shared graph, storage, and quality logic live in `packages/core`.
 - `packages/core/src/quality/` is a subdirectory, not a top-level package.
-- Toolchain baseline: TypeScript strict mode, Node >= 22.0.0, pnpm 11.3.0 exact,
-	pnpm workspaces, turborepo.
+- Toolchain baseline: TypeScript strict mode, Node >= 22.0.0, pnpm 11.1.2 exact,
+  pnpm workspaces, turborepo.
 - Approved stack includes React, Sigma.js + graphology, `@xyflow/react`,
-	framer-motion, zustand, CSS Modules, VS Code CSS variables, Codicons,
-	Handlebars, Vitest, pdf-lib, and approved Anthropic/OpenAI/fetch clients.
+  framer-motion, zustand, CSS Modules, VS Code CSS variables, Codicons,
+  Handlebars, Vitest, pdf-lib, and approved Anthropic/OpenAI/fetch clients.
 - Alfred is opt-in, BYOK, SecretStorage-backed, and local-first by default.
 
 ## Review checklist
@@ -62,18 +62,18 @@ Use this when reviewing Claude's PRs.
 
 - Confirm the change matches the relevant spec and does not add unrelated scope.
 - Check that the implementation preserves the shared graph contract instead of
-	creating a surface-specific silo.
+  creating a surface-specific silo.
 - Check that pass 1 usefulness is preserved when pass 2 enrichment is absent,
-	partial, or delayed.
+  partial, or delayed.
 - Check edge cases, failure paths, and degradation behavior for missing VS Code
-	data sources such as LSP, diagnostics, git, or tests.
+  data sources such as LSP, diagnostics, git, or tests.
 
 ### Architecture and package boundaries
 
 - Confirm touched code stays within the owning package boundary.
 - Flag any attempt to move quality logic out of `packages/core/src/quality/`.
 - Flag new top-level packages or storage abstractions that conflict with the
-	locked DuckDB + DuckPGQ + `vss` + `fts` design.
+  locked DuckDB + DuckPGQ + `vss` + `fts` design.
 - Flag stack drift from the approved libraries in `.dextree/rules.md`.
 
 ### Quality and safety
@@ -81,11 +81,11 @@ Use this when reviewing Claude's PRs.
 - Expect zero lint warnings and passing typecheck and tests.
 - Expect at least 70% coverage on touched files.
 - Flag `any`, `@ts-ignore`, floating promises, silent failures, or unhandled
-	async errors unless clearly justified.
+  async errors unless clearly justified.
 - Flag hardcoded colors in webviews, use of non-Codicon icon libraries in the
-	extension UI, `localStorage` in webviews, or native deps introduced into core.
+  extension UI, `localStorage` in webviews, or native deps introduced into core.
 - Flag privacy regressions, especially Alfred flows that bypass opt-in, BYOK, or
-	SecretStorage expectations.
+  SecretStorage expectations.
 
 ## Documentation duties
 
@@ -95,7 +95,7 @@ When a change is user-facing, update docs in your lane only.
 
 - Keep the first section clear about what Dextree is and why it is different.
 - Update features, commands, configuration, prerequisites, or project structure
-	when they change.
+  when they change.
 - Keep development guidance aligned with the actual repo baseline.
 
 ### `CHANGELOG.md`
@@ -125,6 +125,23 @@ Tone should be direct, specific, and free of marketing fluff.
 
 - Prefer review comments over implementation edits.
 - If a change would require touching `.dextree/`, `.specify/`, or implementation
-	code, stop and hand it back to the owning lane.
+  code, stop and hand it back to the owning lane.
 - If repo docs and implementation disagree, flag the conflict explicitly and cite
-	the source-of-truth order above.
+  the source-of-truth order above.
+
+<!-- SPECKIT START -->
+
+## Active implementation plan
+
+**Branch**: `001-first- S1 Hello Symbolspec`
+
+- Spec: [`specs/001-hello-symbol/spec.md`](../specs/001-hello-symbol/spec.md)
+- Plan: [`specs/001-hello-symbol/plan.md`](../specs/001-hello-symbol/plan.md)
+- Research: [`specs/001-hello-symbol/research.md`](../specs/001-hello-symbol/research.md)
+- Data model: [`specs/001-hello-symbol/data-model.md`](../specs/001-hello-symbol/data-model.md)
+- Contracts: [`specs/001-hello-symbol/contracts/core-api.ts`](../specs/001-hello-symbol/contracts/core-api.ts)
+- Quickstart: [`specs/001-hello-symbol/quickstart.md`](../specs/001-hello-symbol/quickstart.md)
+
+Review focus for this slice: `packages/core` (new) and `packages/extension` (new activation + command).
+
+<!-- SPECKIT END -->

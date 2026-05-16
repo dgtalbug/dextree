@@ -1,4 +1,5 @@
-# Meta data
+# Local editor metadata
+# User Meta data
 .DS_Store
 .idea
 .claude
@@ -9,3 +10,16 @@
 .vscode
 specs/
 .github/copilot-instructions.md
+
+# Additional local artifacts
+Thumbs.db
+*.tmp
+*.swp
+
+# Node / TypeScript build artifacts
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env*

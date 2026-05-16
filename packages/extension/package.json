@@ -1,0 +1,55 @@
+{
+  "name": "dextree",
+  "displayName": "Dextree",
+  "description": "Index one file into the shared Dextree semantic graph.",
+  "publisher": "dgtalbug",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": false,
+  "main": "./dist/extension.js",
+  "preview": true,
+  "author": {
+    "name": "DgtalBug",
+    "url": "https://github.com/dgtalbug"
+  },
+  "homepage": "https://github.com/dgtalbug/dextree#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dgtalbug/dextree.git",
+    "directory": "packages/extension"
+  },
+  "bugs": {
+    "url": "https://github.com/dgtalbug/dextree/issues"
+  },
+  "keywords": [
+    "dextree",
+    "code-intelligence",
+    "vscode",
+    "vscode-extension",
+    "code-graph",
+    "graph-visualization"
+  ],
+  "categories": [
+    "Programming Languages",
+    "Visualization",
+    "Other"
+  ],
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.1.2",
+    "vscode": "^1.85.0"
+  },
+  "dependencies": {
+    "@dextree/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "vitest run --config ../../vitest.workspace.ts --project extension",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "activationEvents": [],
+  "contributes": {
+    "commands": []
+  }
+}
