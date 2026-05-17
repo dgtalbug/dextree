@@ -21,8 +21,8 @@ jobs:
           args: >-
             --no-progress
             --max-concurrency 4
-            --exclude-mail
             --exclude 'https?://localhost'
             --exclude 'file://'
+            --exclude 'mailto:'
             './**/*.md'
           fail: true
