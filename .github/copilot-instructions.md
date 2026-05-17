@@ -138,7 +138,7 @@ replace them with generic prose.
 
 ### Section-by-section guidance
 
-- **Summary** — 1–3 sentences. State *what* changed and *why now*. Derive from
+- **Summary** — 1–3 sentences. State _what_ changed and _why now_. Derive from
   the commit subjects and the file diff. Avoid restating the diff verbatim.
 - **Linked spec / issue** — Look for `specs/NNN-<short>/` directories touched
   by the PR and link `specs/NNN-<short>/spec.md`. If the branch name matches
@@ -170,8 +170,8 @@ replace them with generic prose.
   - No `localStorage.` calls in `packages/extension/src/webview/`
   - All `uses:` lines in new/modified workflow YAML reference a full 40-char
     commit SHA (not a `@v<n>` tag)
-  Leave unticked anything that requires runtime verification (`pnpm test`,
-  `pnpm build`, `pnpm package`).
+    Leave unticked anything that requires runtime verification (`pnpm test`,
+    `pnpm build`, `pnpm package`).
 - **Notes for reviewers** — Surface anything reviewer-relevant that the diff
   alone does not make obvious:
   - Net diff over ~400 LOC → explain why the PR cannot be split
@@ -198,15 +198,15 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `003-hello-webview`
+**Branch**: `007-persistent-workspace-cache`
 
-- Spec: [`specs/003-hello-webview/spec.md`](../specs/003-hello-webview/spec.md)
-- Plan: [`specs/003-hello-webview/plan.md`](../specs/003-hello-webview/plan.md)
-- Research: [`specs/003-hello-webview/research.md`](../specs/003-hello-webview/research.md)
-- Data model: [`specs/003-hello-webview/data-model.md`](../specs/003-hello-webview/data-model.md)
-- Contracts: [`specs/003-hello-webview/contracts/webview-protocol.ts`](../specs/003-hello-webview/contracts/webview-protocol.ts)
-- Quickstart: [`specs/003-hello-webview/quickstart.md`](../specs/003-hello-webview/quickstart.md)
+- Spec: [`specs/007-persistent-workspace-cache/spec.md`](../specs/007-persistent-workspace-cache/spec.md)
+- Plan: [`specs/007-persistent-workspace-cache/plan.md`](../specs/007-persistent-workspace-cache/plan.md)
+- Research: [`specs/007-persistent-workspace-cache/research.md`](../specs/007-persistent-workspace-cache/research.md)
+- Data model: [`specs/007-persistent-workspace-cache/data-model.md`](../specs/007-persistent-workspace-cache/data-model.md)
+- Contracts: [`specs/007-persistent-workspace-cache/contracts/cache-metadata.ts`](../specs/007-persistent-workspace-cache/contracts/cache-metadata.ts)
+- Quickstart: [`specs/007-persistent-workspace-cache/quickstart.md`](../specs/007-persistent-workspace-cache/quickstart.md)
 
-Review focus for this slice: `packages/extension` — new `src/webview/` subtree, Vite build, typed message protocol, `dextree.openGraphView` command.
+Review focus for this slice: `packages/core` + `packages/extension` — persisted DuckDB cache identity, startup validation, and safe reopen behavior for the tree and graph surfaces.
 
 <!-- SPECKIT END -->
