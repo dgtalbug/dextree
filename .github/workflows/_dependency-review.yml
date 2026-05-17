@@ -1,14 +1,14 @@
 name: dependency-review
 
 on:
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-  review:
+  dependency-review:
     name: dependency-review
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -24,7 +24,4 @@ jobs:
         with:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
-          # Reject GPL-family licenses for the extension bundle. The repo
-          # itself is MIT and we cannot ship GPL transitive deps in the
-          # marketplace `.vsix` without a license review.
           deny-licenses: AGPL-1.0-or-later, AGPL-3.0-or-later, GPL-2.0-or-later, GPL-3.0-or-later
