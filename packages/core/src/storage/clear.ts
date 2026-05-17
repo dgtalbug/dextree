@@ -103,22 +103,10 @@ export async function clearWorkspace(
     const symbolIdSubquery = `(SELECT s.id FROM symbol s INNER JOIN file f ON f.id = s.file_id
                                WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix)`;
 
-    await connection.run(
-      `DELETE FROM edge WHERE source_id IN ${fileIdSubquery}`,
-      params,
-    );
-    await connection.run(
-      `DELETE FROM edge WHERE target_id IN ${fileIdSubquery}`,
-      params,
-    );
-    await connection.run(
-      `DELETE FROM edge WHERE source_id IN ${symbolIdSubquery}`,
-      params,
-    );
-    await connection.run(
-      `DELETE FROM edge WHERE target_id IN ${symbolIdSubquery}`,
-      params,
-    );
+    await connection.run(`DELETE FROM edge WHERE source_id IN ${fileIdSubquery}`, params);
+    await connection.run(`DELETE FROM edge WHERE target_id IN ${fileIdSubquery}`, params);
+    await connection.run(`DELETE FROM edge WHERE source_id IN ${symbolIdSubquery}`, params);
+    await connection.run(`DELETE FROM edge WHERE target_id IN ${symbolIdSubquery}`, params);
 
     await connection.run(`DELETE FROM call_site WHERE file_id IN ${fileIdSubquery}`, params);
     await connection.run(`DELETE FROM import_ref WHERE file_id IN ${fileIdSubquery}`, params);
