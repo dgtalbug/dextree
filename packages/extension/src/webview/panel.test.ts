@@ -10,16 +10,18 @@ const mockOnDidDispose = vi.fn();
 let disposePanel = vi.fn();
 let triggerReadyOnHtmlAssignment = false;
 let currentMessageHandler: ((message: unknown) => void) | undefined;
+type MockWebview = {
+  html: string;
+  cspSource: string;
+  asWebviewUri: (uri: { fsPath: string }) => { toString: () => string };
+  onDidReceiveMessage: typeof mockOnDidReceiveMessage;
+  postMessage: typeof mockPostMessage;
+};
+
 let lastPanel:
   | {
       iconPath?: { fsPath: string };
-      webview: {
-        html: string;
-        cspSource: string;
-        asWebviewUri: (uri: { fsPath: string }) => { toString: () => string };
-        onDidReceiveMessage: typeof mockOnDidReceiveMessage;
-        postMessage: typeof mockPostMessage;
-      };
+      webview: MockWebview;
       onDidDispose: typeof mockOnDidDispose;
       reveal: ReturnType<typeof vi.fn>;
       dispose: ReturnType<typeof vi.fn>;
@@ -28,7 +30,8 @@ let lastPanel:
 
 const createWebviewPanel = vi.fn(() => {
   let html = "";
-  const webview = {
+  const webview: MockWebview = {
+    html,
     cspSource: "https://mock-csp-source.com",
     asWebviewUri: (uri: { fsPath: string }) => ({ toString: () => `webview:///${uri.fsPath}` }),
     onDidReceiveMessage: mockOnDidReceiveMessage,
