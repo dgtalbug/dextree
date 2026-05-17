@@ -43,6 +43,6 @@ jobs:
         if: ${{ env.ANTHROPIC_API_KEY != '' }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        uses: anthropics/claude-code-action@99ca333651aa9a8becc279065fad21c4ef1c4494 # v1
+        uses: anthropics/claude-code-action@51ea8ea73a139f2a74ff649e3092c25a904aed7e # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
