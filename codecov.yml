@@ -1,0 +1,50 @@
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...90"
+  status:
+    project:
+      default:
+        target: 70%
+        threshold: 1%
+        informational: false
+    patch:
+      default:
+        target: 70%
+        threshold: 1%
+        informational: false
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: true
+  require_base: false
+  require_head: true
+
+ignore:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/dist/**"
+  - "**/coverage/**"
+  - "**/node_modules/**"
+  - ".github/**"
+  - ".dextree/**"
+  - ".specify/**"
+  - "specs/**"
+  - "**/*.config.ts"
+  - "**/*.config.js"
+  - "**/*.config.mjs"
+  - "**/esbuild.mjs"
+  - "**/tsup.config.ts"
+
+flags:
+  unittests:
+    paths:
+      - packages/core/src
+      - packages/extension/src
+    carryforward: false

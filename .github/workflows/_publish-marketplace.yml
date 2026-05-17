@@ -40,6 +40,8 @@ jobs:
             echo "::error::VSCE_PAT secret is empty. Configure it in repo secrets before publishing."
             exit 1
           fi
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Setup workspace
         uses: ./.github/actions/setup
       - name: Download .vsix artifact

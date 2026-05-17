@@ -1,26 +1,15 @@
 name: Setup Dextree workspace
-description: Checkout, install pnpm 11.1.2, set up Node 22, and install dependencies (frozen lockfile).
+description: Install pnpm 11.1.2, set up Node 22, and install dependencies (frozen lockfile). Caller must run actions/checkout first.
 
 inputs:
   node-version:
     description: Node version to install.
     required: false
     default: "22"
-  fetch-depth:
-    description: Git fetch depth for the checkout step.
-    required: false
-    default: "1"
 
 runs:
   using: composite
   steps:
-    # NOTE: Pin to full SHA before merging. Use:
-    #   gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq .object.sha
-    - name: Checkout repository
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      with:
-        fetch-depth: ${{ inputs.fetch-depth }}
-
     - name: Install pnpm
       uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       with:
