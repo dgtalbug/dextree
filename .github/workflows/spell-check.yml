@@ -1,14 +1,17 @@
-name: spell-check
+name: Spell check
 
 on:
-  workflow_call:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - .typos.toml
 
 permissions:
   contents: read
 
 jobs:
-  spell-check:
-    name: spell-check
+  typos:
+    name: typos
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
