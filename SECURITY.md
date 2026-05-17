@@ -5,9 +5,9 @@
 Dextree is in active pre-1.0 development. Only the latest published release
 receives security fixes.
 
-| Version  | Supported          |
-| -------- | ------------------ |
-| 0.x      | :white_check_mark: |
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.x     | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
