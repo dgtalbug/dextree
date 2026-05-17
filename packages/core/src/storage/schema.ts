@@ -9,6 +9,7 @@ export const REQUIRED_TABLES = [
   "call_site",
   "import_ref",
   "diagnostic",
+  "workspace_cache",
 ] as const;
 
 export const SCHEMA_STATEMENTS = [
@@ -120,6 +121,22 @@ export const SCHEMA_STATEMENTS = [
         end_col UINTEGER
       ),
       metadata JSON DEFAULT '{}'
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS workspace_cache (
+      id UINTEGER PRIMARY KEY,
+      cache_key VARCHAR NOT NULL,
+      workspace_root VARCHAR NOT NULL,
+      repo_root VARCHAR,
+      repo_remote VARCHAR,
+      schema_version UINTEGER NOT NULL,
+      last_successful_index_at TIMESTAMPTZ,
+      indexed_file_count UINTEGER NOT NULL DEFAULT 0,
+      graph_node_count UINTEGER NOT NULL DEFAULT 0,
+      graph_edge_count UINTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CHECK (id = 1)
     )
   `,
   "CREATE INDEX IF NOT EXISTS idx_file_path ON file(path)",

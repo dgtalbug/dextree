@@ -19,6 +19,7 @@ const createWebviewPanel = vi.fn(() => ({
 
 const registerCommand = vi.fn((_cmd, handler) => ({ dispose: vi.fn(), handler }));
 const showErrorMessage = vi.fn();
+const resolveCacheIdentity = vi.fn();
 
 vi.mock("vscode", () => ({
   window: {
@@ -60,6 +61,10 @@ vi.mock("vscode", () => ({
   },
 }));
 
+vi.mock("../cache/resolveCacheIdentity.js", () => ({
+  resolveCacheIdentity,
+}));
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -70,6 +75,13 @@ describe("registerOpenGraphViewCommand", () => {
     registerCommand.mockClear();
     createWebviewPanel.mockClear();
     showErrorMessage.mockClear();
+    resolveCacheIdentity.mockReset();
+    resolveCacheIdentity.mockResolvedValue({
+      cacheKey: "/workspace",
+      workspaceRoot: "/workspace",
+      repoRoot: null,
+      repoRemote: null,
+    });
   });
 
   it("registers the dextree.openGraphView command", async () => {
@@ -101,6 +113,22 @@ describe("registerOpenGraphViewCommand", () => {
       extensionUri: { fsPath: "/extension" },
     };
     const getIndexer = vi.fn().mockResolvedValue({
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "ready",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: {
+          schemaVersion: 1,
+          lastSuccessfulIndexAt: new Date().toISOString(),
+          indexedFileCount: 1,
+          graphNodeCount: 0,
+          graphEdgeCount: 0,
+        },
+      }),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({
         nodes: [],
         edges: [],
@@ -128,5 +156,82 @@ describe("registerOpenGraphViewCommand", () => {
     await registeredHandler?.();
 
     expect(showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("DB unavailable"));
+  });
+
+  it("loads the graph only when the workspace cache validates as ready", async () => {
+    const getWorkspaceSubgraph = vi.fn().mockResolvedValue({
+      nodes: [],
+      edges: [],
+    });
+
+    const getIndexer = vi.fn().mockResolvedValue({
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "ready",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: {
+          schemaVersion: 1,
+          lastSuccessfulIndexAt: new Date().toISOString(),
+          indexedFileCount: 1,
+          graphNodeCount: 0,
+          graphEdgeCount: 0,
+        },
+      }),
+      getWorkspaceSubgraph,
+    });
+
+    const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
+    registerOpenGraphViewCommand(
+      {
+        subscriptions: [],
+        extensionUri: { fsPath: "/extension" },
+      } as never,
+      getIndexer as never,
+    );
+
+    const registeredHandler = registerCommand.mock.calls[0]?.[1];
+    await registeredHandler?.();
+
+    expect(resolveCacheIdentity).toHaveBeenCalledWith({ workspaceRoot: "/workspace" });
+    expect(getWorkspaceSubgraph).toHaveBeenCalledWith("/workspace");
+  });
+
+  it("keeps the graph in fallback state when the workspace cache is missing", async () => {
+    const getWorkspaceSubgraph = vi.fn().mockResolvedValue({
+      nodes: [],
+      edges: [],
+    });
+
+    const getIndexer = vi.fn().mockResolvedValue({
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "missing",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: null,
+      }),
+      getWorkspaceSubgraph,
+    });
+
+    const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
+    registerOpenGraphViewCommand(
+      {
+        subscriptions: [],
+        extensionUri: { fsPath: "/extension" },
+      } as never,
+      getIndexer as never,
+    );
+
+    const registeredHandler = registerCommand.mock.calls[0]?.[1];
+    await registeredHandler?.();
+
+    expect(getWorkspaceSubgraph).not.toHaveBeenCalled();
   });
 });

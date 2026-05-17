@@ -68,6 +68,9 @@ importers:
       '@duckdb/node-api':
         specifier: ^1.5.2-r.1
         version: 1.5.2-r.1
+      ignore:
+        specifier: ^7.0.5
+        version: 7.0.5
       tree-sitter-typescript:
         specifier: ^0.23.2
         version: 0.23.2

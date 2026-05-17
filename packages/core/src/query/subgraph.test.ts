@@ -66,7 +66,7 @@ describe("getWorkspaceSubgraph", () => {
           {
             id: "file-alpha",
             type: "file",
-            label: "/workspace/src/alpha.ts",
+            label: "alpha.ts",
             filePath: "/workspace/src/alpha.ts",
             startLine: 1,
           },
@@ -80,7 +80,7 @@ describe("getWorkspaceSubgraph", () => {
           {
             id: "file-beta",
             type: "file",
-            label: "/workspace/src/beta.ts",
+            label: "beta.ts",
             filePath: "/workspace/src/beta.ts",
             startLine: 1,
           },

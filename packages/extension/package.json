@@ -101,6 +101,14 @@
         "command": "dextree.indexWorkspace",
         "title": "Dextree: Index Workspace",
         "icon": "$(sync)"
+      },
+      {
+        "command": "dextree.clearWorkspaceIndex",
+        "title": "Dextree: Clear Workspace Index"
+      },
+      {
+        "command": "dextree.clearAllIndex",
+        "title": "Dextree: Clear All Indexed Data"
       }
     ],
     "menus": {

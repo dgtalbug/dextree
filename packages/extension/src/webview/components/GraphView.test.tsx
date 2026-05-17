@@ -1,8 +1,20 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { forceAtlasAssign, mutationObservers, mockSigma, sigmaConstructor } = vi.hoisted(() => {
+const {
+  canvasGetContext,
+  forceAtlasAssign,
+  mutationObservers,
+  mockSigma,
+  resizeObservers,
+  sigmaConstructor,
+} = vi.hoisted(() => {
   const mutationObservers: Array<{ callback: (...args: unknown[]) => void }> = [];
+  const resizeObservers: Array<{
+    callback: (...args: unknown[]) => void;
+    observe: ReturnType<typeof vi.fn>;
+  }> = [];
+  const canvasGetContext = vi.fn();
 
   const mockSigma = {
     setSetting: vi.fn(),
@@ -15,9 +27,11 @@ const { forceAtlasAssign, mutationObservers, mockSigma, sigmaConstructor } = vi.
   const forceAtlasAssign = vi.fn();
 
   return {
+    canvasGetContext,
     forceAtlasAssign,
     mutationObservers,
     mockSigma,
+    resizeObservers,
     sigmaConstructor,
   };
 });
@@ -43,10 +57,27 @@ class MockMutationObserver {
 
 vi.stubGlobal("MutationObserver", MockMutationObserver);
 
+class MockResizeObserver {
+  observe = vi.fn();
+  disconnect = vi.fn();
+
+  constructor(public readonly callback: (...args: unknown[]) => void) {
+    resizeObservers.push({ callback, observe: this.observe });
+  }
+}
+
+vi.stubGlobal("ResizeObserver", MockResizeObserver);
+
+const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
 import { GraphView } from "./GraphView.js";
 
 afterEach(() => {
   cleanup();
+});
+
+afterAll(() => {
+  HTMLCanvasElement.prototype.getContext = originalGetContext;
 });
 
 const baseNodes = [
@@ -106,7 +137,22 @@ function themeFor(className: string): Record<string, string> {
 describe("GraphView", () => {
   beforeEach(() => {
     document.body.className = "vscode-dark";
+    canvasGetContext.mockReset();
+    canvasGetContext.mockImplementation((contextId: string) => {
+      if (contextId === "webgl2" || contextId === "webgl" || contextId === "experimental-webgl") {
+        return { getExtension: vi.fn() } as unknown as WebGLRenderingContext;
+      }
+
+      if (contextId === "2d") {
+        return {} as CanvasRenderingContext2D;
+      }
+
+      return null;
+    });
+    HTMLCanvasElement.prototype.getContext =
+      canvasGetContext as unknown as typeof HTMLCanvasElement.prototype.getContext;
     mutationObservers.length = 0;
+    resizeObservers.length = 0;
     sigmaConstructor.mockClear();
     forceAtlasAssign.mockClear();
     mockSigma.setSetting.mockClear();
@@ -127,6 +173,8 @@ describe("GraphView", () => {
     expect(screen.getByTestId("graph-view")).toBeTruthy();
     expect(sigmaConstructor).toHaveBeenCalledTimes(1);
     expect(forceAtlasAssign).toHaveBeenCalledTimes(1);
+    expect(sigmaConstructor.mock.calls[0]?.[2]).toMatchObject({ allowInvalidContainer: true });
+    expect(resizeObservers[0]?.observe).toHaveBeenCalled();
   });
 
   it("assigns distinct node size and color attributes for file and symbol nodes", () => {
@@ -211,7 +259,36 @@ describe("GraphView", () => {
     expect(screen.getByTestId("graph-view")).toBeTruthy();
   });
 
-  it("falls back to a simplified graph preview when Sigma fails to initialize", () => {
+  it("renders the SVG compatibility graph when WebGL is unavailable", () => {
+    canvasGetContext.mockImplementation((contextId: string) => {
+      if (contextId === "2d") {
+        return {} as CanvasRenderingContext2D;
+      }
+
+      return null;
+    });
+
+    const onNavigate = vi.fn();
+    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
+
+    expect(sigmaConstructor).not.toHaveBeenCalled();
+    expect(screen.getByTestId("graph-view-fallback")).toBeTruthy();
+    expect(screen.getByRole("img", { name: /symbol graph/i })).toBeTruthy();
+    const relations = screen.getByLabelText(/graph relations/i);
+    expect(relations).toBeTruthy();
+    expect(within(relations).getByText("DEFINES")).toBeTruthy();
+    expect(within(relations).getByText("IMPORTS")).toBeTruthy();
+    expect(within(relations).getByText("CALLS")).toBeTruthy();
+    expect(within(relations).getAllByText("app.ts").length).toBeGreaterThan(0);
+
+    const fallbackNode = screen.getByRole("button", { name: "greet" });
+    expect(fallbackNode.hasAttribute("style")).toBe(false);
+
+    fireEvent.click(fallbackNode);
+    expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 6);
+  });
+
+  it("renders the SVG compatibility graph when Sigma still fails to initialize", () => {
     sigmaConstructor.mockImplementationOnce(() => {
       throw new Error("webgl unavailable");
     });
@@ -220,9 +297,12 @@ describe("GraphView", () => {
     render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
 
     expect(screen.getByTestId("graph-view-fallback")).toBeTruthy();
-    expect(screen.getByText(/simplified graph preview/i)).toBeTruthy();
+    expect(screen.getByRole("img", { name: /symbol graph/i })).toBeTruthy();
 
-    screen.getByRole("button", { name: "greet" }).click();
+    const fallbackNode = screen.getByRole("button", { name: "greet" });
+    expect(fallbackNode.hasAttribute("style")).toBe(false);
+
+    fireEvent.click(fallbackNode);
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 6);
   });
 });

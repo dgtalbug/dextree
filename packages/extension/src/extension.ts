@@ -2,6 +2,11 @@ import { createIndexer, type Indexer } from "@dextree/core";
 import { join } from "node:path";
 import * as vscode from "vscode";
 
+import { resolveCacheIdentity } from "./cache/resolveCacheIdentity.js";
+import {
+  createClearAllIndexCommand,
+  createClearWorkspaceIndexCommand,
+} from "./commands/clearIndex.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import { createIndexWorkspaceCommand } from "./commands/indexWorkspace.js";
 import { registerOpenGraphViewCommand } from "./commands/openGraphView.js";
@@ -26,6 +31,8 @@ export async function activate(context: ActivationContext): Promise<void> {
   logger.debug("activated");
 
   let indexerPromise: Promise<Indexer> | null = null;
+  let workspaceCacheStatus: "missing" | "empty" | "ready" | "invalid" = "missing";
+  let hasShownUnreadableCacheWarning = false;
 
   const getIndexer = async (): Promise<Indexer> => {
     if (indexerPromise !== null) {
@@ -54,8 +61,44 @@ export async function activate(context: ActivationContext): Promise<void> {
     return indexerPromise;
   };
 
+  const refreshWorkspaceCacheStatus = async (): Promise<void> => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    if (workspaceRoot === undefined) {
+      workspaceCacheStatus = "missing";
+      return;
+    }
+
+    try {
+      const indexer = await getIndexer();
+      const identity = await resolveCacheIdentity({ workspaceRoot });
+      const validation = await indexer.validateWorkspaceCache(identity);
+      workspaceCacheStatus = validation.status;
+
+      if (validation.status === "invalid" && validation.reason === "unreadable") {
+        if (!hasShownUnreadableCacheWarning) {
+          hasShownUnreadableCacheWarning = true;
+          await vscode.window.showWarningMessage(
+            "Dextree: Persisted cache could not be read. Showing fallback state.",
+          );
+        }
+      } else {
+        hasShownUnreadableCacheWarning = false;
+      }
+    } catch {
+      workspaceCacheStatus = "invalid";
+    }
+  };
+
+  const canHydrateCache = (): boolean => workspaceCacheStatus === "ready";
+
   const pushCurrentGraph = async (): Promise<void> => {
     if (!WebviewPanelManager.isOpen()) {
+      return;
+    }
+
+    if (!canHydrateCache()) {
+      WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
       return;
     }
 
@@ -89,11 +132,15 @@ export async function activate(context: ActivationContext): Promise<void> {
     () => activeIndexer,
     logger,
     () => vscode.workspace.workspaceFolders?.[0]?.uri,
+    canHydrateCache,
   );
 
   const refreshViewsAfterIndex = (): void => {
-    symbolsProvider.refresh();
-    refreshGraphIfOpen();
+    void (async () => {
+      await refreshWorkspaceCacheStatus();
+      symbolsProvider.refresh();
+      refreshGraphIfOpen();
+    })();
   };
 
   context.subscriptions.push(
@@ -116,6 +163,22 @@ export async function activate(context: ActivationContext): Promise<void> {
         onIndexed: refreshViewsAfterIndex,
       }),
     ),
+    vscode.commands.registerCommand(
+      "dextree.clearWorkspaceIndex",
+      createClearWorkspaceIndexCommand({
+        logger,
+        getIndexer,
+        onCleared: refreshViewsAfterIndex,
+      }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.clearAllIndex",
+      createClearAllIndexCommand({
+        logger,
+        getIndexer,
+        onCleared: refreshViewsAfterIndex,
+      }),
+    ),
   );
 
   const treeView = vscode.window.createTreeView("dextree.symbolsView", {
@@ -123,6 +186,12 @@ export async function activate(context: ActivationContext): Promise<void> {
   });
 
   context.subscriptions.push(treeView);
+
+  void (async () => {
+    await refreshWorkspaceCacheStatus();
+    symbolsProvider.refresh();
+    refreshGraphIfOpen();
+  })();
 }
 
 export async function deactivate(): Promise<void> {

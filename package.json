@@ -33,6 +33,7 @@
   "scripts": {
     "build": "turbo run build",
     "check": "prettier --write . && eslint --fix \"packages/**/*.ts\" && prettier --check . && turbo run lint && turbo run test && turbo run typecheck",
+    "extension:reinstall": "node scripts/reinstall-extension.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",

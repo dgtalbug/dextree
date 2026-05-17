@@ -5,12 +5,25 @@ import { detectLanguage, extractPlainFile, extractTypeScriptFile } from "./parse
 import { getAllFilesQuery } from "./query/files.js";
 import { getWorkspaceSubgraph } from "./query/subgraph.js";
 import { getSymbolsForFile } from "./query/symbols.js";
+import { clearAll, clearWorkspace } from "./storage/clear.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
 import { replaceFileGraph } from "./storage/repository.js";
 import { initializeSchema } from "./storage/schema.js";
-import type { IndexResult, Indexer, StoredFile, StoredSymbol } from "./types.js";
+import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./storage/workspaceCache.js";
+import {
+  SCHEMA_VERSION,
+  type ClearAllSummary,
+  type ClearWorkspaceSummary,
+  type IndexResult,
+  type Indexer,
+  type StoredFile,
+  type StoredSymbol,
+  type WorkspaceCacheIdentity,
+} from "./types.js";
 
 export type {
+  ClearAllSummary,
+  ClearWorkspaceSummary,
   ExtractedFileRecord,
   ExtractedIndexData,
   FileRecord,
@@ -24,8 +37,16 @@ export type {
   StoredSymbol,
   SymbolKind,
   SymbolRange,
+  WorkspaceCacheIdentity,
+  WorkspaceCacheInvalidReason,
+  WorkspaceCacheLoadResult,
+  WorkspaceCacheMetadata,
+  WorkspaceCacheStatus,
+  WorkspaceCacheValidation,
   WorkspaceSubgraph,
 } from "./types.js";
+
+export { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
 
 class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;
@@ -53,7 +74,11 @@ class DuckTreeIndexer implements Indexer {
     await this.initializationPromise;
   }
 
-  async indexFile(absolutePath: string, workspaceRoot: string): Promise<IndexResult> {
+  async indexFile(
+    absolutePath: string,
+    workspaceRoot: string,
+    cacheIdentity?: WorkspaceCacheIdentity,
+  ): Promise<IndexResult> {
     const startedAt = Date.now();
     await this.initialize();
 
@@ -67,6 +92,22 @@ class DuckTreeIndexer implements Indexer {
 
     await replaceFileGraph(database.connection, extracted);
 
+    const files = await getAllFilesQuery(database.connection);
+    const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
+
+    await writeWorkspaceCacheSnapshot(database.connection, {
+      identity: cacheIdentity ?? {
+        cacheKey: workspaceRoot,
+        workspaceRoot,
+        repoRoot: null,
+        repoRemote: null,
+      },
+      schemaVersion: SCHEMA_VERSION,
+      indexedFileCount: files.length,
+      graphNodeCount: graph.nodes.length,
+      graphEdgeCount: graph.edges.length,
+    });
+
     const symbols = await getSymbolsForFile(database.connection, extracted.file.relativePath);
 
     return {
@@ -75,6 +116,12 @@ class DuckTreeIndexer implements Indexer {
       symbols,
       elapsedMs: Date.now() - startedAt,
     };
+  }
+
+  async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return validateWorkspaceCache(database.connection, identity);
   }
 
   async getSymbols(relativePath: string): Promise<StoredSymbol[]> {
@@ -93,6 +140,18 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return getWorkspaceSubgraph(database.connection, workspaceRoot);
+  }
+
+  async clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return clearWorkspace(database.connection, workspaceRoot);
+  }
+
+  async clearAll(): Promise<ClearAllSummary> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return clearAll(database.connection);
   }
 
   async dispose(): Promise<void> {
