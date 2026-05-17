@@ -166,23 +166,19 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
     }
 
     .dxt-fallback-graph {
-      display: flex;
-      flex-direction: column;
+      height: 100%;
+    }
+
+    .dxt-fallback-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) minmax(220px, 1fr);
       gap: 10px;
       height: 100%;
     }
 
-    .dxt-fallback-banner {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      opacity: 0.82;
-      font-size: 12px;
-    }
-
     .dxt-fallback-surface {
       position: relative;
-      flex: 1;
+      height: 100%;
       min-height: 240px;
       overflow: hidden;
       border-radius: 6px;
@@ -193,38 +189,135 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
         var(--vscode-editor-background);
     }
 
-    .dxt-fallback-edges {
-      position: absolute;
-      inset: 0;
+    .dxt-fallback-canvas {
+      display: block;
       width: 100%;
       height: 100%;
-      opacity: 0.85;
+    }
+
+    .dxt-fallback-edge {
+      stroke-width: 1.05;
+      stroke-linecap: round;
+      opacity: 0.72;
     }
 
     .dxt-fallback-node {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      min-width: 88px;
-      max-width: 180px;
-      padding: 8px 10px;
-      border-radius: 999px;
-      border: 1px solid currentColor;
-      background: color-mix(in srgb, var(--vscode-editor-background) 84%, currentColor 16%);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .dxt-fallback-node-shape {
+      fill: color-mix(in srgb, var(--vscode-editor-background) 88%, currentColor 12%);
+      stroke: currentColor;
+      stroke-width: 0.7;
+      transition: fill 120ms ease;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .dxt-fallback-node:hover .dxt-fallback-node-shape,
+    .dxt-fallback-node:focus-visible .dxt-fallback-node-shape {
+      fill: color-mix(in srgb, var(--vscode-editor-background) 80%, currentColor 20%);
+    }
+
+    .dxt-fallback-node-label {
+      fill: var(--vscode-foreground);
+      font-size: 2.05px;
+      font-weight: 500;
+      pointer-events: none;
+      user-select: none;
+      dominant-baseline: middle;
+    }
+
+    .dxt-fallback-relations {
+      display: flex;
+      flex-direction: column;
+      min-height: 240px;
+      padding: 10px;
+      border: 1px solid var(--vscode-panel-border, transparent);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-foreground) 8%);
+      overflow: hidden;
+    }
+
+    .dxt-fallback-relations-title {
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      opacity: 0.9;
+    }
+
+    .dxt-fallback-relation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      overflow: auto;
+    }
+
+    .dxt-fallback-relation-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 6px 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border, transparent) 70%, transparent);
+    }
+
+    .dxt-fallback-relation-item:last-child {
+      border-bottom: none;
+    }
+
+    .dxt-fallback-relation-node {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--vscode-textLink-foreground, var(--vscode-foreground));
       font: inherit;
       font-size: 12px;
-      font-weight: 600;
       cursor: pointer;
-      text-overflow: ellipsis;
-      overflow: hidden;
-      white-space: nowrap;
     }
 
-    .dxt-fallback-node:hover {
-      background: color-mix(in srgb, var(--vscode-editor-background) 74%, currentColor 26%);
+    .dxt-fallback-relation-node:hover,
+    .dxt-fallback-relation-node:focus-visible {
+      text-decoration: underline;
+      outline: none;
     }
 
-    .dxt-fallback-node-file {
-      box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 22%, transparent);
+    .dxt-fallback-edge-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--vscode-editor-background);
+    }
+
+    .dxt-fallback-edge-pill-defines {
+      background: var(--vscode-charts-blue, var(--vscode-foreground));
+    }
+
+    .dxt-fallback-edge-pill-imports {
+      background: var(--vscode-charts-green, var(--vscode-foreground));
+    }
+
+    .dxt-fallback-edge-pill-calls {
+      background: var(--vscode-charts-orange, var(--vscode-foreground));
+    }
+
+    @media (max-width: 900px) {
+      .dxt-fallback-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(240px, 1fr) auto;
+      }
+
+      .dxt-fallback-relations {
+        min-height: 0;
+        max-height: 220px;
+      }
     }
 
     #dxt-graph-container {

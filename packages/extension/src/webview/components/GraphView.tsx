@@ -1,7 +1,7 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import Sigma from "sigma";
 
 interface ThemeColors {
@@ -36,11 +36,26 @@ interface FallbackEdge {
   source: string;
   target: string;
   color: string;
+  kind: GraphEdge["kind"];
 }
 
 interface FallbackGraph {
   nodes: FallbackNode[];
   edges: FallbackEdge[];
+}
+
+function canUseWebGL(): boolean {
+  const canvas = document.createElement("canvas");
+
+  try {
+    return (
+      canvas.getContext("webgl2") !== null ||
+      canvas.getContext("webgl") !== null ||
+      canvas.getContext("experimental-webgl") !== null
+    );
+  } catch {
+    return false;
+  }
 }
 
 function readThemeColors(): ThemeColors {
@@ -110,7 +125,7 @@ function buildGraph(
       label: node.label.trim() || node.filePath.split("/").pop() || node.id,
       filePath: node.filePath,
       startLine: Number.isFinite(node.startLine) ? node.startLine : 1,
-      type: node.type,
+      nodeKind: node.type,
       x,
       y,
       size: node.type === "file" ? 12 : 6,
@@ -132,7 +147,7 @@ function buildGraph(
 
     try {
       graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
-        kind: edge.kind,
+        edgeKind: edge.kind,
         color: edgeColor(edge.kind, colors),
       });
     } catch {
@@ -152,7 +167,7 @@ function snapshotGraph(graph: MultiDirectedGraph): FallbackGraph {
       x: number;
       y: number;
       color: string;
-      type: GraphNode["type"];
+      nodeKind: GraphNode["type"];
     };
 
     return {
@@ -163,7 +178,7 @@ function snapshotGraph(graph: MultiDirectedGraph): FallbackGraph {
       x: Number.isFinite(attributes.x) ? attributes.x : 0,
       y: Number.isFinite(attributes.y) ? attributes.y : 0,
       color: attributes.color,
-      type: attributes.type,
+      type: attributes.nodeKind,
     };
   });
 
@@ -185,12 +200,52 @@ function snapshotGraph(graph: MultiDirectedGraph): FallbackGraph {
     source: graph.source(edgeId),
     target: graph.target(edgeId),
     color: String(graph.getEdgeAttribute(edgeId, "color")),
+    kind: graph.getEdgeAttribute(edgeId, "edgeKind") as GraphEdge["kind"],
   }));
 
   return {
     nodes: positionedNodes,
     edges,
   };
+}
+
+function fallbackNodeLabel(node: FallbackNode): string {
+  if (node.type === "file") {
+    return node.filePath.split("/").pop() || node.label;
+  }
+
+  return node.label;
+}
+
+function fallbackNodeTitle(node: FallbackNode): string {
+  if (node.type === "file") {
+    return node.filePath;
+  }
+
+  return `${node.label} · ${node.filePath}:${node.startLine}`;
+}
+
+function edgeEndpointLabel(nodeId: string, nodesById: Map<string, FallbackNode>): string {
+  const node = nodesById.get(nodeId);
+
+  if (node === undefined) {
+    return nodeId;
+  }
+
+  return fallbackNodeLabel(node);
+}
+
+function handleFallbackKeyDown(
+  event: KeyboardEvent<SVGGElement>,
+  node: FallbackNode,
+  onNavigate: (filePath: string, line: number) => void,
+): void {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+
+  event.preventDefault();
+  onNavigate(node.filePath, node.startLine);
 }
 
 function StaticGraphFallback({
@@ -204,52 +259,110 @@ function StaticGraphFallback({
 
   return (
     <div className="dxt-fallback-graph" data-testid="graph-view-fallback">
-      <div className="dxt-fallback-banner">
-        <span className="codicon codicon-graph-line" aria-hidden="true" />
-        <p>Interactive WebGL renderer was unavailable. Showing a simplified graph preview.</p>
-      </div>
-
-      <div className="dxt-fallback-surface">
-        <svg className="dxt-fallback-edges" viewBox="0 0 100 100" preserveAspectRatio="none">
-          {fallbackGraph.edges.map((edge) => {
-            const source = nodesById.get(edge.source);
-            const target = nodesById.get(edge.target);
-
-            if (source === undefined || target === undefined) {
-              return null;
-            }
-
-            return (
-              <line
-                key={edge.id}
-                x1={source.x}
-                y1={source.y}
-                x2={target.x}
-                y2={target.y}
-                stroke={edge.color}
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-            );
-          })}
-        </svg>
-
-        {fallbackGraph.nodes.map((node) => (
-          <button
-            key={node.id}
-            type="button"
-            className={`dxt-fallback-node dxt-fallback-node-${node.type}`}
-            style={{
-              left: `${node.x}%`,
-              top: `${node.y}%`,
-              borderColor: node.color,
-              color: node.color,
-            }}
-            onClick={() => onNavigate(node.filePath, node.startLine)}
+      <div className="dxt-fallback-layout">
+        <div className="dxt-fallback-surface">
+          <svg
+            className="dxt-fallback-canvas"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Symbol graph"
           >
-            {node.label}
-          </button>
-        ))}
+            {fallbackGraph.edges.map((edge) => {
+              const source = nodesById.get(edge.source);
+              const target = nodesById.get(edge.target);
+
+              if (source === undefined || target === undefined) {
+                return null;
+              }
+
+              return (
+                <line
+                  key={edge.id}
+                  className="dxt-fallback-edge"
+                  x1={source.x}
+                  y1={source.y}
+                  x2={target.x}
+                  y2={target.y}
+                  stroke={edge.color}
+                />
+              );
+            })}
+
+            {fallbackGraph.nodes.map((node) => (
+              <g
+                key={node.id}
+                className={`dxt-fallback-node dxt-fallback-node-${node.type}`}
+                transform={`translate(${node.x} ${node.y})`}
+                color={node.color}
+                role="button"
+                tabIndex={0}
+                aria-label={node.label}
+                onClick={() => onNavigate(node.filePath, node.startLine)}
+                onKeyDown={(event) => handleFallbackKeyDown(event, node, onNavigate)}
+              >
+                <title>{fallbackNodeTitle(node)}</title>
+                {node.type === "file" ? (
+                  <rect
+                    className="dxt-fallback-node-shape"
+                    x="-4.25"
+                    y="-2.6"
+                    width="8.5"
+                    height="5.2"
+                    rx="2.6"
+                    ry="2.6"
+                  />
+                ) : (
+                  <circle className="dxt-fallback-node-shape" r="2.35" />
+                )}
+                <text className="dxt-fallback-node-label" x="4.8" y="0.9">
+                  {fallbackNodeLabel(node)}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        <div className="dxt-fallback-relations" aria-label="Graph relations">
+          <div className="dxt-fallback-relations-title">Relations</div>
+          <ul className="dxt-fallback-relation-list">
+            {fallbackGraph.edges.map((edge) => (
+              <li key={edge.id} className="dxt-fallback-relation-item">
+                <button
+                  type="button"
+                  className="dxt-fallback-relation-node"
+                  aria-label={`Open source ${edgeEndpointLabel(edge.source, nodesById)}`}
+                  onClick={() => {
+                    const source = nodesById.get(edge.source);
+                    if (source !== undefined) {
+                      onNavigate(source.filePath, source.startLine);
+                    }
+                  }}
+                >
+                  {edgeEndpointLabel(edge.source, nodesById)}
+                </button>
+                <span
+                  className={`dxt-fallback-edge-pill dxt-fallback-edge-pill-${edge.kind.toLowerCase()}`}
+                >
+                  {edge.kind}
+                </span>
+                <button
+                  type="button"
+                  className="dxt-fallback-relation-node"
+                  aria-label={`Open target ${edgeEndpointLabel(edge.target, nodesById)}`}
+                  onClick={() => {
+                    const target = nodesById.get(edge.target);
+                    if (target !== undefined) {
+                      onNavigate(target.filePath, target.startLine);
+                    }
+                  }}
+                >
+                  {edgeEndpointLabel(edge.target, nodesById)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
@@ -276,12 +389,16 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
     graph.setNodeAttribute(
       node,
       "color",
-      attributes.type === "file" ? colors.fileNodeColor : colors.symbolNodeColor,
+      attributes.nodeKind === "file" ? colors.fileNodeColor : colors.symbolNodeColor,
     );
   });
 
   graph.forEachEdge((edge, attributes) => {
-    graph.setEdgeAttribute(edge, "color", edgeColor(attributes.kind as GraphEdge["kind"], colors));
+    graph.setEdgeAttribute(
+      edge,
+      "color",
+      edgeColor(attributes.edgeKind as GraphEdge["kind"], colors),
+    );
   });
 
   applySigmaSetting(sigma, "labelColor", { color: colors.labelColor });
@@ -308,6 +425,13 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
 
     let sigma: Sigma | null = null;
     let observer: MutationObserver | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    if (!canUseWebGL()) {
+      setError(null);
+      setFallbackGraph(buildFallbackGraph());
+      return;
+    }
 
     try {
       if (graph.order > 0) {
@@ -326,12 +450,24 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       }
 
       sigma = new Sigma(graph, container, {
+        allowInvalidContainer: true,
         renderLabels: true,
+        renderEdgeLabels: false,
         labelRenderedSizeThreshold: 0,
+        defaultNodeType: "circle",
+        defaultEdgeType: "line",
+        defaultEdgeColor: "#888888",
       });
 
       applyTheme(graph, sigma, container);
       setFallbackGraph(null);
+
+      resizeObserver = new ResizeObserver(() => {
+        if (sigma !== null) {
+          refreshSigma(sigma);
+        }
+      });
+      resizeObserver.observe(container);
 
       sigma.on("clickNode", (event) => {
         const attributes = graph.getNodeAttributes(event.node) as {
@@ -353,12 +489,14 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
 
       setError(null);
     } catch (err) {
+      console.error("Dextree graph renderer failed", err);
       setError(err instanceof Error ? err.message : "Could not initialize graph renderer.");
       setFallbackGraph(buildFallbackGraph());
     }
 
     return () => {
       observer?.disconnect();
+      resizeObserver?.disconnect();
       sigma?.kill();
     };
   }, [edges, nodes, onNavigate]);

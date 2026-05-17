@@ -119,13 +119,19 @@ export async function getWorkspaceSubgraph(
   ).getRowObjectsJS();
 
   const nodes: GraphNode[] = [
-    ...fileRows.map((row) => ({
-      id: String(row.id),
-      type: "file" as const,
-      label: String(row.filePath ?? row.label),
-      filePath: String(row.filePath),
-      startLine: 1,
-    })),
+    ...fileRows.map((row) => {
+      const filePath = String(row.filePath);
+      const relativePath = String(row.label);
+      const basename = relativePath.split("/").pop() ?? relativePath;
+
+      return {
+        id: String(row.id),
+        type: "file" as const,
+        label: basename,
+        filePath,
+        startLine: 1,
+      };
+    }),
     ...symbolRows.map((row) => {
       const range = normalizeRange(row.range);
       return {

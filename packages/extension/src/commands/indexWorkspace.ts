@@ -1,4 +1,4 @@
-import type { Indexer } from "@dextree/core";
+import { createWorkspaceIgnore, type Indexer } from "@dextree/core";
 import * as vscode from "vscode";
 
 import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
@@ -24,11 +24,22 @@ export function createIndexWorkspaceCommand(
       return;
     }
 
-    const files = await vscode.workspace.findFiles(SUPPORTED_GLOB, EXCLUDE_GLOB);
+    const discovered = await vscode.workspace.findFiles(SUPPORTED_GLOB, EXCLUDE_GLOB);
+    const workspaceIgnore = await createWorkspaceIgnore(root.uri.fsPath);
+    const files = discovered.filter((file) => !workspaceIgnore.ignores(file.fsPath));
+    const skipped = discovered.length - files.length;
 
     if (files.length === 0) {
-      await vscode.window.showInformationMessage("Dextree: No supported files found in workspace.");
+      await vscode.window.showInformationMessage(
+        skipped > 0
+          ? `Dextree: All ${skipped} discovered file(s) are ignored by .gitignore/.dextreeignore.`
+          : "Dextree: No supported files found in workspace.",
+      );
       return;
+    }
+
+    if (skipped > 0) {
+      dependencies.logger.debug(`Skipped ${skipped} file(s) ignored by .gitignore/.dextreeignore`);
     }
 
     await vscode.window.withProgress(

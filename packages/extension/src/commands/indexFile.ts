@@ -1,4 +1,4 @@
-import type { IndexResult, Indexer } from "@dextree/core";
+import { createWorkspaceIgnore, type IndexResult, type Indexer } from "@dextree/core";
 import * as vscode from "vscode";
 
 import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
@@ -78,6 +78,15 @@ export function createIndexFileCommand(
     }
 
     const absolutePath = document.uri.fsPath;
+
+    const workspaceIgnore = await createWorkspaceIgnore(workspaceFolder.uri.fsPath);
+
+    if (workspaceIgnore.ignores(absolutePath)) {
+      await vscode.window.showInformationMessage(
+        `Dextree: ${vscode.workspace.asRelativePath(document.uri)} is ignored (matches .gitignore or .dextreeignore).`,
+      );
+      return;
+    }
 
     if (inFlight.has(absolutePath)) {
       return;

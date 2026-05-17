@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
+import { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
 import { detectLanguage, extractPlainFile, extractTypeScriptFile } from "./parser/extractor.js";
 import { getAllFilesQuery } from "./query/files.js";
 import { getWorkspaceSubgraph } from "./query/subgraph.js";
@@ -40,6 +41,8 @@ export type {
   WorkspaceCacheValidation,
   WorkspaceSubgraph,
 } from "./types.js";
+
+export { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
 
 class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;

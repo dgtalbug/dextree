@@ -39,8 +39,13 @@ const mockState = {
   },
 };
 
+const createWorkspaceIgnore = vi.fn(async () => ({
+  ignores: () => false,
+}));
+
 vi.mock("@dextree/core", () => ({
   createIndexer,
+  createWorkspaceIgnore,
 }));
 
 vi.mock("./webview/panel.js", () => ({
