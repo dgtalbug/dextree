@@ -21,6 +21,11 @@ Thumbs.db
 *.tmp
 *.swp
 
+# Local debug scratch — never commit
+sanity_check.*
+**/sanity_check.*
+**/dev.mjs
+
 # Node / TypeScript build artifacts
 node_modules/
 dist/
