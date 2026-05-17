@@ -54,6 +54,48 @@ export async function activate(context: ActivationContext): Promise<void> {
     return indexerPromise;
   };
 
+  const pushCurrentGraph = async (): Promise<void> => {
+    if (!WebviewPanelManager.isOpen()) {
+      return;
+    }
+
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    if (workspaceRoot === undefined) {
+      WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
+      return;
+    }
+
+    const indexer = await getIndexer();
+    const graph = await indexer.getWorkspaceSubgraph(workspaceRoot);
+    WebviewPanelManager.pushGraph(graph);
+  };
+
+  const refreshGraphIfOpen = (): void => {
+    if (!WebviewPanelManager.isOpen()) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        await pushCurrentGraph();
+      } catch {
+        // Non-critical — panel will still show previous state
+      }
+    })();
+  };
+
+  const symbolsProvider = new SymbolsTreeProvider(
+    () => activeIndexer,
+    logger,
+    () => vscode.workspace.workspaceFolders?.[0]?.uri,
+  );
+
+  const refreshViewsAfterIndex = (): void => {
+    symbolsProvider.refresh();
+    refreshGraphIfOpen();
+  };
+
   context.subscriptions.push(
     outputChannel,
     registerOpenGraphViewCommand(context as unknown as vscode.ExtensionContext, getIndexer),
@@ -63,40 +105,7 @@ export async function activate(context: ActivationContext): Promise<void> {
         context,
         logger,
         getIndexer,
-        onIndexed: () => {
-          symbolsProvider.refresh();
-          if (WebviewPanelManager.isOpen()) {
-            // Fire-and-forget: push updated symbols to panel after index
-            void (async () => {
-              try {
-                const indexer = await getIndexer();
-                const storedFiles = await indexer.getAllFiles();
-                const filesWithSymbols = await Promise.all(
-                  storedFiles.map(async (file) => {
-                    const symbols = await indexer.getSymbols(file.relativePath);
-                    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                    const absolutePath =
-                      workspaceRoot !== undefined
-                        ? join(workspaceRoot, file.relativePath)
-                        : file.relativePath;
-                    return {
-                      path: absolutePath,
-                      relativePath: file.relativePath,
-                      symbols: symbols.map((s) => ({
-                        name: s.name,
-                        kind: s.kind,
-                        startLine: s.range.startLine,
-                      })),
-                    };
-                  }),
-                );
-                WebviewPanelManager.pushSymbols(filesWithSymbols);
-              } catch {
-                // Non-critical — panel will still show previous state
-              }
-            })();
-          }
-        },
+        onIndexed: refreshViewsAfterIndex,
       }),
     ),
     vscode.commands.registerCommand(
@@ -104,15 +113,9 @@ export async function activate(context: ActivationContext): Promise<void> {
       createIndexWorkspaceCommand({
         logger,
         getIndexer,
-        onIndexed: () => symbolsProvider.refresh(),
+        onIndexed: refreshViewsAfterIndex,
       }),
     ),
-  );
-
-  const symbolsProvider = new SymbolsTreeProvider(
-    () => activeIndexer,
-    logger,
-    () => vscode.workspace.workspaceFolders?.[0]?.uri,
   );
 
   const treeView = vscode.window.createTreeView("dextree.symbolsView", {

@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -33,5 +34,30 @@ describe("extractTypeScriptSource", () => {
 
     expect(result.file.relativePath).toBe("src/parser/__fixtures__/empty.ts");
     expect(result.symbols).toHaveLength(0);
+    expect(result.imports).toEqual([]);
+  });
+
+  it("extracts relative import refs that resolve within the workspace", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "dextree-parser-"));
+    const srcDir = join(workspaceRoot, "src");
+    const importerPath = join(srcDir, "importer.ts");
+    const dependencyPath = join(srcDir, "dep.ts");
+
+    try {
+      await mkdir(srcDir, { recursive: true });
+      await writeFile(dependencyPath, "export const dep = 1;\n", "utf8");
+
+      const source = 'import { dep } from "./dep";\nexport const value = dep;\n';
+      const result = await extractTypeScriptSource(importerPath, workspaceRoot, source, wasmDir);
+
+      expect(result.imports).toHaveLength(1);
+      expect(result.imports[0]).toMatchObject({
+        fileId: result.file.id,
+        importPath: "src/dep.ts",
+        language: "typescript",
+      });
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
   });
 });

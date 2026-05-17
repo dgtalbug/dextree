@@ -8,6 +8,11 @@ describe("LoadingState", () => {
     expect(screen.getByText(/indexing/i)).toBeTruthy();
   });
 
+  it("renders a custom label when provided", () => {
+    render(<LoadingState label="Building graph..." />);
+    expect(screen.getByText("Building graph...")).toBeTruthy();
+  });
+
   it("renders the type-hierarchy codicon", () => {
     const { container } = render(<LoadingState />);
     const icon = container.querySelector(".codicon-type-hierarchy");

@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 
 import { detectLanguage, extractPlainFile, extractTypeScriptFile } from "./parser/extractor.js";
 import { getAllFilesQuery } from "./query/files.js";
+import { getWorkspaceSubgraph } from "./query/subgraph.js";
 import { getSymbolsForFile } from "./query/symbols.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
 import { replaceFileGraph } from "./storage/repository.js";
@@ -13,12 +14,17 @@ export type {
   ExtractedFileRecord,
   ExtractedIndexData,
   FileRecord,
+  GraphEdge,
+  GraphEdgeKind,
+  GraphNode,
+  GraphNodeType,
   IndexResult,
   Indexer,
   StoredFile,
   StoredSymbol,
   SymbolKind,
   SymbolRange,
+  WorkspaceSubgraph,
 } from "./types.js";
 
 class DuckTreeIndexer implements Indexer {
@@ -81,6 +87,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return getAllFilesQuery(database.connection);
+  }
+
+  async getWorkspaceSubgraph(workspaceRoot: string) {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return getWorkspaceSubgraph(database.connection, workspaceRoot);
   }
 
   async dispose(): Promise<void> {

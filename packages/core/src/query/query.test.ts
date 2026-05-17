@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ExtractedIndexData } from "../types.js";
 import { openDatabase } from "../storage/db.js";
 import { replaceFileGraph } from "../storage/repository.js";
 import { initializeSchema } from "../storage/schema.js";
+import type { ExtractedIndexData } from "../types.js";
 import { getSymbolsForFile } from "./symbols.js";
 
 function makeExtractedData(): ExtractedIndexData {
@@ -36,6 +36,7 @@ function makeExtractedData(): ExtractedIndexData {
         language: "typescript",
       },
     ],
+    imports: [],
   };
 }
 

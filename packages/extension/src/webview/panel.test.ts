@@ -8,21 +8,57 @@ const mockPostMessage = vi.fn();
 const mockOnDidReceiveMessage = vi.fn();
 const mockOnDidDispose = vi.fn();
 let disposePanel = vi.fn();
+let triggerReadyOnHtmlAssignment = false;
+let currentMessageHandler: ((message: unknown) => void) | undefined;
+let lastPanel:
+  | {
+      iconPath?: { fsPath: string };
+      webview: {
+        html: string;
+        cspSource: string;
+        asWebviewUri: (uri: { fsPath: string }) => { toString: () => string };
+        onDidReceiveMessage: typeof mockOnDidReceiveMessage;
+        postMessage: typeof mockPostMessage;
+      };
+      onDidDispose: typeof mockOnDidDispose;
+      reveal: ReturnType<typeof vi.fn>;
+      dispose: ReturnType<typeof vi.fn>;
+    }
+  | undefined;
 
-const createWebviewPanel = vi.fn(() => ({
-  webview: {
-    html: "",
+const createWebviewPanel = vi.fn(() => {
+  let html = "";
+  const webview = {
     cspSource: "https://mock-csp-source.com",
     asWebviewUri: (uri: { fsPath: string }) => ({ toString: () => `webview:///${uri.fsPath}` }),
     onDidReceiveMessage: mockOnDidReceiveMessage,
     postMessage: mockPostMessage,
-  },
-  onDidDispose: mockOnDidDispose,
-  reveal: vi.fn(),
-  dispose: vi.fn().mockImplementation(() => {
-    disposePanel();
-  }),
-}));
+  };
+
+  Object.defineProperty(webview, "html", {
+    get: () => html,
+    set: (value: string) => {
+      html = value;
+
+      if (triggerReadyOnHtmlAssignment) {
+        currentMessageHandler?.({ type: "ready" });
+      }
+    },
+    enumerable: true,
+    configurable: true,
+  });
+
+  lastPanel = {
+    webview,
+    onDidDispose: mockOnDidDispose,
+    reveal: vi.fn(),
+    dispose: vi.fn().mockImplementation(() => {
+      disposePanel();
+    }),
+  };
+
+  return lastPanel;
+});
 
 const showTextDocument = vi.fn();
 const openTextDocument = vi.fn(() => ({ uri: { fsPath: "/workspace/src/file.ts" } }));
@@ -84,6 +120,12 @@ describe("WebviewPanelManager", () => {
     showTextDocument.mockClear();
     showErrorMessage.mockClear();
     disposePanel = vi.fn();
+    lastPanel = undefined;
+    triggerReadyOnHtmlAssignment = false;
+    currentMessageHandler = undefined;
+    mockOnDidReceiveMessage.mockImplementation((handler: (message: unknown) => void) => {
+      currentMessageHandler = handler;
+    });
   });
 
   it("creates a webview panel with the correct viewType (FR-001)", async () => {
@@ -113,15 +155,61 @@ describe("WebviewPanelManager", () => {
     expect(createWebviewPanel).toHaveBeenCalledTimes(1);
   });
 
-  it("pushSymbols posts a symbols message to the webview (FR-004)", async () => {
+  it("sets a custom editor tab icon from extension resources", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+
+    WebviewPanelManager.create(context as never);
+
+    expect(lastPanel?.iconPath).toEqual({ fsPath: "/extension/resources/dextree.svg" });
+  });
+
+  it("pushGraph posts a graph message after the webview reports ready (FR-004)", async () => {
     const { WebviewPanelManager } = await import("./panel.js");
     const context = {
       subscriptions: [],
       extensionUri: { fsPath: "/extension" },
     };
     WebviewPanelManager.create(context as never);
-    WebviewPanelManager.pushSymbols([]);
-    expect(mockPostMessage).toHaveBeenCalledWith({ type: "symbols", files: [] });
+    currentMessageHandler?.({ type: "ready" });
+    WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
+    expect(mockPostMessage).toHaveBeenCalledWith({ type: "graph", nodes: [], edges: [] });
+  });
+
+  it("caches graph updates until the webview reports ready", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+
+    WebviewPanelManager.create(context as never);
+    WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
+
+    expect(mockPostMessage).not.toHaveBeenCalled();
+
+    currentMessageHandler?.({ type: "ready" });
+
+    expect(mockPostMessage).toHaveBeenCalledWith({ type: "graph", nodes: [], edges: [] });
+  });
+
+  it("replays the cached graph when ready fires during initial html load", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+
+    WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
+    mockPostMessage.mockClear();
+    triggerReadyOnHtmlAssignment = true;
+
+    WebviewPanelManager.create(context as never);
+
+    expect(mockPostMessage).toHaveBeenCalledWith({ type: "graph", nodes: [], edges: [] });
   });
 
   it("registers onDidReceiveMessage handler when panel is created (FR-013)", async () => {
@@ -134,26 +222,32 @@ describe("WebviewPanelManager", () => {
     expect(mockOnDidReceiveMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("onIndexed callback triggers pushSymbols when panel is open (FR-009)", async () => {
+  it("onIndexed callback triggers pushGraph when panel is open (FR-009)", async () => {
     const { WebviewPanelManager } = await import("./panel.js");
     const context = {
       subscriptions: [],
       extensionUri: { fsPath: "/extension" },
     };
     WebviewPanelManager.create(context as never);
+    currentMessageHandler?.({ type: "ready" });
     mockPostMessage.mockClear();
 
-    // Simulate the onIndexed callback wiring by calling pushSymbols directly
-    const files = [
-      {
-        path: "/workspace/src/app.ts",
-        relativePath: "src/app.ts",
-        symbols: [{ name: "greet", kind: "function", startLine: 0 }],
-      },
-    ];
-    WebviewPanelManager.pushSymbols(files);
+    // Simulate the onIndexed callback wiring by calling pushGraph directly
+    const graph = {
+      nodes: [
+        {
+          id: "file-1",
+          type: "file" as const,
+          label: "/workspace/src/app.ts",
+          filePath: "/workspace/src/app.ts",
+          startLine: 1,
+        },
+      ],
+      edges: [],
+    };
+    WebviewPanelManager.pushGraph(graph);
     expect(mockPostMessage).toHaveBeenCalledTimes(1);
-    expect(mockPostMessage).toHaveBeenCalledWith({ type: "symbols", files });
+    expect(mockPostMessage).toHaveBeenCalledWith({ type: "graph", ...graph });
   });
 
   it("disposes the panel module reference on panel close (FR-005)", async () => {

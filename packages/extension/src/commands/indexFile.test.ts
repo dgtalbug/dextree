@@ -36,6 +36,7 @@ function createMockIndexer() {
     indexFile: vi.fn(),
     getSymbols: vi.fn(),
     getAllFiles: vi.fn(),
+    getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
     dispose: vi.fn(),
   };
 }

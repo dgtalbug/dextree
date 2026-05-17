@@ -101,20 +101,10 @@ describe("registerOpenGraphViewCommand", () => {
       extensionUri: { fsPath: "/extension" },
     };
     const getIndexer = vi.fn().mockResolvedValue({
-      getAllFiles: vi
-        .fn()
-        .mockResolvedValue([{ id: "1", relativePath: "src/app.ts", language: "typescript" }]),
-      getSymbols: vi.fn().mockResolvedValue([
-        {
-          id: "s1",
-          fqn: "greet",
-          name: "greet",
-          kind: "function",
-          fileId: "1",
-          range: { startLine: 5, startCol: 0, endLine: 8, endCol: 1 },
-          language: "typescript",
-        },
-      ]),
+      getWorkspaceSubgraph: vi.fn().mockResolvedValue({
+        nodes: [],
+        edges: [],
+      }),
     });
     registerOpenGraphViewCommand(context as never, getIndexer as never);
 

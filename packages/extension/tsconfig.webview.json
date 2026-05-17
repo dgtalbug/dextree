@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": "../..",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "noImplicitOverride": true,
@@ -14,6 +15,9 @@
     "allowSyntheticDefaultImports": true,
     "jsx": "react-jsx",
     "skipLibCheck": true,
+    "paths": {
+      "@dextree/core": ["packages/core/src/index.ts"]
+    },
     "noEmit": true
   },
   "include": ["src/webview/**/*.ts", "src/webview/**/*.tsx"],

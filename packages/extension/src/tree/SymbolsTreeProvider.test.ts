@@ -50,6 +50,7 @@ vi.mock("vscode", () => ({
 
 import {
   SymbolsTreeProvider,
+  TreeActionNode,
   TreeDirNode,
   TreeFileNode,
   TreeSymbolNode,
@@ -65,6 +66,12 @@ function makeIndexer() {
     indexFile: vi.fn(),
     getSymbols: vi.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
     getAllFiles: vi.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+    getWorkspaceSubgraph: vi
+      .fn<() => Promise<{ nodes: unknown[]; edges: unknown[] }>>()
+      .mockResolvedValue({
+        nodes: [],
+        edges: [],
+      }),
     dispose: vi.fn(),
   };
 }
@@ -96,18 +103,24 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     fireTreeData.mockReset();
   });
 
-  it("returns empty array when indexer is null (before any indexing)", async () => {
+  it("shows persistent action nodes when indexer is null (before any indexing)", async () => {
     const provider = makeProvider(null);
     const children = await provider.getChildren(undefined);
-    expect(children).toHaveLength(0);
+    expect(children).toHaveLength(2);
+    expect(children[0]).toBeInstanceOf(TreeActionNode);
+    expect(children[0]?.treeItem.label).toBe("Index Workspace");
+    expect(children[1]).toBeInstanceOf(TreeActionNode);
+    expect(children[1]?.treeItem.label).toBe("Open Graph View");
   });
 
-  it("returns empty array when getAllFiles returns [] (no files indexed yet)", async () => {
+  it("keeps the action nodes visible when no files are indexed yet", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
-    expect(children).toHaveLength(0);
+    expect(children).toHaveLength(2);
+    expect(children[0]?.treeItem.label).toBe("Index Workspace");
+    expect(children[1]?.treeItem.label).toBe("Open Graph View");
   });
 
   it("groups files under a shared directory into a TreeDirNode", async () => {
@@ -118,9 +131,11 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
-    expect(children).toHaveLength(1);
-    expect(children[0]).toBeInstanceOf(TreeDirNode);
-    expect(children[0]?.treeItem.label).toBe("src");
+    expect(children).toHaveLength(3);
+    expect(children[0]).toBeInstanceOf(TreeActionNode);
+    expect(children[1]).toBeInstanceOf(TreeActionNode);
+    expect(children[2]).toBeInstanceOf(TreeDirNode);
+    expect(children[2]?.treeItem.label).toBe("src");
   });
 
   it("root-level files (no directory) appear as TreeFileNodes directly", async () => {
@@ -130,9 +145,9 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
-    expect(children).toHaveLength(1);
-    expect(children[0]).toBeInstanceOf(TreeFileNode);
-    expect(children[0]?.treeItem.label).toBe("index.ts");
+    expect(children).toHaveLength(3);
+    expect(children[2]).toBeInstanceOf(TreeFileNode);
+    expect(children[2]?.treeItem.label).toBe("index.ts");
   });
 
   it("multiple directories produce one TreeDirNode per directory", async () => {
@@ -143,13 +158,13 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
-    expect(children).toHaveLength(2);
-    const labels = children.map((c) => c.treeItem.label);
+    expect(children).toHaveLength(4);
+    const labels = children.slice(2).map((c) => c.treeItem.label);
     expect(labels).toContain("src");
     expect(labels).toContain("test");
   });
 
-  it("catches getAllFiles error, logs it, and returns [] (FR-009)", async () => {
+  it("catches getAllFiles error, logs it, and still returns action nodes (FR-009)", async () => {
     const indexer = makeIndexer();
     const logger = makeLogger();
     indexer.getAllFiles.mockRejectedValue(new Error("DB connection lost"));
@@ -159,7 +174,7 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
       () => mockWorkspaceUri as never,
     );
     const children = await provider.getChildren(undefined);
-    expect(children).toHaveLength(0);
+    expect(children).toHaveLength(2);
     expect(logger.error).toHaveBeenCalledWith("Failed to load indexed files", expect.any(Error));
   });
 
@@ -196,17 +211,22 @@ describe("SymbolsTreeProvider — dir children", () => {
     const provider = makeProvider(indexer);
     const root = await provider.getChildren(undefined);
     // src/ dir
-    expect(root).toHaveLength(1);
-    expect(root[0]).toBeInstanceOf(TreeDirNode);
-    expect(root[0]?.treeItem.label).toBe("src");
+    expect(root).toHaveLength(3);
+    expect(root[2]).toBeInstanceOf(TreeDirNode);
+    expect(root[2]?.treeItem.label).toBe("src");
     // src/parser/ sub-dir
-    const srcChildren = await provider.getChildren(root[0]);
+    const srcChildren = await provider.getChildren(root[2]);
     expect(srcChildren[0]).toBeInstanceOf(TreeDirNode);
     expect(srcChildren[0]?.treeItem.label).toBe("parser");
     // src/parser/greet.ts file
     const parserChildren = await provider.getChildren(srcChildren[0]);
     expect(parserChildren[0]).toBeInstanceOf(TreeFileNode);
     expect(parserChildren[0]?.treeItem.label).toBe("greet.ts");
+  });
+
+  it("renders directory nodes collapsed by default", () => {
+    const dirNode = new TreeDirNode("src", []);
+    expect(dirNode.treeItem.collapsibleState).toBe(1);
   });
 });
 

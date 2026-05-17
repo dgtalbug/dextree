@@ -1,11 +1,17 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { extname, relative, sep } from "node:path";
+import { access, readFile } from "node:fs/promises";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
 import type { Node } from "web-tree-sitter";
 
-import type { ExtractedIndexData, StoredSymbol, SymbolKind, SymbolRange } from "../types.js";
+import type {
+  ExtractedImportRef,
+  ExtractedIndexData,
+  StoredSymbol,
+  SymbolKind,
+  SymbolRange,
+} from "../types.js";
 import { parseTypeScriptSource } from "./parser.js";
 
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
@@ -31,8 +37,19 @@ const DECLARATION_KIND_BY_TYPE: Record<string, SymbolKind> = {
   enum_declaration: "enum",
 };
 
+const IMPORT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"] as const;
+
 function toPosixRelativePath(workspaceRoot: string, absolutePath: string): string {
   return relative(workspaceRoot, absolutePath).split(sep).join("/");
+}
+
+function isWithinWorkspace(workspaceRoot: string, absolutePath: string): boolean {
+  const relativePath = relative(workspaceRoot, absolutePath);
+
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith(`..${sep}`) && relativePath !== ".." && !isAbsolute(relativePath))
+  );
 }
 
 function hashSource(source: string): string {
@@ -50,6 +67,92 @@ function toRange(node: Node): SymbolRange {
     endLine: node.endPosition.row,
     endCol: node.endPosition.column,
   };
+}
+
+async function fileExists(absolutePath: string): Promise<boolean> {
+  try {
+    await access(absolutePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function importCandidates(importerAbsolutePath: string, specifier: string): string[] {
+  const importerDir = dirname(importerAbsolutePath);
+  const basePath = resolve(importerDir, specifier);
+
+  if (extname(basePath) !== "") {
+    return [basePath];
+  }
+
+  return [
+    ...IMPORT_EXTENSIONS.map((extension) => `${basePath}${extension}`),
+    ...IMPORT_EXTENSIONS.map((extension) => join(basePath, `index${extension}`)),
+  ];
+}
+
+async function resolveImportPath(
+  importerAbsolutePath: string,
+  workspaceRoot: string,
+  specifier: string,
+): Promise<string | null> {
+  if (!specifier.startsWith(".")) {
+    return null;
+  }
+
+  for (const candidate of importCandidates(importerAbsolutePath, specifier)) {
+    if (!(await fileExists(candidate))) {
+      continue;
+    }
+
+    if (!isWithinWorkspace(workspaceRoot, candidate)) {
+      continue;
+    }
+
+    return toPosixRelativePath(workspaceRoot, candidate);
+  }
+
+  return null;
+}
+
+async function extractImportRefs(
+  rootChildren: readonly Node[],
+  absolutePath: string,
+  workspaceRoot: string,
+  fileId: string,
+): Promise<ExtractedImportRef[]> {
+  const imports: ExtractedImportRef[] = [];
+
+  for (const child of rootChildren) {
+    if (child.type !== "import_statement") {
+      continue;
+    }
+
+    const match = child.text.match(/["']([^"']+)["']/);
+    const specifier = match?.[1];
+
+    if (specifier === undefined) {
+      continue;
+    }
+
+    const importPath = await resolveImportPath(absolutePath, workspaceRoot, specifier);
+
+    if (importPath === null) {
+      continue;
+    }
+
+    imports.push({
+      id: uuidv4(),
+      fileId,
+      importPath,
+      importedSymbol: null,
+      range: toRange(child),
+      language: "typescript",
+    });
+  }
+
+  return imports;
 }
 
 function unwrapTopLevelDeclaration(node: Node): Node | null {
@@ -139,6 +242,12 @@ export async function extractTypeScriptSource(
   const fileId = uuidv4();
   const relativePath = toPosixRelativePath(workspaceRoot, absolutePath);
   const symbols: StoredSymbol[] = [];
+  const imports = await extractImportRefs(
+    tree.rootNode.namedChildren,
+    absolutePath,
+    workspaceRoot,
+    fileId,
+  );
 
   for (const child of tree.rootNode.namedChildren) {
     const declaration = unwrapTopLevelDeclaration(child);
@@ -175,6 +284,7 @@ export async function extractTypeScriptSource(
       hash: hashSource(source),
     },
     symbols,
+    imports,
   };
 }
 
@@ -195,6 +305,7 @@ export async function extractPlainFile(
       hash: hashSource(source),
     },
     symbols: [],
+    imports: [],
   };
 }
 

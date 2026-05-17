@@ -1,8 +1,9 @@
+import type { GraphEdge, GraphNode } from "@dextree/core";
 import { useEffect, useReducer } from "react";
 import { EmptyState } from "./components/EmptyState.js";
+import { GraphView } from "./components/GraphView.js";
 import { LoadingState } from "./components/LoadingState.js";
-import { SymbolList } from "./components/SymbolList.js";
-import { isHostToWebviewMessage, type FileWithSymbols } from "./protocol/messages.js";
+import { isHostToWebviewMessage } from "./protocol/messages.js";
 
 // ---------------------------------------------------------------------------
 // State model — discriminated union (FR-002, FR-008)
@@ -11,17 +12,17 @@ import { isHostToWebviewMessage, type FileWithSymbols } from "./protocol/message
 type AppState =
   | { status: "loading" }
   | { status: "empty" }
-  | { status: "loaded"; files: FileWithSymbols[] };
+  | { status: "loaded"; nodes: GraphNode[]; edges: GraphEdge[] };
 
-type AppAction = { type: "symbols"; files: FileWithSymbols[] };
+type AppAction = { type: "graph"; nodes: GraphNode[]; edges: GraphEdge[] };
 
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
-    case "symbols":
+    case "graph":
       // Never return to 'loading' once we've received a message
-      return action.files.length === 0
+      return action.nodes.length === 0
         ? { status: "empty" }
-        : { status: "loaded", files: action.files };
+        : { status: "loaded", nodes: action.nodes, edges: action.edges };
     default:
       return state;
   }
@@ -44,7 +45,7 @@ export function App({ vscodeApi }: AppProps) {
     function handleMessage(event: MessageEvent) {
       const msg: unknown = event.data;
       if (!isHostToWebviewMessage(msg)) return;
-      dispatch({ type: "symbols", files: msg.files });
+      dispatch({ type: "graph", nodes: msg.nodes, edges: msg.edges });
     }
 
     window.addEventListener("message", handleMessage);
@@ -60,10 +61,10 @@ export function App({ vscodeApi }: AppProps) {
 
   switch (state.status) {
     case "loading":
-      return <LoadingState />;
+      return <LoadingState label="Building graph…" />;
     case "empty":
       return <EmptyState />;
     case "loaded":
-      return <SymbolList files={state.files} onNavigate={handleNavigate} />;
+      return <GraphView nodes={state.nodes} edges={state.edges} onNavigate={handleNavigate} />;
   }
 }
