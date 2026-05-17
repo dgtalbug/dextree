@@ -102,6 +102,16 @@ export interface IndexResult {
   elapsedMs: number;
 }
 
+export interface ClearWorkspaceSummary {
+  deletedFiles: number;
+  deletedSymbols: number;
+  deletedEdges: number;
+}
+
+export interface ClearAllSummary {
+  clearedTables: number;
+}
+
 export interface Indexer {
   initialize(): Promise<void>;
   indexFile(
@@ -113,6 +123,8 @@ export interface Indexer {
   getSymbols(relativePath: string): Promise<StoredSymbol[]>;
   getAllFiles(): Promise<StoredFile[]>;
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph>;
+  clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary>;
+  clearAll(): Promise<ClearAllSummary>;
   dispose(): Promise<void>;
 }
 

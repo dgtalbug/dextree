@@ -1,0 +1,138 @@
+import type { DuckDBConnection } from "@duckdb/node-api";
+
+import { initializeSchema, REQUIRED_TABLES } from "./schema.js";
+
+export interface ClearWorkspaceResult {
+  deletedFiles: number;
+  deletedSymbols: number;
+  deletedEdges: number;
+}
+
+export interface ClearAllResult {
+  clearedTables: number;
+}
+
+function workspaceParams(workspaceRoot: string) {
+  return {
+    workspace_root: workspaceRoot,
+    workspace_prefix: workspaceRoot.endsWith("/") ? `${workspaceRoot}%` : `${workspaceRoot}/%`,
+  };
+}
+
+async function countMatchingFiles(
+  connection: DuckDBConnection,
+  workspaceRoot: string,
+): Promise<number> {
+  const rows = await (
+    await connection.run(
+      `SELECT COUNT(*) AS count FROM file
+       WHERE path = $workspace_root OR path LIKE $workspace_prefix`,
+      workspaceParams(workspaceRoot),
+    )
+  ).getRowObjectsJS();
+
+  return Number(rows[0]?.count ?? 0);
+}
+
+async function countMatchingSymbols(
+  connection: DuckDBConnection,
+  workspaceRoot: string,
+): Promise<number> {
+  const rows = await (
+    await connection.run(
+      `SELECT COUNT(*) AS count FROM symbol s
+       INNER JOIN file f ON f.id = s.file_id
+       WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix`,
+      workspaceParams(workspaceRoot),
+    )
+  ).getRowObjectsJS();
+
+  return Number(rows[0]?.count ?? 0);
+}
+
+async function countMatchingEdges(
+  connection: DuckDBConnection,
+  workspaceRoot: string,
+): Promise<number> {
+  const rows = await (
+    await connection.run(
+      `SELECT COUNT(*) AS count FROM edge e
+       WHERE e.source_id IN (
+         SELECT id FROM file WHERE path = $workspace_root OR path LIKE $workspace_prefix
+         UNION ALL
+         SELECT s.id FROM symbol s INNER JOIN file f ON f.id = s.file_id
+         WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix
+       )`,
+      workspaceParams(workspaceRoot),
+    )
+  ).getRowObjectsJS();
+
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function clearWorkspace(
+  connection: DuckDBConnection,
+  workspaceRoot: string,
+): Promise<ClearWorkspaceResult> {
+  const params = workspaceParams(workspaceRoot);
+
+  const deletedFiles = await countMatchingFiles(connection, workspaceRoot);
+  const deletedSymbols = await countMatchingSymbols(connection, workspaceRoot);
+  const deletedEdges = await countMatchingEdges(connection, workspaceRoot);
+
+  await connection.run("BEGIN TRANSACTION");
+
+  try {
+    const fileIdSubquery = `(SELECT id FROM file WHERE path = $workspace_root OR path LIKE $workspace_prefix)`;
+    const symbolIdSubquery = `(SELECT s.id FROM symbol s INNER JOIN file f ON f.id = s.file_id
+                               WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix)`;
+
+    await connection.run(
+      `DELETE FROM edge
+       WHERE source_id IN ${fileIdSubquery}
+          OR target_id IN ${fileIdSubquery}
+          OR source_id IN ${symbolIdSubquery}
+          OR target_id IN ${symbolIdSubquery}`,
+      params,
+    );
+
+    await connection.run(`DELETE FROM call_site WHERE file_id IN ${fileIdSubquery}`, params);
+    await connection.run(`DELETE FROM import_ref WHERE file_id IN ${fileIdSubquery}`, params);
+    await connection.run(`DELETE FROM diagnostic WHERE file_id IN ${fileIdSubquery}`, params);
+    await connection.run(`DELETE FROM symbol WHERE file_id IN ${fileIdSubquery}`, params);
+    await connection.run(
+      `DELETE FROM file WHERE path = $workspace_root OR path LIKE $workspace_prefix`,
+      params,
+    );
+    await connection.run(
+      `DELETE FROM workspace_cache WHERE workspace_root = $workspace_root`,
+      params,
+    );
+
+    await connection.run("COMMIT");
+  } catch (error) {
+    await connection.run("ROLLBACK");
+    throw error;
+  }
+
+  return { deletedFiles, deletedSymbols, deletedEdges };
+}
+
+export async function clearAll(connection: DuckDBConnection): Promise<ClearAllResult> {
+  await connection.run("BEGIN TRANSACTION");
+
+  try {
+    for (const table of REQUIRED_TABLES) {
+      await connection.run(`DROP TABLE IF EXISTS ${table}`);
+    }
+
+    await connection.run("COMMIT");
+  } catch (error) {
+    await connection.run("ROLLBACK");
+    throw error;
+  }
+
+  await initializeSchema(connection);
+
+  return { clearedTables: REQUIRED_TABLES.length };
+}

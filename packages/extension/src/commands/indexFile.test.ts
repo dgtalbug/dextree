@@ -43,6 +43,10 @@ function createMockIndexer() {
     getSymbols: vi.fn(),
     getAllFiles: vi.fn(),
     getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+    clearWorkspace: vi
+      .fn()
+      .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
+    clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
     dispose: vi.fn(),
   };
 }

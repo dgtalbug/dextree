@@ -3,6 +3,10 @@ import { join } from "node:path";
 import * as vscode from "vscode";
 
 import { resolveCacheIdentity } from "./cache/resolveCacheIdentity.js";
+import {
+  createClearAllIndexCommand,
+  createClearWorkspaceIndexCommand,
+} from "./commands/clearIndex.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import { createIndexWorkspaceCommand } from "./commands/indexWorkspace.js";
 import { registerOpenGraphViewCommand } from "./commands/openGraphView.js";
@@ -157,6 +161,22 @@ export async function activate(context: ActivationContext): Promise<void> {
         logger,
         getIndexer,
         onIndexed: refreshViewsAfterIndex,
+      }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.clearWorkspaceIndex",
+      createClearWorkspaceIndexCommand({
+        logger,
+        getIndexer,
+        onCleared: refreshViewsAfterIndex,
+      }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.clearAllIndex",
+      createClearAllIndexCommand({
+        logger,
+        getIndexer,
+        onCleared: refreshViewsAfterIndex,
       }),
     ),
   );
