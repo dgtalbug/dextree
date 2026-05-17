@@ -1,0 +1,41 @@
+name: Stale
+
+on:
+  schedule:
+    # Daily at 03:00 UTC. GitHub's actions/stale processes ~30 items per run
+    # to stay under rate limits; daily catches up gracefully.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: mark-and-close
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Stale issues + PRs
+        uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9
+        with:
+          days-before-stale: 30
+          days-before-close: 30
+          stale-issue-message: |
+            This issue has had no activity for 30 days. It will be closed in
+            30 more days unless someone responds. If this is still relevant,
+            add a comment to keep it open.
+          stale-pr-message: |
+            This PR has had no activity for 30 days. It will be closed in
+            30 more days unless updated. Rebase or comment to keep it open.
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: blocked,help wanted,good first issue,phase:1,phase:2,phase:3
+          exempt-pr-labels: blocked,dependencies
+          exempt-draft-pr: true
+          operations-per-run: 100

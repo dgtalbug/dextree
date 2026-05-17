@@ -1,0 +1,99 @@
+name: Bug report
+description: Report a defect in Dextree.
+title: "[bug]: "
+labels:
+  - type:bug
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill out every field — incomplete
+        reports take longer to triage.
+
+        For security vulnerabilities, **do not** use this form. See
+        [SECURITY.md](../blob/main/SECURITY.md) for the private disclosure
+        channel.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      description: Which part of Dextree is misbehaving?
+      multiple: true
+      options:
+        - VS Code extension (extension host)
+        - VS Code extension (webview / graph view)
+        - "@dextree/core (parsing / storage / query)"
+        - Alfred (LLM provider abstraction)
+        - Exporters (Mermaid / PNG / PDF / SVG / Canvas)
+        - MCP server
+        - CLI
+        - Embeddable web component
+        - Build / packaging / CI
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: dextree-version
+    attributes:
+      label: Dextree version
+      description: From the VS Code Extensions panel, or `dextree --version` for the CLI.
+      placeholder: "0.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: vscode-version
+    attributes:
+      label: VS Code version
+      description: Help → About → Version (e.g. `1.85.0`). Leave blank if not applicable.
+      placeholder: "1.85.0"
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (x86_64)
+        - Linux (arm64)
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Minimal, ordered steps that reproduce the bug. Include a small workspace or link to a repo if relevant.
+      placeholder: |
+        1. Open workspace X
+        2. Run "Dextree: Index Workspace"
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include exact error messages, screenshots, or a snippet from the Dextree output channel.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Anything else that might help (logs, related issues, recent changes to your workspace).

@@ -1,0 +1,42 @@
+name: SBOM
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the SBOM to (e.g. v0.1.0).
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    name: cyclonedx
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+      - name: Generate CycloneDX SBOM
+        run: |
+          pnpm dlx @cyclonedx/cyclonedx-npm \
+            --output-format JSON \
+            --output-file sbom.cyclonedx.json
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "::error::No tag resolved"
+            exit 1
+          fi
+          gh release upload "$TAG" sbom.cyclonedx.json --clobber

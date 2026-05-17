@@ -1,0 +1,80 @@
+name: Slice spec (internal)
+description: Tracking issue for a SpecKit slice. Internal use by maintainers.
+title: "[slice S###]: "
+labels:
+  - type:slice
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to open a tracking issue for a SpecKit slice. The
+        actual specification lives in `specs/NNN-<short>/` — this issue is
+        the visible umbrella for the slice's PRs, discussion, and review
+        checkpoints.
+
+  - type: input
+    id: spec-path
+    attributes:
+      label: Spec path
+      description: Path to the spec directory.
+      placeholder: "specs/006-hello-graph"
+    validations:
+      required: true
+
+  - type: input
+    id: slice-number
+    attributes:
+      label: Slice number
+      placeholder: "006"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Target phase
+      options:
+        - "phase:1 — gates / foundations"
+        - "phase:2 — release / publish"
+        - "phase:3 — hygiene / contributors"
+        - "feature work — vertical slice"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: One-paragraph summary
+      description: What does the slice ship and why?
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Depends on
+      description: Other slices or external preconditions (secrets, decisions) that must land first.
+      placeholder: |
+        - Spec 004 (CI/CD foundation fixes) merged
+        - `VSCE_PAT` configured in repo secrets
+
+  - type: textarea
+    id: pr-plan
+    attributes:
+      label: Planned PRs
+      description: One bullet per PR, in dependency order.
+      placeholder: |
+        - feature/slice-006-hello-graph — core extraction + extension wiring
+        - test/slice-006-hello-graph-coverage — coverage uplift
+
+  - type: checkboxes
+    id: pre-flight
+    attributes:
+      label: Pre-flight
+      options:
+        - label: "`specs/NNN-<short>/spec.md` written"
+        - label: "`specs/NNN-<short>/plan.md` written"
+        - label: "`specs/NNN-<short>/tasks.md` written"
+        - label: "Constitution Constraints (CC-001..CC-005) reviewed"
+        - label: "Branch convention followed: `feature/slice-<N>-<short>`"

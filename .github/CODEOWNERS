@@ -1,0 +1,32 @@
+# Dextree code owners
+#
+# Last-match-wins semantics: later rules override earlier ones for the same path.
+# See https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+*                                                @dgtalbug
+
+# --- Claude lane (implementation, tests, JSDoc) -----------------------------
+/packages/                                       @dgtalbug
+/specs/                                          @dgtalbug
+/.dextree/                                       @dgtalbug
+
+# --- CI / build perimeter ---------------------------------------------------
+/.github/                                        @dgtalbug
+/turbo.json                                      @dgtalbug
+/eslint.config.js                                @dgtalbug
+/.prettierrc                                     @dgtalbug
+/pnpm-workspace.yaml                             @dgtalbug
+/tsconfig.base.json                              @dgtalbug
+
+# --- Copilot lane (docs, release notes, marketplace listing) ----------------
+# Claude must not edit these without an explicit hand-off; see CLAUDE.md.
+/README.md                                       @dgtalbug
+/CHANGELOG.md                                    @dgtalbug
+/ROADMAP.md                                      @dgtalbug
+/packages/**/README.md                           @dgtalbug
+/.github/copilot-instructions.md                 @dgtalbug
+
+# --- SpecKit lane -----------------------------------------------------------
+/.specify/                                       @dgtalbug
+/.github/prompts/                                @dgtalbug

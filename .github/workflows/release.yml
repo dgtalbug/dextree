@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  # Never cancel a release mid-publish.
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: release-please
+        id: rp
+        uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5 # v4
+        with:
+          # Single-package release — root package.json holds the source of truth.
+          # If you later split into per-package releases, add release-please-config.json
+          # and manifest.json files at repo root.
+          release-type: node
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-vsix:
+    name: build-vsix
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+      - name: Package .vsix
+        run: pnpm package
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dextree-vsix-${{ needs.release-please.outputs.version }}
+          path: packages/extension/*.vsix
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-marketplace:
+    name: publish-marketplace
+    needs:
+      - release-please
+      - build-vsix
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/_publish-marketplace.yml
+    with:
+      version: ${{ needs.release-please.outputs.version }}
+      vsix-artifact-name: dextree-vsix-${{ needs.release-please.outputs.version }}
+    secrets:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+  publish-openvsx:
+    name: publish-openvsx
+    needs:
+      - release-please
+      - build-vsix
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/_publish-openvsx.yml
+    with:
+      version: ${{ needs.release-please.outputs.version }}
+      vsix-artifact-name: dextree-vsix-${{ needs.release-please.outputs.version }}
+    secrets:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}

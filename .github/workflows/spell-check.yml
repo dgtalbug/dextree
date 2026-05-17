@@ -1,0 +1,27 @@
+name: Spell check
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - .typos.toml
+
+permissions:
+  contents: read
+
+jobs:
+  typos:
+    name: typos
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: typos
+        uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # master
+        with:
+          files: ./

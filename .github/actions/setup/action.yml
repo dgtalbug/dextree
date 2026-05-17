@@ -17,18 +17,18 @@ runs:
     # NOTE: Pin to full SHA before merging. Use:
     #   gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq .object.sha
     - name: Checkout repository
-      uses: actions/checkout@v4 # TODO: replace with SHA before merging
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
 
     - name: Install pnpm
-      uses: pnpm/action-setup@v4 # TODO: replace with SHA before merging
+      uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       with:
         version: "11.1.2"
         run_install: false
 
     - name: Setup Node ${{ inputs.node-version }}
-      uses: actions/setup-node@v4 # TODO: replace with SHA before merging
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm

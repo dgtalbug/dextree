@@ -1,0 +1,44 @@
+name: PR size label
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+# pull_request_target gives write tokens even on fork PRs. We deliberately do
+# NOT check out the PR head — the size labeler reads diff metadata via the
+# API and never executes untrusted PR code.
+permissions:
+  pull-requests: write
+
+jobs:
+  label:
+    name: size-label
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Apply size label
+        uses: pascalgn/size-label-action@f8edde36b3be04b4f65dcfead05dc8691b374348 # v0.5.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IGNORED: |
+            pnpm-lock.yaml
+            **/*.snap
+            **/dist/**
+            **/build/**
+            **/coverage/**
+        with:
+          sizes: >
+            {
+              "0": "size: XS",
+              "10": "size: S",
+              "100": "size: M",
+              "400": "size: L",
+              "1000": "size: XL"
+            }

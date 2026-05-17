@@ -1,0 +1,107 @@
+# Source of truth for repository labels. label-sync.yml reconciles this on
+# every push to main that touches this file (and on manual workflow_dispatch).
+#
+# Convention:
+#   - "area:<surface>"   — which Dextree surface a PR/issue touches
+#   - "type:<kind>"      — kind of change
+#   - "phase:<n>"        — rollout phase, mirrors spec 005's structure
+#   - "size: <code>"     — auto-applied by pr-size-label.yml
+#   - "status:<state>"   — current workflow status
+#   - "good first issue" — onboarding-friendly
+#   - "help wanted"      — maintainer asking for help
+
+# --- Area --------------------------------------------------------------------
+- name: area:core
+  color: "0e8a16"
+  description: "packages/core — shared graph + storage + parse + query"
+- name: area:extension
+  color: "0e8a16"
+  description: "packages/extension — VS Code host + webview"
+- name: area:alfred
+  color: "0e8a16"
+  description: "packages/alfred — LLM provider abstraction"
+- name: area:exporters
+  color: "0e8a16"
+  description: "packages/exporters — Mermaid / PNG / PDF / SVG / Canvas"
+- name: area:mcp
+  color: "0e8a16"
+  description: "packages/mcp — MCP server"
+- name: area:cli
+  color: "0e8a16"
+  description: "packages/cli — dextree command-line tool"
+- name: area:web
+  color: "0e8a16"
+  description: "packages/web — embeddable Vite component"
+- name: area:docs
+  color: "1d76db"
+  description: "Documentation (README, ROADMAP, .dextree/, JSDoc, etc.)"
+- name: area:build
+  color: "5319e7"
+  description: "Build, packaging, dependencies, tooling"
+- name: area:ci
+  color: "5319e7"
+  description: "GitHub Actions workflows and CI infrastructure"
+
+# --- Type --------------------------------------------------------------------
+- name: type:bug
+  color: "d73a4a"
+  description: "Something is broken"
+- name: type:feat
+  color: "a2eeef"
+  description: "New capability or improvement"
+- name: type:chore
+  color: "fef2c0"
+  description: "Tooling, deps, refactor, housekeeping"
+- name: type:slice
+  color: "8b5cf6"
+  description: "SpecKit slice tracking issue"
+
+# --- Phase -------------------------------------------------------------------
+- name: phase:1
+  color: "fbca04"
+  description: "Foundation / gates"
+- name: phase:2
+  color: "fbca04"
+  description: "Release / publish"
+- name: phase:3
+  color: "fbca04"
+  description: "Hygiene / contributors"
+
+# --- Size (auto-applied) ----------------------------------------------------
+- name: "size: XS"
+  color: "c2e0c6"
+  description: "< 10 LOC"
+- name: "size: S"
+  color: "c2e0c6"
+  description: "10–99 LOC"
+- name: "size: M"
+  color: "fef2c0"
+  description: "100–399 LOC"
+- name: "size: L"
+  color: "fbca04"
+  description: "400–999 LOC — consider splitting"
+- name: "size: XL"
+  color: "d93f0b"
+  description: "1000+ LOC — please split (CLAUDE.md guideline)"
+
+# --- Status ------------------------------------------------------------------
+- name: needs-triage
+  color: "ededed"
+  description: "Awaiting maintainer triage"
+- name: stale
+  color: "ededed"
+  description: "No activity for 30+ days"
+- name: blocked
+  color: "b60205"
+  description: "Blocked on external dependency or decision"
+- name: dependencies
+  color: "0366d6"
+  description: "Dependabot or dependency update"
+
+# --- Community --------------------------------------------------------------
+- name: good first issue
+  color: "7057ff"
+  description: "Beginner-friendly contribution"
+- name: help wanted
+  color: "008672"
+  description: "Maintainer is asking for help"

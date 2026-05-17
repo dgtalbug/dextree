@@ -1,0 +1,72 @@
+version: 2
+
+updates:
+  # ------------------------------------------------------------------
+  # npm — production + dev dependencies across the pnpm workspace.
+  # ------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    labels:
+      - dependencies
+      - area:build
+    groups:
+      # Group patch + minor bumps to reduce PR noise. Major bumps stay
+      # individual so each gets human review.
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # The pnpm packageManager pin is intentionally exact (11.1.2). Bumping
+      # it requires a coordinated change across root + packages/* engines.
+      - dependency-name: pnpm
+
+  # ------------------------------------------------------------------
+  # GitHub Actions — SHA pins refreshed weekly. NOT grouped — each
+  # action bump gets its own PR so security review is per-action.
+  # ------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - area:ci
+
+  # ------------------------------------------------------------------
+  # GitHub Actions — composite action(s) live under .github/actions/.
+  # Dependabot needs an explicit directory entry to scan composite uses:.
+  # ------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /.github/actions/setup
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - area:ci

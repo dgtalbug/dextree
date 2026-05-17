@@ -1,0 +1,61 @@
+name: _publish-openvsx
+
+# Reusable workflow. Not directly triggerable — invoked by release.yml via
+# workflow_call. Publishes the bundled .vsix to Open VSX.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Semver version being published.
+        required: true
+        type: string
+      vsix-artifact-name:
+        description: Name of the .vsix artifact uploaded by build-vsix.
+        required: true
+        type: string
+    secrets:
+      OVSX_PAT:
+        description: Open VSX namespace PAT.
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: ovsx publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Secrets guard
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "${OVSX_PAT:-}" ]; then
+            echo "::error::OVSX_PAT secret is empty. Configure it in repo secrets before publishing."
+            exit 1
+          fi
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+      - name: Download .vsix artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.vsix-artifact-name }}
+          path: packages/extension
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        working-directory: packages/extension
+        run: |
+          VSIX="$(find . -maxdepth 1 -name '*.vsix' -print -quit)"
+          if [ -z "$VSIX" ]; then
+            echo "::error::No .vsix found in packages/extension"
+            exit 1
+          fi
+          echo "Publishing $VSIX (version ${{ inputs.version }}) to Open VSX"
+          pnpm dlx ovsx publish "$VSIX" --pat "$OVSX_PAT"
