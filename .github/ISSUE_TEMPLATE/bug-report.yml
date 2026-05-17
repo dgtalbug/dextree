@@ -12,7 +12,7 @@ body:
         reports take longer to triage.
 
         For security vulnerabilities, **do not** use this form. See
-        [SECURITY.md](../blob/main/SECURITY.md) for the private disclosure
+        [SECURITY.md](../blob/main/.github/SECURITY.md) for the private disclosure
         channel.
 
   - type: dropdown

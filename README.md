@@ -166,7 +166,7 @@ The real architectural moat is VS Code data fusion: the graph is enriched with l
 
 ## License
 
-MIT © 2026 Bala
+MIT © 2026 @dgtalbug
 
 ---
 

@@ -176,7 +176,7 @@ Actual state as of 2026-05-16.
 | `006-hello-graph`           | S4           | `in-spec`   | Sigma + graphology graph render; **active spec**                                 |
 
 > Intermediate slices 004 and 005 are CI/CD prerequisites inserted before S4.
-> The design slice numbering (S0–S12) and spec directory numbering are independent.
+> The design slice numbering (S0–S13) and spec directory numbering are independent.
 
 ## Recommended Execution Queue
 
@@ -190,6 +190,10 @@ This is the practical queue, not just the long-range sequence.
 | 4        | `006-hello-graph`           | `in-spec`   | First real graph render — the "wow" moment; ready to move to plan + tasks. |
 
 Anything after `006` should stay at roadmap level until 006 is merged or nearly merged.
+
+The next roadmap-level candidate after `006` is a persistence slice: settle
+workspace or checkout cache identity and persisted DB reuse before taking on full
+workspace indexing and reindex behavior.
 
 ## Recommended Incremental Slice Sequence
 
@@ -252,7 +256,20 @@ selection.
 **Independent proof**: a 10-file graph renders, and clicking a node navigates to its
 definition.
 
-#### S5 — Hello Workspace
+#### S5 — Persistent Workspace Cache
+
+**Spec focus**: define how Dextree identifies a persisted local graph for one
+workspace or repo checkout and safely reuses it across VS Code restarts and repo
+reopens.
+
+**Code focus**: cache identity, DB location policy, persisted cache metadata,
+startup validation, and load-from-cache behavior before reindex.
+
+**Independent proof**: index a small repo, close and reopen VS Code on the same
+checkout, and show the tree and graph from the persisted DB without re-running a
+full index first.
+
+#### S6 — Hello Workspace
 
 **Spec focus**: move from toy inputs to full-workspace indexing with progress and
 manual reindex.
@@ -263,7 +280,7 @@ reindex command.
 **Independent proof**: index a representative workspace with visible progress and a
 usable graph at the end.
 
-#### S6 — Hello Mermaid
+#### S7 — Hello Mermaid
 
 **Spec focus**: prove the first "render everywhere" export surface.
 
@@ -277,7 +294,7 @@ usable graph at the end.
 surface are stable enough that enrichment and data fusion are improving a working
 product, not compensating for an unfinished base.
 
-#### S7 — Hello LSP
+#### S8 — Hello LSP
 
 **Spec focus**: introduce pass 2 semantic enrichment without breaking pass 1
 usefulness.
@@ -288,7 +305,7 @@ enriched nodes.
 **Independent proof**: pass 1 graph appears immediately, then resolved semantic edges
 upgrade live.
 
-#### S8 — Hello Diagnostics
+#### S9 — Hello Diagnostics
 
 **Spec focus**: fuse VS Code diagnostics into the graph.
 
@@ -298,7 +315,7 @@ filters.
 **Independent proof**: symbols with VS Code errors or warnings are visible and
 queryable in the graph.
 
-#### S9 — Hello Git
+#### S10 — Hello Git
 
 **Spec focus**: introduce git-derived recency and authorship signals.
 
@@ -306,7 +323,7 @@ queryable in the graph.
 
 **Independent proof**: graph nodes can be colored or filtered by git recency.
 
-#### S10 — Hello Blast Radius
+#### S11 — Hello Blast Radius
 
 **Spec focus**: combine git diff plus reverse graph traversal into Dextree's first
 killer feature.
@@ -346,7 +363,7 @@ schema.
 **Dependency rule**: Alfred should come after the graph and query model are useful on
 their own; otherwise the LLM layer will hide core product gaps.
 
-#### S11 — Hello Alfred
+#### S12 — Hello Alfred
 
 **Spec focus**: run one prompt over graph data with explicit opt-in and preview.
 
@@ -356,7 +373,7 @@ flow.
 **Independent proof**: `architecture-overview` generates a markdown result from the
 current graph.
 
-#### S12 — Built-in prompt library
+#### S13 — Built-in prompt library
 
 **Spec focus**: make Alfred useful through prompt coverage, not just plumbing.
 
