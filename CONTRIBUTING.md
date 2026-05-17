@@ -96,13 +96,13 @@ Plus repository rules:
 
 Maintainers configure these in repository settings:
 
-| Secret              | Used by                                | Phase |
-| ------------------- | -------------------------------------- | ----- |
-| `GITHUB_TOKEN`      | All workflows (auto-provided)          | 1     |
-| `ANTHROPIC_API_KEY` | `claude-handoff.yml`                   | 1     |
-| `VSCE_PAT`          | `_publish-marketplace.yml`             | 2     |
-| `OVSX_PAT`          | `_publish-openvsx.yml`                 | 2     |
-| `CODECOV_TOKEN`     | Optional, for the `test` job           | 1–2   |
+| Secret              | Used by                       | Phase |
+| ------------------- | ----------------------------- | ----- |
+| `GITHUB_TOKEN`      | All workflows (auto-provided) | 1     |
+| `ANTHROPIC_API_KEY` | `claude-handoff.yml`          | 1     |
+| `VSCE_PAT`          | `_publish-marketplace.yml`    | 2     |
+| `OVSX_PAT`          | `_publish-openvsx.yml`        | 2     |
+| `CODECOV_TOKEN`     | Optional, for the `test` job  | 1–2   |
 
 ## Disclosing security issues
 

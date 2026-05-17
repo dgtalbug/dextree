@@ -54,7 +54,10 @@ describe("getWorkspaceSubgraph", () => {
     try {
       await initializeSchema(database.connection);
       await replaceFileGraph(database.connection, makeExtractedData("beta"));
-      await replaceFileGraph(database.connection, makeExtractedData("alpha", { imports: ["src/beta.ts"] }));
+      await replaceFileGraph(
+        database.connection,
+        makeExtractedData("alpha", { imports: ["src/beta.ts"] }),
+      );
 
       const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
 
