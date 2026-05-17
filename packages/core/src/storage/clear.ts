@@ -83,16 +83,29 @@ export async function clearWorkspace(
   await connection.run("BEGIN TRANSACTION");
 
   try {
+    // NOTE: DuckDB's named-parameter binding ("@duckdb/node-api") fails with
+    // "Failed to retrieve bind parameter index" when the same $name appears
+    // more than once in a single prepared statement.  We work around that by
+    // splitting otherwise-compound DELETEs so each placeholder occurs once
+    // per statement.
     const fileIdSubquery = `(SELECT id FROM file WHERE path = $workspace_root OR path LIKE $workspace_prefix)`;
     const symbolIdSubquery = `(SELECT s.id FROM symbol s INNER JOIN file f ON f.id = s.file_id
                                WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix)`;
 
     await connection.run(
-      `DELETE FROM edge
-       WHERE source_id IN ${fileIdSubquery}
-          OR target_id IN ${fileIdSubquery}
-          OR source_id IN ${symbolIdSubquery}
-          OR target_id IN ${symbolIdSubquery}`,
+      `DELETE FROM edge WHERE source_id IN ${fileIdSubquery}`,
+      params,
+    );
+    await connection.run(
+      `DELETE FROM edge WHERE target_id IN ${fileIdSubquery}`,
+      params,
+    );
+    await connection.run(
+      `DELETE FROM edge WHERE source_id IN ${symbolIdSubquery}`,
+      params,
+    );
+    await connection.run(
+      `DELETE FROM edge WHERE target_id IN ${symbolIdSubquery}`,
       params,
     );
 
