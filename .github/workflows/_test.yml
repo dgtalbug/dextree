@@ -1,0 +1,33 @@
+name: test
+
+on:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        description: Codecov upload token. Optional; upload is best-effort.
+        required: false
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+      - name: Vitest with coverage
+        run: pnpm test:coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@015f24e6818733317a2da2edd6290ab26238649a # v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          flags: unittests

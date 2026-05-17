@@ -1,128 +1,52 @@
 name: CI
 
+# Orchestrator. Calls each gate as a reusable workflow so the Checks tab
+# shows one expandable `CI` row with one pill per gate. Gate implementations
+# live in their own `_*.yml` files so each can also be invoked independently
+# (e.g. from `release.yml`) or manually.
+#
+# To temporarily disable a gate, add `if: false` to its job below.
+
 on:
   pull_request:
   push:
     branches:
       - main
 
-# Cancel in-flight PR runs when a new push lands on the same PR. Main-branch
-# runs (release path) are NOT cancelled because github.head_ref is empty there.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   format:
-    name: format
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Setup workspace
-        uses: ./.github/actions/setup
-      - name: Prettier check
-        run: pnpm format:check
+    uses: ./.github/workflows/_format.yml
 
   lint:
-    name: lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Setup workspace
-        uses: ./.github/actions/setup
-      - name: ESLint
-        run: pnpm lint
+    uses: ./.github/workflows/_lint.yml
 
   typecheck:
-    name: typecheck
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Setup workspace
-        uses: ./.github/actions/setup
-      - name: TypeScript
-        run: pnpm typecheck
+    uses: ./.github/workflows/_typecheck.yml
 
   test:
-    name: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Setup workspace
-        uses: ./.github/actions/setup
-      - name: Vitest with coverage
-        run: pnpm test:coverage
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@015f24e6818733317a2da2edd6290ab26238649a # v5
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          files: ./coverage/lcov.info
-          fail_ci_if_error: false
-          flags: unittests
+    uses: ./.github/workflows/_test.yml
+    secrets: inherit
 
   build:
-    name: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Setup workspace
-        uses: ./.github/actions/setup
-      - name: Turbo build
-        run: pnpm build
+    uses: ./.github/workflows/_build.yml
 
   package:
-    name: package
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Setup workspace
-        uses: ./.github/actions/setup
-      - name: Package .vsix
-        run: pnpm package
-      - name: Upload .vsix artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dextree-vsix
-          path: packages/extension/*.vsix
-          if-no-files-found: error
-          retention-days: 14
+    needs: build
+    uses: ./.github/workflows/_package.yml
+
+  dependency-review:
+    uses: ./.github/workflows/_dependency-review.yml
+
+  spell-check:
+    uses: ./.github/workflows/_spell-check.yml
+
+  link-check:
+    uses: ./.github/workflows/_link-check.yml
