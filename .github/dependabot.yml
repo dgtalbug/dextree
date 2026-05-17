@@ -47,15 +47,15 @@ updates:
       # Each entry has a re-eval date in .dextree/pr-drafts/dependabot-triage-2026-05-17.md.
       # Remove an entry when its re-eval date arrives.
       - dependency-name: vite
-        versions: [">=6", "<9"]          # re-eval 2026-08-15 (skips 6+7+8)
+        versions: [">=6", "<9"] # re-eval 2026-08-15 (skips 6+7+8)
       - dependency-name: vitest
-        versions: ["4.x"]                # re-eval 2026-07-01
+        versions: ["4.x"] # re-eval 2026-07-01
       - dependency-name: "@vitest/coverage-v8"
-        versions: ["4.x"]                # paired with vitest
+        versions: ["4.x"] # paired with vitest
       - dependency-name: typescript
-        versions: ["6.x"]                # re-eval 2026-07-01
+        versions: ["6.x"] # re-eval 2026-07-01
       - dependency-name: eslint
-        versions: ["10.x"]               # re-eval 2026-06-15
+        versions: ["10.x"] # re-eval 2026-06-15
 
   # ------------------------------------------------------------------
   # GitHub Actions — SHA pins refreshed weekly.
