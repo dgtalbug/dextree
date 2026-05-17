@@ -31,7 +31,7 @@ jobs:
           egress-policy: audit
       - name: release-please
         id: rp
-        uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5 # v4
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
         with:
           # Single-package release — root package.json holds the source of truth.
           # If you later split into per-package releases, add release-please-config.json
