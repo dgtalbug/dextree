@@ -54,12 +54,23 @@ async function countMatchingEdges(
   connection: DuckDBConnection,
   workspaceRoot: string,
 ): Promise<number> {
-  const rows = await (
+  // Two separate COUNT queries because DuckDB's named-parameter binding
+  // fails when the same $name appears more than once in a single prepared
+  // statement ("Failed to retrieve bind parameter index"). Summed in JS.
+  const fromFileRows = await (
     await connection.run(
       `SELECT COUNT(*) AS count FROM edge e
        WHERE e.source_id IN (
          SELECT id FROM file WHERE path = $workspace_root OR path LIKE $workspace_prefix
-         UNION ALL
+       )`,
+      workspaceParams(workspaceRoot),
+    )
+  ).getRowObjectsJS();
+
+  const fromSymbolRows = await (
+    await connection.run(
+      `SELECT COUNT(*) AS count FROM edge e
+       WHERE e.source_id IN (
          SELECT s.id FROM symbol s INNER JOIN file f ON f.id = s.file_id
          WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix
        )`,
@@ -67,7 +78,7 @@ async function countMatchingEdges(
     )
   ).getRowObjectsJS();
 
-  return Number(rows[0]?.count ?? 0);
+  return Number(fromFileRows[0]?.count ?? 0) + Number(fromSymbolRows[0]?.count ?? 0);
 }
 
 export async function clearWorkspace(
@@ -113,10 +124,8 @@ export async function clearWorkspace(
     await connection.run(`DELETE FROM import_ref WHERE file_id IN ${fileIdSubquery}`, params);
     await connection.run(`DELETE FROM diagnostic WHERE file_id IN ${fileIdSubquery}`, params);
     await connection.run(`DELETE FROM symbol WHERE file_id IN ${fileIdSubquery}`, params);
-    await connection.run(
-      `DELETE FROM file WHERE path = $workspace_root OR path LIKE $workspace_prefix`,
-      params,
-    );
+    await connection.run(`DELETE FROM file WHERE path = $workspace_root`, params);
+    await connection.run(`DELETE FROM file WHERE path LIKE $workspace_prefix`, params);
     await connection.run(
       `DELETE FROM workspace_cache WHERE workspace_root = $workspace_root`,
       params,
