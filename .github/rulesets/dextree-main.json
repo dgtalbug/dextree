@@ -33,13 +33,13 @@
         "strict_required_status_checks_policy": true,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          { "context": "CI / format / format" },
-          { "context": "CI / lint / lint" },
-          { "context": "CI / typecheck / typecheck" },
-          { "context": "CI / test / test" },
-          { "context": "CI / build / build" },
-          { "context": "CI / package / package" },
-          { "context": "CI / dependency-review / dependency-review" }
+          { "context": "format / format" },
+          { "context": "lint / lint" },
+          { "context": "typecheck / typecheck" },
+          { "context": "test / test" },
+          { "context": "build / build" },
+          { "context": "package / package" },
+          { "context": "dependency-review / dependency-review" }
         ]
       }
     },
