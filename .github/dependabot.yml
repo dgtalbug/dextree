@@ -3,15 +3,28 @@ version: 2
 updates:
   # ------------------------------------------------------------------
   # npm — production + dev dependencies across the pnpm workspace.
+  #
+  # Strategy:
+  #   - Group minor + patch into one PR per week (noise reduction).
+  #   - Majors get individual PRs for review.
+  #   - Cooldown delays bumps 7d (14d for majors) to let community
+  #     surface regressions before we adopt.
+  #   - Ignore list silences majors we've explicitly deferred — they
+  #     can still be bumped manually anytime.
   # ------------------------------------------------------------------
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
+      day: friday
+      time: "18:00"
       timezone: Etc/UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      include:
+        - "*"
     commit-message:
       prefix: chore
       prefix-development: chore
@@ -20,8 +33,6 @@ updates:
       - dependencies
       - area:build
     groups:
-      # Group patch + minor bumps to reduce PR noise. Major bumps stay
-      # individual so each gets human review.
       npm-minor-patch:
         patterns:
           - "*"
@@ -29,28 +40,58 @@ updates:
           - minor
           - patch
     ignore:
-      # The pnpm packageManager pin is intentionally exact (11.1.2). Bumping
-      # it requires a coordinated change across root + packages/* engines.
+      # pnpm packageManager pin is intentionally exact (11.1.2). Bumping
+      # requires coordinated change across root + packages/* engines.
       - dependency-name: pnpm
+      # Version-specific ignores — defer THIS major, accept the NEXT one.
+      # Each entry has a re-eval date in .dextree/pr-drafts/dependabot-triage-2026-05-17.md.
+      # Remove an entry when its re-eval date arrives.
+      - dependency-name: vite
+        versions: [">=6", "<9"]          # re-eval 2026-08-15 (skips 6+7+8)
+      - dependency-name: vitest
+        versions: ["4.x"]                # re-eval 2026-07-01
+      - dependency-name: "@vitest/coverage-v8"
+        versions: ["4.x"]                # paired with vitest
+      - dependency-name: typescript
+        versions: ["6.x"]                # re-eval 2026-07-01
+      - dependency-name: eslint
+        versions: ["10.x"]               # re-eval 2026-06-15
 
   # ------------------------------------------------------------------
-  # GitHub Actions — SHA pins refreshed weekly. NOT grouped — each
-  # action bump gets its own PR so security review is per-action.
+  # GitHub Actions — SHA pins refreshed weekly.
+  #
+  # Group minor + patch action bumps into one PR; majors individual.
+  # Per-action security review is preserved for majors — the high-risk
+  # case (compromised action publishing a new tag) almost always
+  # surfaces as a major version bump because malicious actors target
+  # tag-watchers, not patch-watchers.
   # ------------------------------------------------------------------
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
+      day: friday
+      time: "18:00"
       timezone: Etc/UTC
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      include:
+        - "*"
     commit-message:
       prefix: chore
       include: scope
     labels:
       - dependencies
       - area:ci
+    groups:
+      github-actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   # ------------------------------------------------------------------
   # GitHub Actions — composite action(s) live under .github/actions/.
@@ -60,13 +101,25 @@ updates:
     directory: /.github/actions/setup
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
+      day: friday
+      time: "18:00"
       timezone: Etc/UTC
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      include:
+        - "*"
     commit-message:
       prefix: chore
       include: scope
     labels:
       - dependencies
       - area:ci
+    groups:
+      composite-actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
