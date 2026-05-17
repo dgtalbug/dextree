@@ -1,4 +1,5 @@
 import { createWorkspaceIgnore, type Indexer } from "@dextree/core";
+import { basename } from "node:path";
 import * as vscode from "vscode";
 
 import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
@@ -13,78 +14,109 @@ export interface IndexWorkspaceCommandDependencies {
 const SUPPORTED_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,py,md}";
 const EXCLUDE_GLOB = "{**/node_modules/**,**/dist/**,**/.git/**,**/out/**,**/build/**}";
 
+let isIndexing = false;
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 export function createIndexWorkspaceCommand(
   dependencies: IndexWorkspaceCommandDependencies,
 ): () => Promise<void> {
   return async () => {
-    const root = vscode.workspace.workspaceFolders?.[0];
-
-    if (root === undefined) {
-      await vscode.window.showInformationMessage("Dextree requires an open workspace folder.");
+    if (isIndexing) {
+      await vscode.window.showInformationMessage("Dextree: Indexing already in progress.");
       return;
     }
 
-    const discovered = await vscode.workspace.findFiles(SUPPORTED_GLOB, EXCLUDE_GLOB);
-    const workspaceIgnore = await createWorkspaceIgnore(root.uri.fsPath);
-    const files = discovered.filter((file) => !workspaceIgnore.ignores(file.fsPath));
-    const skipped = discovered.length - files.length;
+    // Claim the guard synchronously before any await so a second invocation
+    // that arrives during file discovery is correctly rejected.
+    isIndexing = true;
 
-    if (files.length === 0) {
-      await vscode.window.showInformationMessage(
-        skipped > 0
-          ? `Dextree: All ${skipped} discovered file(s) are ignored by .gitignore/.dextreeignore.`
-          : "Dextree: No supported files found in workspace.",
-      );
-      return;
-    }
+    try {
+      const root = vscode.workspace.workspaceFolders?.[0];
 
-    if (skipped > 0) {
-      dependencies.logger.debug(`Skipped ${skipped} file(s) ignored by .gitignore/.dextreeignore`);
-    }
+      if (root === undefined) {
+        await vscode.window.showInformationMessage("Dextree requires an open workspace folder.");
+        return;
+      }
 
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `Dextree: Indexing ${files.length} files`,
-        cancellable: true,
-      },
-      async (progress, token) => {
-        const cacheIdentity = await resolveCacheIdentity({
-          workspaceRoot: root.uri.fsPath,
-        });
-        let indexed = 0;
-        let failed = 0;
-        const total = files.length;
+      const discovered = await vscode.workspace.findFiles(SUPPORTED_GLOB, EXCLUDE_GLOB);
+      const workspaceIgnore = await createWorkspaceIgnore(root.uri.fsPath);
+      const files = discovered.filter((file) => !workspaceIgnore.ignores(file.fsPath));
+      const skipped = discovered.length - files.length;
 
-        for (const file of files) {
-          if (token.isCancellationRequested) {
-            break;
-          }
+      if (files.length === 0) {
+        await vscode.window.showInformationMessage(
+          skipped > 0
+            ? `Dextree: All ${skipped} discovered file(s) are ignored by .gitignore/.dextreeignore.`
+            : "Dextree: No supported files found in workspace.",
+        );
+        return;
+      }
 
-          progress.report({
-            increment: (1 / total) * 100,
-            message: `${indexed + 1} / ${total}`,
+      if (skipped > 0) {
+        dependencies.logger.debug(
+          `Skipped ${skipped} file(s) ignored by .gitignore/.dextreeignore`,
+        );
+      }
+
+      const indexer = await dependencies.getIndexer();
+      await indexer.clearWorkspace(root.uri.fsPath);
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Dextree: Indexing ${files.length} files`,
+          cancellable: true,
+        },
+        async (progress, token) => {
+          const cacheIdentity = await resolveCacheIdentity({
+            workspaceRoot: root.uri.fsPath,
           });
+          let indexed = 0;
+          let failed = 0;
+          let cancelled = false;
+          const total = files.length;
 
-          try {
-            const indexer = await dependencies.getIndexer();
-            await indexer.indexFile(file.fsPath, root.uri.fsPath, cacheIdentity);
-            indexed++;
-          } catch (error) {
-            failed++;
-            dependencies.logger.error(`Failed to index ${file.fsPath}`, error);
+          for (const file of files) {
+            if (token.isCancellationRequested) {
+              cancelled = true;
+              break;
+            }
+
+            progress.report({
+              increment: (1 / total) * 100,
+              message: `${indexed + 1} / ${total} — ${basename(file.fsPath)}`,
+            });
+
+            try {
+              await indexer.indexFile(file.fsPath, root.uri.fsPath, cacheIdentity);
+              indexed++;
+            } catch (error) {
+              failed++;
+              dependencies.logger.error(`Failed to index ${file.fsPath}`, error);
+            }
+
+            await yieldToEventLoop();
           }
-        }
 
-        dependencies.onIndexed?.();
+          dependencies.onIndexed?.();
 
-        const summary =
-          failed > 0
-            ? `Indexed ${indexed} files (${failed} failed — see Dextree output).`
-            : `Indexed ${indexed} files.`;
+          let summary: string;
+          if (cancelled) {
+            summary = `Cancelled — ${indexed} of ${total} file(s) indexed${failed > 0 ? ` (${failed} failed — see Dextree output)` : ""}.`;
+          } else if (failed > 0) {
+            summary = `Indexed ${indexed} files (${failed} failed — see Dextree output).`;
+          } else {
+            summary = `Indexed ${indexed} files.`;
+          }
 
-        await vscode.window.showInformationMessage(`Dextree: ${summary}`);
-      },
-    );
+          await vscode.window.showInformationMessage(`Dextree: ${summary}`);
+        },
+      );
+    } finally {
+      isIndexing = false;
+    }
   };
 }
