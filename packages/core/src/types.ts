@@ -1,5 +1,41 @@
 export const SCHEMA_VERSION = 1;
 
+export interface WorkspaceCacheIdentity {
+  cacheKey: string;
+  workspaceRoot: string;
+  repoRoot: string | null;
+  repoRemote: string | null;
+}
+
+export interface WorkspaceCacheMetadata {
+  schemaVersion: number;
+  lastSuccessfulIndexAt: string | null;
+  indexedFileCount: number;
+  graphNodeCount: number;
+  graphEdgeCount: number;
+}
+
+export type WorkspaceCacheStatus = "missing" | "empty" | "ready" | "invalid";
+
+export type WorkspaceCacheInvalidReason =
+  | "missing-metadata"
+  | "identity-mismatch"
+  | "schema-mismatch"
+  | "unreadable"
+  | "no-graph-data";
+
+export interface WorkspaceCacheValidation {
+  status: WorkspaceCacheStatus;
+  identity: WorkspaceCacheIdentity;
+  metadata: WorkspaceCacheMetadata | null;
+  reason?: WorkspaceCacheInvalidReason;
+}
+
+export interface WorkspaceCacheLoadResult {
+  validation: WorkspaceCacheValidation;
+  shouldHydrateFromCache: boolean;
+}
+
 export type SymbolKind = "function" | "class" | "interface" | "type" | "enum" | "variable";
 
 export type GraphNodeType = "file" | "symbol";
@@ -68,7 +104,12 @@ export interface IndexResult {
 
 export interface Indexer {
   initialize(): Promise<void>;
-  indexFile(absolutePath: string, workspaceRoot: string): Promise<IndexResult>;
+  indexFile(
+    absolutePath: string,
+    workspaceRoot: string,
+    cacheIdentity?: WorkspaceCacheIdentity,
+  ): Promise<IndexResult>;
+  validateWorkspaceCache(identity: WorkspaceCacheIdentity): Promise<WorkspaceCacheValidation>;
   getSymbols(relativePath: string): Promise<StoredSymbol[]>;
   getAllFiles(): Promise<StoredFile[]>;
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph>;

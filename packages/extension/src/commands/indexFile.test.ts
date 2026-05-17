@@ -4,6 +4,7 @@ const showInformationMessage = vi.fn();
 const showErrorMessage = vi.fn();
 const createDirectory = vi.fn();
 const getWorkspaceFolder = vi.fn();
+const resolveCacheIdentity = vi.fn();
 
 const mockState = {
   activeTextEditor: null as null | {
@@ -30,10 +31,15 @@ vi.mock("vscode", () => ({
   },
 }));
 
+vi.mock("../cache/resolveCacheIdentity.js", () => ({
+  resolveCacheIdentity,
+}));
+
 function createMockIndexer() {
   return {
     initialize: vi.fn(),
     indexFile: vi.fn(),
+    validateWorkspaceCache: vi.fn(),
     getSymbols: vi.fn(),
     getAllFiles: vi.fn(),
     getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
@@ -63,6 +69,13 @@ describe("createIndexFileCommand", () => {
     showErrorMessage.mockReset();
     createDirectory.mockReset();
     getWorkspaceFolder.mockReset();
+    resolveCacheIdentity.mockReset();
+    resolveCacheIdentity.mockResolvedValue({
+      cacheKey: "/workspace",
+      workspaceRoot: "/workspace",
+      repoRoot: null,
+      repoRemote: null,
+    });
   });
 
   it("shows the first discovered symbol for a TypeScript file", async () => {
@@ -103,7 +116,13 @@ describe("createIndexFileCommand", () => {
 
     await command();
 
-    expect(indexer.indexFile).toHaveBeenCalledWith("/workspace/src/greet.ts", "/workspace");
+    expect(resolveCacheIdentity).toHaveBeenCalledWith({ workspaceRoot: "/workspace" });
+    expect(indexer.indexFile).toHaveBeenCalledWith("/workspace/src/greet.ts", "/workspace", {
+      cacheKey: "/workspace",
+      workspaceRoot: "/workspace",
+      repoRoot: null,
+      repoRemote: null,
+    });
     expect(showInformationMessage).toHaveBeenCalledWith("Dextree found: greet (Function)");
   });
 
@@ -285,10 +304,9 @@ describe("createIndexFileCommand", () => {
     const first = command();
     const second = command();
 
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(indexer.indexFile).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(indexer.indexFile).toHaveBeenCalledTimes(1);
+    });
 
     resolveRun?.();
 

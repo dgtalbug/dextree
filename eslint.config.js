@@ -6,7 +6,15 @@ import globals from "globals";
 
 export default [
   {
-    ignores: [".idea/**", ".vscode/**", "build/**", "coverage/**", "dist/**", "node_modules/**"],
+    ignores: [
+      ".idea/**",
+      ".vscode/**",
+      "build/**",
+      "coverage/**",
+      "dist/**",
+      "node_modules/**",
+      "**/*.min.js",
+    ],
   },
   js.configs.recommended,
   {

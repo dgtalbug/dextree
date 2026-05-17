@@ -1,6 +1,7 @@
 import type { Indexer } from "@dextree/core";
 import * as vscode from "vscode";
 
+import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
 import type { Logger } from "../logger.js";
 
 export interface IndexWorkspaceCommandDependencies {
@@ -37,6 +38,9 @@ export function createIndexWorkspaceCommand(
         cancellable: true,
       },
       async (progress, token) => {
+        const cacheIdentity = await resolveCacheIdentity({
+          workspaceRoot: root.uri.fsPath,
+        });
         let indexed = 0;
         let failed = 0;
         const total = files.length;
@@ -53,7 +57,7 @@ export function createIndexWorkspaceCommand(
 
           try {
             const indexer = await dependencies.getIndexer();
-            await indexer.indexFile(file.fsPath, root.uri.fsPath);
+            await indexer.indexFile(file.fsPath, root.uri.fsPath, cacheIdentity);
             indexed++;
           } catch (error) {
             failed++;

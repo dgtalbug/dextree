@@ -8,7 +8,15 @@ import { getSymbolsForFile } from "./query/symbols.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
 import { replaceFileGraph } from "./storage/repository.js";
 import { initializeSchema } from "./storage/schema.js";
-import type { IndexResult, Indexer, StoredFile, StoredSymbol } from "./types.js";
+import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./storage/workspaceCache.js";
+import {
+  SCHEMA_VERSION,
+  type IndexResult,
+  type Indexer,
+  type StoredFile,
+  type StoredSymbol,
+  type WorkspaceCacheIdentity,
+} from "./types.js";
 
 export type {
   ExtractedFileRecord,
@@ -24,6 +32,12 @@ export type {
   StoredSymbol,
   SymbolKind,
   SymbolRange,
+  WorkspaceCacheIdentity,
+  WorkspaceCacheInvalidReason,
+  WorkspaceCacheLoadResult,
+  WorkspaceCacheMetadata,
+  WorkspaceCacheStatus,
+  WorkspaceCacheValidation,
   WorkspaceSubgraph,
 } from "./types.js";
 
@@ -53,7 +67,11 @@ class DuckTreeIndexer implements Indexer {
     await this.initializationPromise;
   }
 
-  async indexFile(absolutePath: string, workspaceRoot: string): Promise<IndexResult> {
+  async indexFile(
+    absolutePath: string,
+    workspaceRoot: string,
+    cacheIdentity?: WorkspaceCacheIdentity,
+  ): Promise<IndexResult> {
     const startedAt = Date.now();
     await this.initialize();
 
@@ -67,6 +85,22 @@ class DuckTreeIndexer implements Indexer {
 
     await replaceFileGraph(database.connection, extracted);
 
+    const files = await getAllFilesQuery(database.connection);
+    const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
+
+    await writeWorkspaceCacheSnapshot(database.connection, {
+      identity: cacheIdentity ?? {
+        cacheKey: workspaceRoot,
+        workspaceRoot,
+        repoRoot: null,
+        repoRemote: null,
+      },
+      schemaVersion: SCHEMA_VERSION,
+      indexedFileCount: files.length,
+      graphNodeCount: graph.nodes.length,
+      graphEdgeCount: graph.edges.length,
+    });
+
     const symbols = await getSymbolsForFile(database.connection, extracted.file.relativePath);
 
     return {
@@ -75,6 +109,12 @@ class DuckTreeIndexer implements Indexer {
       symbols,
       elapsedMs: Date.now() - startedAt,
     };
+  }
+
+  async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return validateWorkspaceCache(database.connection, identity);
   }
 
   async getSymbols(relativePath: string): Promise<StoredSymbol[]> {

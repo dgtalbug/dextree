@@ -1,6 +1,7 @@
 import type { IndexResult, Indexer } from "@dextree/core";
 import * as vscode from "vscode";
 
+import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
 import type { Logger } from "../logger.js";
 
 interface CommandUriLike {
@@ -92,7 +93,14 @@ export function createIndexFileCommand(
       dependencies.logger.debug(`Indexing: ${absolutePath}`);
 
       const indexer = await dependencies.getIndexer();
-      const result = await indexer.indexFile(absolutePath, workspaceFolder.uri.fsPath);
+      const cacheIdentity = await resolveCacheIdentity({
+        workspaceRoot: workspaceFolder.uri.fsPath,
+      });
+      const result = await indexer.indexFile(
+        absolutePath,
+        workspaceFolder.uri.fsPath,
+        cacheIdentity,
+      );
 
       dependencies.logger.debug(`Parsed ${result.symbolCount} symbols`);
       dependencies.logger.debug(`Written to DuckDB (${result.relativePath})`);

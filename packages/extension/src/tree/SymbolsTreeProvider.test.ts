@@ -86,11 +86,15 @@ function makeLogger() {
 
 const mockWorkspaceUri = { fsPath: "/workspace" };
 
-function makeProvider(indexer: ReturnType<typeof makeIndexer> | null = makeIndexer()) {
+function makeProvider(
+  indexer: ReturnType<typeof makeIndexer> | null = makeIndexer(),
+  canHydrateCache = true,
+) {
   return new SymbolsTreeProvider(
     () => indexer as never,
     makeLogger(),
     () => mockWorkspaceUri as never,
+    () => canHydrateCache,
   );
 }
 
@@ -117,6 +121,18 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([]);
     const provider = makeProvider(indexer);
+    const children = await provider.getChildren(undefined);
+    expect(children).toHaveLength(2);
+    expect(children[0]?.treeItem.label).toBe("Index Workspace");
+    expect(children[1]?.treeItem.label).toBe("Open Graph View");
+  });
+
+  it("keeps the action nodes visible when cache reuse is not allowed even if indexed files exist", async () => {
+    const indexer = makeIndexer();
+    indexer.getAllFiles.mockResolvedValue([
+      { id: "f1", relativePath: "src/greet.ts", language: "typescript" },
+    ]);
+    const provider = makeProvider(indexer, false);
     const children = await provider.getChildren(undefined);
     expect(children).toHaveLength(2);
     expect(children[0]?.treeItem.label).toBe("Index Workspace");

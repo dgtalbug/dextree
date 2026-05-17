@@ -20,6 +20,7 @@ specs/
 Thumbs.db
 *.tmp
 *.swp
+test-results.json
 
 # Local debug scratch — never commit
 sanity_check.*

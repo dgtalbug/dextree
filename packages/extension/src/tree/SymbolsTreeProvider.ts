@@ -173,6 +173,7 @@ export class SymbolsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     private readonly getIndexer: () => Indexer | null,
     private readonly logger: Logger,
     private readonly getWorkspaceUri: () => vscode.Uri | undefined,
+    private readonly canHydrateCache: () => boolean = () => true,
   ) {}
 
   refresh(): void {
@@ -187,7 +188,7 @@ export class SymbolsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     // Root call — return files grouped by top-level directory
     if (element === undefined) {
       const indexer = this.getIndexer();
-      if (indexer === null) {
+      if (indexer === null || !this.canHydrateCache()) {
         return buildRootTree([]);
       }
       try {

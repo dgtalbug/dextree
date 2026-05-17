@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createIndexer } from "../index.js";
 import type { ExtractedIndexData } from "../types.js";
+import { SCHEMA_VERSION, type WorkspaceCacheIdentity } from "../types.js";
 import { openDatabase, runInTransaction } from "./db.js";
 import { replaceFileGraph } from "./repository.js";
 import { initializeSchema, REQUIRED_TABLES } from "./schema.js";
+import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./workspaceCache.js";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(testDir, "../..");
@@ -40,6 +42,15 @@ function makeExtractedData(symbolName = "greet"): ExtractedIndexData {
       },
     ],
     imports: [],
+  };
+}
+
+function makeIdentity(workspaceRoot = "/workspace"): WorkspaceCacheIdentity {
+  return {
+    cacheKey: workspaceRoot,
+    workspaceRoot,
+    repoRoot: null,
+    repoRemote: null,
   };
 }
 
@@ -146,8 +157,108 @@ describe("storage schema and writes", () => {
     try {
       await expect(indexer.initialize()).resolves.toBeUndefined();
       await expect(indexer.getSymbols("src/missing.ts")).resolves.toEqual([]);
+      await expect(indexer.validateWorkspaceCache(makeIdentity())).resolves.toMatchObject({
+        status: "missing",
+      });
     } finally {
       await indexer.dispose();
+    }
+  });
+
+  it("validates a written workspace cache snapshot as ready", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      await writeWorkspaceCacheSnapshot(database.connection, {
+        identity: makeIdentity(),
+        schemaVersion: SCHEMA_VERSION,
+        indexedFileCount: 1,
+        graphNodeCount: 2,
+        graphEdgeCount: 1,
+      });
+
+      await expect(
+        validateWorkspaceCache(database.connection, makeIdentity()),
+      ).resolves.toMatchObject({
+        status: "ready",
+        metadata: expect.objectContaining({
+          indexedFileCount: 1,
+          graphNodeCount: 2,
+          graphEdgeCount: 1,
+          schemaVersion: SCHEMA_VERSION,
+        }),
+      });
+    } finally {
+      database.close();
+    }
+  });
+
+  it("rejects a written workspace cache snapshot when the checkout identity does not match", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      await writeWorkspaceCacheSnapshot(database.connection, {
+        identity: makeIdentity("/workspace-a"),
+        schemaVersion: SCHEMA_VERSION,
+        indexedFileCount: 1,
+        graphNodeCount: 2,
+        graphEdgeCount: 1,
+      });
+
+      await expect(
+        validateWorkspaceCache(database.connection, makeIdentity("/workspace-b")),
+      ).resolves.toMatchObject({
+        status: "invalid",
+        reason: "identity-mismatch",
+      });
+    } finally {
+      database.close();
+    }
+  });
+
+  it("treats a written cache snapshot with no usable graph data as empty", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      await writeWorkspaceCacheSnapshot(database.connection, {
+        identity: makeIdentity(),
+        schemaVersion: SCHEMA_VERSION,
+        indexedFileCount: 1,
+        graphNodeCount: 0,
+        graphEdgeCount: 0,
+      });
+
+      await expect(
+        validateWorkspaceCache(database.connection, makeIdentity()),
+      ).resolves.toMatchObject({
+        status: "empty",
+      });
+    } finally {
+      database.close();
+    }
+  });
+
+  it("returns unreadable when the workspace cache table cannot be read", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await database.connection.run("DROP TABLE workspace_cache");
+
+      await expect(
+        validateWorkspaceCache(database.connection, makeIdentity()),
+      ).resolves.toMatchObject({
+        status: "invalid",
+        reason: "unreadable",
+      });
+    } finally {
+      database.close();
     }
   });
 });

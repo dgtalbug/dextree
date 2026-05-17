@@ -15,8 +15,10 @@ const findFiles = vi.fn();
 const getWorkspaceFolder = vi.fn();
 const showInformationMessage = vi.fn();
 const showErrorMessage = vi.fn();
+const showWarningMessage = vi.fn();
 const pushGraph = vi.fn();
 const isPanelOpen = vi.fn(() => false);
+const resolveCacheIdentity = vi.fn();
 const withProgress = vi.fn(async (_options, task) =>
   task(
     {
@@ -48,6 +50,10 @@ vi.mock("./webview/panel.js", () => ({
   },
 }));
 
+vi.mock("./cache/resolveCacheIdentity.js", () => ({
+  resolveCacheIdentity,
+}));
+
 vi.mock("vscode", () => ({
   window: {
     createOutputChannel,
@@ -58,6 +64,7 @@ vi.mock("vscode", () => ({
     },
     showInformationMessage,
     showErrorMessage,
+    showWarningMessage,
   },
   commands: {
     registerCommand,
@@ -94,16 +101,34 @@ describe("activate", () => {
     getWorkspaceFolder.mockReset();
     showInformationMessage.mockReset();
     showErrorMessage.mockReset();
+    showWarningMessage.mockReset();
     pushGraph.mockReset();
     isPanelOpen.mockReset();
+    resolveCacheIdentity.mockReset();
     withProgress.mockClear();
     isPanelOpen.mockReturnValue(false);
+    resolveCacheIdentity.mockResolvedValue({
+      cacheKey: "/workspace",
+      workspaceRoot: "/workspace",
+      repoRoot: null,
+      repoRemote: null,
+    });
   });
 
   it("registers the index file command and output channel", async () => {
     createIndexer.mockReturnValue({
       initialize: vi.fn().mockResolvedValue(undefined),
       indexFile: vi.fn(),
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "missing",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: null,
+      }),
       getSymbols: vi.fn(),
       getAllFiles: vi.fn(),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
@@ -142,6 +167,22 @@ describe("activate", () => {
             language: "typescript",
           },
         ],
+      }),
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "ready",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: {
+          schemaVersion: 1,
+          lastSuccessfulIndexAt: new Date().toISOString(),
+          indexedFileCount: 1,
+          graphNodeCount: 1,
+          graphEdgeCount: 0,
+        },
       }),
       getSymbols: vi.fn(),
       getAllFiles: vi.fn(),
@@ -211,6 +252,22 @@ describe("activate", () => {
         elapsedMs: 5,
         symbols: [],
       }),
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "ready",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: {
+          schemaVersion: 1,
+          lastSuccessfulIndexAt: new Date().toISOString(),
+          indexedFileCount: 1,
+          graphNodeCount: 1,
+          graphEdgeCount: 0,
+        },
+      }),
       getSymbols: vi.fn(),
       getAllFiles: vi.fn(),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({
@@ -248,7 +305,12 @@ describe("activate", () => {
     await indexWorkspaceHandler?.();
 
     await vi.waitFor(() => {
-      expect(mockIndexer.indexFile).toHaveBeenCalledWith("/workspace/src/greet.ts", "/workspace");
+      expect(mockIndexer.indexFile).toHaveBeenCalledWith("/workspace/src/greet.ts", "/workspace", {
+        cacheKey: "/workspace",
+        workspaceRoot: "/workspace",
+        repoRoot: null,
+        repoRemote: null,
+      });
       expect(mockIndexer.getWorkspaceSubgraph).toHaveBeenCalledWith("/workspace");
       expect(pushGraph).toHaveBeenCalledWith({
         nodes: [
@@ -262,6 +324,95 @@ describe("activate", () => {
         ],
         edges: [],
       });
+    });
+  });
+
+  it("bootstraps workspace cache validation on activation", async () => {
+    const mockIndexer = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      indexFile: vi.fn(),
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "ready",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: {
+          schemaVersion: 1,
+          lastSuccessfulIndexAt: new Date().toISOString(),
+          indexedFileCount: 1,
+          graphNodeCount: 1,
+          graphEdgeCount: 0,
+        },
+      }),
+      getSymbols: vi.fn(),
+      getAllFiles: vi
+        .fn()
+        .mockResolvedValue([
+          { id: "file-1", relativePath: "src/greet.ts", language: "typescript" },
+        ]),
+      getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      dispose: vi.fn(),
+    };
+
+    createIndexer.mockReturnValue(mockIndexer);
+
+    const extension = await import("./extension.js");
+
+    await extension.activate({
+      subscriptions: [],
+      storageUri: { fsPath: "/workspace/.storage" },
+      extensionUri: { fsPath: "/workspace/packages/extension" },
+    });
+
+    await vi.waitFor(() => {
+      expect(resolveCacheIdentity).toHaveBeenCalledWith({ workspaceRoot: "/workspace" });
+      expect(mockIndexer.validateWorkspaceCache).toHaveBeenCalledWith({
+        cacheKey: "/workspace",
+        workspaceRoot: "/workspace",
+        repoRoot: null,
+        repoRemote: null,
+      });
+    });
+  });
+
+  it("shows a non-blocking warning when the persisted cache is unreadable", async () => {
+    const mockIndexer = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      indexFile: vi.fn(),
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "invalid",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: null,
+        reason: "unreadable",
+      }),
+      getSymbols: vi.fn(),
+      getAllFiles: vi.fn().mockResolvedValue([]),
+      getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      dispose: vi.fn(),
+    };
+
+    createIndexer.mockReturnValue(mockIndexer);
+
+    const extension = await import("./extension.js");
+
+    await extension.activate({
+      subscriptions: [],
+      storageUri: { fsPath: "/workspace/.storage" },
+      extensionUri: { fsPath: "/workspace/packages/extension" },
+    });
+
+    await vi.waitFor(() => {
+      expect(showWarningMessage).toHaveBeenCalledWith(
+        "Dextree: Persisted cache could not be read. Showing fallback state.",
+      );
     });
   });
 });

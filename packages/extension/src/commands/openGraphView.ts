@@ -1,5 +1,6 @@
 import type { Indexer } from "@dextree/core";
 import * as vscode from "vscode";
+import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
 import { WebviewPanelManager } from "../webview/panel.js";
 
 /**
@@ -23,11 +24,21 @@ export function registerOpenGraphViewCommand(
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     try {
+      if (workspaceRoot === undefined) {
+        WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
+        return;
+      }
+
       const indexer = await getIndexer();
-      const graph =
-        workspaceRoot === undefined
-          ? { nodes: [], edges: [] }
-          : await indexer.getWorkspaceSubgraph(workspaceRoot);
+      const identity = await resolveCacheIdentity({ workspaceRoot });
+      const validation = await indexer.validateWorkspaceCache(identity);
+
+      if (validation.status !== "ready") {
+        WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
+        return;
+      }
+
+      const graph = await indexer.getWorkspaceSubgraph(workspaceRoot);
 
       WebviewPanelManager.pushGraph(graph);
     } catch (err) {
