@@ -1,4 +1,4 @@
-import { build } from "esbuild";
+import { build, context } from "esbuild";
 import { constants, readdirSync } from "node:fs";
 import { access, copyFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -152,6 +152,34 @@ async function copyOptionalAsset(target, candidates, silent = false) {
   if (!silent) console.warn(`[dextree:extension] Optional asset not found for ${target}`);
 }
 
+async function copyAssets() {
+  await Promise.all(
+    assetMatrix.map((asset) => copyOptionalAsset(asset.target, asset.candidates, asset.silent)),
+  );
+}
+
+function copyAssetsPlugin(watchMode = false) {
+  return {
+    name: "copy-assets",
+    setup(buildContext) {
+      buildContext.onEnd(async (result) => {
+        if (result.errors.length > 0) {
+          if (watchMode) {
+            console.error("[dextree:extension] host build failed");
+          }
+          return;
+        }
+
+        await copyAssets();
+
+        if (watchMode) {
+          console.log("[dextree:extension] host ready");
+        }
+      });
+    },
+  };
+}
+
 /**
  * esbuild plugin that replaces @duckdb/node-bindings-{platform} package requires
  * with a shim that loads the native binary from the dist/ directory using a
@@ -177,15 +205,13 @@ const duckdbNativePlugin = {
   },
 };
 
-async function bundleExtension() {
-  await mkdir(distDir, { recursive: true });
-
-  await build({
+function createBuildOptions(watchMode = false) {
+  return {
     entryPoints: [resolve(packageDir, "src/extension.ts")],
     outfile: resolve(distDir, "extension.cjs"),
     bundle: true,
     external: ["vscode", "*.node"],
-    plugins: [duckdbNativePlugin],
+    plugins: [duckdbNativePlugin, copyAssetsPlugin(watchMode)],
     format: "cjs",
     platform: "node",
     sourcemap: true,
@@ -204,14 +230,25 @@ async function bundleExtension() {
     define: {
       "import.meta.url": "__importMetaUrl",
     },
-  });
-
-  await Promise.all(
-    assetMatrix.map((asset) => copyOptionalAsset(asset.target, asset.candidates, asset.silent)),
-  );
+  };
 }
 
-bundleExtension().catch((error) => {
+async function bundleExtension(watchMode = false) {
+  await mkdir(distDir, { recursive: true });
+
+  if (watchMode) {
+    console.log("[dextree:extension] host watch starting");
+    const watchContext = await context(createBuildOptions(true));
+    await watchContext.watch();
+    return;
+  }
+
+  await build(createBuildOptions(false));
+}
+
+const watchMode = process.argv.includes("--watch");
+
+bundleExtension(watchMode).catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });

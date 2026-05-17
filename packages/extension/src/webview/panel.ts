@@ -1,18 +1,19 @@
 import * as vscode from "vscode";
 import { getWebviewContent } from "./html.js";
-import type { FileWithSymbols } from "./protocol/messages.js";
+import type { GraphMessage } from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
 
 // Module-level singleton — exactly one panel per extension session.
 let currentPanel: vscode.WebviewPanel | undefined;
-// Last symbols pushed — re-sent when webview posts 'ready' (handles race condition).
-let cachedFiles: FileWithSymbols[] | undefined;
+// Last graph pushed — re-sent when webview posts 'ready' (handles race condition).
+let cachedGraph: GraphMessage | undefined;
+let isWebviewReady = false;
 
 /**
  * Manages the Dextree Graph View webview panel (FR-001 through FR-013).
  *
  * Use `WebviewPanelManager.create()` to open or reveal the panel.
- * Use `WebviewPanelManager.pushSymbols()` to push an updated symbols list.
+ * Use `WebviewPanelManager.pushGraph()` to push an updated graph payload.
  */
 export const WebviewPanelManager = {
   /**
@@ -36,19 +37,21 @@ export const WebviewPanelManager = {
       },
     );
 
-    currentPanel.webview.html = getWebviewContent(currentPanel.webview, context.extensionUri);
+    currentPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, "resources", "dextree.svg");
+    isWebviewReady = false;
 
     // Navigation messages from the webview (FR-007, FR-013)
     currentPanel.webview.onDidReceiveMessage(
       (msg: unknown) => {
-        // Webview signals it's ready — re-push cached symbols to avoid race condition
+        // Webview signals it's ready — re-push cached graph to avoid race condition
         if (
           typeof msg === "object" &&
           msg !== null &&
           (msg as Record<string, unknown>)["type"] === "ready"
         ) {
-          if (cachedFiles !== undefined) {
-            void currentPanel?.webview.postMessage({ type: "symbols", files: cachedFiles });
+          isWebviewReady = true;
+          if (cachedGraph !== undefined) {
+            void currentPanel?.webview.postMessage(cachedGraph);
           }
           return;
         }
@@ -64,11 +67,16 @@ export const WebviewPanelManager = {
       context.subscriptions,
     );
 
+    // Register handlers before loading the webview so an eager `ready` message
+    // from the client cannot race ahead of the host listener.
+    currentPanel.webview.html = getWebviewContent(currentPanel.webview, context.extensionUri);
+
     // Clean up module reference when panel is closed (FR-005)
     currentPanel.onDidDispose(
       () => {
         currentPanel = undefined;
-        cachedFiles = undefined;
+        cachedGraph = undefined;
+        isWebviewReady = false;
       },
       undefined,
       context.subscriptions,
@@ -78,13 +86,17 @@ export const WebviewPanelManager = {
   },
 
   /**
-   * Pushes an updated symbol list to the open webview panel.
+   * Pushes an updated graph payload to the open webview panel.
    * No-op if no panel is currently open.
    */
-  pushSymbols(files: FileWithSymbols[]): void {
-    cachedFiles = files;
-    if (currentPanel === undefined) return;
-    void currentPanel.webview.postMessage({ type: "symbols", files });
+  pushGraph(graph: Omit<GraphMessage, "type">): void {
+    cachedGraph = {
+      type: "graph",
+      nodes: graph.nodes,
+      edges: graph.edges,
+    };
+    if (currentPanel === undefined || !isWebviewReady) return;
+    void currentPanel.webview.postMessage(cachedGraph);
   },
 
   /**
@@ -99,7 +111,7 @@ async function navigateToSymbol(filePath: string, line: number): Promise<void> {
   try {
     const uri = vscode.Uri.file(filePath);
     const doc = await vscode.workspace.openTextDocument(uri);
-    const position = new vscode.Position(line, 0);
+    const position = new vscode.Position(Math.max(line - 1, 0), 0);
     await vscode.window.showTextDocument(doc, {
       selection: new vscode.Selection(position, position),
       preserveFocus: false,

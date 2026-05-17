@@ -5,6 +5,21 @@ import * as vscode from "vscode";
 
 import type { Logger } from "../logger.js";
 
+const ROOT_ACTIONS = [
+  {
+    label: "Index Workspace",
+    command: "dextree.indexWorkspace",
+    icon: "sync",
+    description: "Scan the current workspace",
+  },
+  {
+    label: "Open Graph View",
+    command: "dextree.openGraphView",
+    icon: "type-hierarchy",
+    description: "Open the interactive workspace graph",
+  },
+] as const;
+
 // ---------------------------------------------------------------------------
 // Kind → Codicon mapping ($(symbol-*) family)
 // ---------------------------------------------------------------------------
@@ -34,9 +49,27 @@ export class TreeDirNode {
     readonly dirName: string,
     readonly children: TreeNode[],
   ) {
-    const item = new vscode.TreeItem(dirName, vscode.TreeItemCollapsibleState.Expanded);
+    const item = new vscode.TreeItem(dirName, vscode.TreeItemCollapsibleState.Collapsed);
     item.iconPath = new vscode.ThemeIcon("folder");
     item.contextValue = "dextreeDir";
+    this.treeItem = item;
+  }
+}
+
+export class TreeActionNode {
+  readonly kind = "action" as const;
+  readonly treeItem: vscode.TreeItem;
+
+  constructor(action: (typeof ROOT_ACTIONS)[number]) {
+    const item = new vscode.TreeItem(action.label, vscode.TreeItemCollapsibleState.None);
+    item.description = action.description;
+    item.tooltip = action.label;
+    item.contextValue = "dextreeAction";
+    item.iconPath = new vscode.ThemeIcon(action.icon);
+    item.command = {
+      command: action.command,
+      title: action.label,
+    };
     this.treeItem = item;
   }
 }
@@ -81,7 +114,7 @@ export class TreeSymbolNode {
   }
 }
 
-export type TreeNode = TreeDirNode | TreeFileNode | TreeSymbolNode;
+export type TreeNode = TreeActionNode | TreeDirNode | TreeFileNode | TreeSymbolNode;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -122,6 +155,10 @@ function buildDirTree(files: StoredFile[], prefix: string): TreeNode[] {
   return nodes;
 }
 
+function buildRootTree(files: StoredFile[]): TreeNode[] {
+  return [...ROOT_ACTIONS.map((action) => new TreeActionNode(action)), ...buildDirTree(files, "")];
+}
+
 // ---------------------------------------------------------------------------
 // TreeDataProvider
 // ---------------------------------------------------------------------------
@@ -151,15 +188,19 @@ export class SymbolsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     if (element === undefined) {
       const indexer = this.getIndexer();
       if (indexer === null) {
-        return [];
+        return buildRootTree([]);
       }
       try {
         const files = await indexer.getAllFiles();
-        return buildDirTree(files, "");
+        return buildRootTree(files);
       } catch (error) {
         this.logger.error("Failed to load indexed files", error);
-        return [];
+        return buildRootTree([]);
       }
+    }
+
+    if (element.kind === "action") {
+      return [];
     }
 
     // Dir node — return its pre-built children

@@ -60,21 +60,13 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
 
     #root {
       height: 100%;
-      overflow: auto;
+      overflow: hidden;
       padding: 8px;
     }
 
-    button {
-      all: unset;
-      cursor: pointer;
-    }
-
-    ul {
-      list-style: none;
-    }
-
     .dxt-loading,
-    .dxt-empty {
+    .dxt-empty,
+    .dxt-error {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -82,61 +74,165 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       gap: 8px;
       height: 100%;
       opacity: 0.7;
+      text-align: center;
+    }
+
+    .dxt-empty-preview {
+      width: min(360px, 100%);
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--vscode-panel-border, transparent);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 82%, var(--vscode-foreground) 18%);
+    }
+
+    .dxt-preview-canvas {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 168px;
+    }
+
+    .dxt-preview-node {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 88px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--vscode-panel-border, transparent);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+    }
+
+    .dxt-preview-node-file {
+      left: 12px;
+      background: color-mix(in srgb, var(--vscode-symbolIcon-fileForeground) 18%, var(--vscode-editor-background) 82%);
+      color: var(--vscode-symbolIcon-fileForeground);
+    }
+
+    .dxt-preview-node-symbol {
+      right: 18px;
+      background: color-mix(in srgb, var(--vscode-symbolIcon-classForeground) 18%, var(--vscode-editor-background) 82%);
+      color: var(--vscode-symbolIcon-classForeground);
+    }
+
+    .dxt-preview-node-symbol-top {
+      top: 26px;
+    }
+
+    .dxt-preview-node-symbol-bottom {
+      bottom: 24px;
+    }
+
+    .dxt-preview-link {
+      position: absolute;
+      left: 116px;
+      width: 120px;
+      height: 2px;
+      transform-origin: left center;
+      opacity: 0.9;
+    }
+
+    .dxt-preview-link-defines {
+      top: 72px;
+      background: var(--vscode-charts-blue, var(--vscode-foreground));
+      transform: rotate(-18deg);
+    }
+
+    .dxt-preview-link-calls {
+      bottom: 58px;
+      background: var(--vscode-charts-orange, var(--vscode-foreground));
+      transform: rotate(14deg);
+    }
+
+    .dxt-preview-caption {
+      font-size: 12px;
+      opacity: 0.85;
+      line-height: 1.4;
     }
 
     .dxt-loading .codicon,
-    .dxt-empty .codicon {
+    .dxt-empty .codicon,
+    .dxt-error .codicon {
       font-size: 32px;
     }
 
-    .dxt-tree {
-      width: 100%;
+    .dxt-graph-view {
+      height: 100%;
     }
 
-    .dxt-tree-children {
-      padding-left: 16px;
+    .dxt-fallback-graph {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      height: 100%;
     }
 
-    .dxt-dir-btn {
+    .dxt-fallback-banner {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 8px;
+      opacity: 0.82;
+      font-size: 12px;
+    }
+
+    .dxt-fallback-surface {
+      position: relative;
+      flex: 1;
+      min-height: 240px;
+      overflow: hidden;
+      border-radius: 6px;
+      border: 1px solid var(--vscode-panel-border, transparent);
+      background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--vscode-charts-blue) 16%, transparent), transparent 42%),
+        radial-gradient(circle at bottom right, color-mix(in srgb, var(--vscode-charts-green) 16%, transparent), transparent 38%),
+        var(--vscode-editor-background);
+    }
+
+    .dxt-fallback-edges {
+      position: absolute;
+      inset: 0;
       width: 100%;
-      padding: 3px 4px;
-      border-radius: 3px;
-      font-size: 0.9em;
+      height: 100%;
+      opacity: 0.85;
+    }
+
+    .dxt-fallback-node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      min-width: 88px;
+      max-width: 180px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid currentColor;
+      background: color-mix(in srgb, var(--vscode-editor-background) 84%, currentColor 16%);
+      font: inherit;
+      font-size: 12px;
       font-weight: 600;
+      cursor: pointer;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
     }
 
-    .dxt-dir-btn:hover,
-    .dxt-dir-btn:focus-visible {
-      background-color: var(--vscode-list-hoverBackground);
-      outline: 1px solid var(--vscode-focusBorder);
+    .dxt-fallback-node:hover {
+      background: color-mix(in srgb, var(--vscode-editor-background) 74%, currentColor 26%);
     }
 
-    .dxt-dir-name {
-      opacity: 0.75;
+    .dxt-fallback-node-file {
+      box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 22%, transparent);
     }
 
-    .dxt-symbol-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
+    #dxt-graph-container {
       width: 100%;
-      padding: 3px 4px;
+      height: 100%;
+      min-height: 240px;
       border-radius: 3px;
-    }
-
-    .dxt-symbol-btn:hover,
-    .dxt-symbol-btn:focus-visible {
-      background-color: var(--vscode-list-hoverBackground);
-      outline: 1px solid var(--vscode-focusBorder);
-    }
-
-    .dxt-symbol-kind {
-      font-size: 0.8em;
-      opacity: 0.5;
-      margin-left: auto;
+      background-color: var(--vscode-editor-background);
     }
   </style>
 </head>

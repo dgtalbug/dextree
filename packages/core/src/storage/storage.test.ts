@@ -39,6 +39,7 @@ function makeExtractedData(symbolName = "greet"): ExtractedIndexData {
         language: "typescript",
       },
     ],
+    imports: [],
   };
 }
 
@@ -87,6 +88,7 @@ describe("storage schema and writes", () => {
       expect(fileRows).toHaveLength(1);
       expect(symbolRows).toEqual([{ name: "wave" }]);
       expect(edgeRows).toHaveLength(1);
+      expect(edgeRows).toEqual([{ kind: "DEFINES" }]);
     } finally {
       database.close();
     }

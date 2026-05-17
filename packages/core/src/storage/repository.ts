@@ -1,7 +1,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { v4 as uuidv4 } from "uuid";
 
-import type { ExtractedIndexData, StoredSymbol } from "../types.js";
+import type { ExtractedImportRef, ExtractedIndexData, StoredSymbol } from "../types.js";
 import { runInTransaction } from "./db.js";
 
 function rangeParams(symbol: StoredSymbol): Record<string, number> {
@@ -10,6 +10,15 @@ function rangeParams(symbol: StoredSymbol): Record<string, number> {
     start_col: symbol.range.startCol,
     end_line: symbol.range.endLine,
     end_col: symbol.range.endCol,
+  };
+}
+
+function importRangeParams(importRef: ExtractedImportRef): Record<string, number> {
+  return {
+    start_line: importRef.range.startLine,
+    start_col: importRef.range.startCol,
+    end_line: importRef.range.endLine,
+    end_col: importRef.range.endCol,
   };
 }
 
@@ -31,6 +40,9 @@ async function deleteExistingRows(
   connection: DuckDBConnection,
   existingFileId: string,
 ): Promise<void> {
+  await connection.run("DELETE FROM import_ref WHERE file_id = $file_id", {
+    file_id: existingFileId,
+  });
   await connection.run(
     `
       DELETE FROM edge
@@ -198,12 +210,54 @@ async function insertDefinesEdges(
     await connection.run(
       `
         INSERT INTO edge (id, source_id, target_id, kind, weight, metadata)
-        VALUES ($id, $source_id, $target_id, 'structural', NULL, '{}'::JSON)
+        VALUES ($id, $source_id, $target_id, 'DEFINES', NULL, '{}'::JSON)
       `,
       {
         id: uuidv4(),
         source_id: input.file.id,
         target_id: symbol.id,
+      },
+    );
+  }
+}
+
+async function insertImportRefs(
+  connection: DuckDBConnection,
+  input: ExtractedIndexData,
+): Promise<void> {
+  for (const importRef of input.imports) {
+    await connection.run(
+      `
+        INSERT INTO import_ref (
+          id,
+          file_id,
+          import_path,
+          imported_symbol,
+          range,
+          language,
+          metadata
+        ) VALUES (
+          $id,
+          $file_id,
+          $import_path,
+          $imported_symbol,
+          struct_pack(
+            start_line := $start_line,
+            start_col := $start_col,
+            end_line := $end_line,
+            end_col := $end_col
+          ),
+          $language,
+          '{}'::JSON
+        )
+      `,
+      {
+        id: importRef.id,
+        file_id: importRef.fileId,
+        import_path: importRef.importPath,
+        imported_symbol: importRef.importedSymbol,
+        language: importRef.language,
+        ...importRangeParams(importRef),
       },
     );
   }
@@ -224,6 +278,10 @@ export async function replaceFileGraph(
         ...symbol,
         fileId: existingFileId ?? input.file.id,
       })),
+      imports: input.imports.map((importRef) => ({
+        ...importRef,
+        fileId: existingFileId ?? input.file.id,
+      })),
     };
 
     if (existingFileId !== null) {
@@ -237,6 +295,7 @@ export async function replaceFileGraph(
       await insertSymbol(connection, symbol);
     }
 
+    await insertImportRefs(connection, normalizedInput);
     await insertDefinesEdges(connection, normalizedInput);
   });
 }

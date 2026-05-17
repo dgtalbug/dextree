@@ -7,29 +7,11 @@
  * Webview → Extension host: WebviewToHostMessage
  */
 
+import type { GraphEdge, GraphNode } from "@dextree/core";
+
 // ---------------------------------------------------------------------------
 // Shared entity types
 // ---------------------------------------------------------------------------
-
-/** A single indexed symbol as delivered to the webview. */
-export interface SymbolEntry {
-  /** Display name (e.g. "greet"). */
-  name: string;
-  /** Symbol kind label (e.g. "function", "variable"). */
-  kind: string;
-  /** 0-based start line of the symbol definition. */
-  startLine: number;
-}
-
-/** A file and its indexed symbols as delivered to the webview. */
-export interface FileWithSymbols {
-  /** Absolute path on disk. Used as the filePath in NavigateMessage. */
-  path: string;
-  /** Workspace-relative path. Used as the display label in the symbol list. */
-  relativePath: string;
-  /** All symbols indexed for this file, in storage order. */
-  symbols: SymbolEntry[];
-}
 
 // ---------------------------------------------------------------------------
 // Extension Host → Webview messages
@@ -39,13 +21,14 @@ export interface FileWithSymbols {
  * Pushed by the extension host on panel open and after each index completion
  * while the panel is open (FR-004, FR-009).
  */
-export interface SymbolsMessage {
-  type: "symbols";
-  files: FileWithSymbols[];
+export interface GraphMessage {
+  type: "graph";
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 /** Union of all messages the extension host can send to the webview. */
-export type HostToWebviewMessage = SymbolsMessage;
+export type HostToWebviewMessage = GraphMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension Host messages
@@ -82,12 +65,12 @@ export type WebviewToHostMessage = NavigateMessage | ReadyMessage;
 export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMessage {
   if (typeof value !== "object" || value === null) return false;
   const msg = value as Record<string, unknown>;
-  return msg["type"] === "symbols";
+  return msg["type"] === "graph";
 }
 
 /** Narrows an unknown value to WebviewToHostMessage. */
 export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
   if (typeof value !== "object" || value === null) return false;
   const msg = value as Record<string, unknown>;
-  return msg["type"] === "navigate";
+  return msg["type"] === "navigate" || msg["type"] === "ready";
 }

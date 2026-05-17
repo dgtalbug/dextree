@@ -16,6 +16,7 @@ function makeFileData(name: string) {
       hash: `hash-${name}`,
     },
     symbols: [],
+    imports: [],
   };
 }
 

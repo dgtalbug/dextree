@@ -129,6 +129,71 @@ Tone should be direct, specific, and free of marketing fluff.
 - If repo docs and implementation disagree, flag the conflict explicitly and cite
   the source-of-truth order above.
 
+## Pull request descriptions
+
+When generating a PR description (via the "Copilot can help" button on the PR
+form, or any auto-description trigger), use `.github/PULL_REQUEST_TEMPLATE.md`
+as the structural skeleton. Fill the template's existing sections; do not
+replace them with generic prose.
+
+### Section-by-section guidance
+
+- **Summary** — 1–3 sentences. State *what* changed and *why now*. Derive from
+  the commit subjects and the file diff. Avoid restating the diff verbatim.
+- **Linked spec / issue** — Look for `specs/NNN-<short>/` directories touched
+  by the PR and link `specs/NNN-<short>/spec.md`. If the branch name matches
+  `NNN-<short>`, infer the spec path from the branch. If the PR closes an
+  issue referenced in any commit, populate `Closes: #<n>`.
+- **Slice classification** — Tick exactly one box, based on the Conventional
+  Commits prefix of the most significant commit (`feat:` → feat, `fix:` →
+  fix, etc.). Do not tick multiple boxes.
+- **Affected surfaces** — Tick exactly the surfaces whose files appear in the
+  diff. Surface mapping:
+  - `packages/core/**` → `packages/core`
+  - `packages/extension/src/webview/**` → `packages/extension/src/webview`
+  - `packages/extension/**` (other) → `packages/extension`
+  - `packages/{alfred,exporters,mcp,cli,web}/**` → the corresponding box
+  - `.github/**`, `turbo.json`, `package.json`, `tsconfig.*`, build scripts →
+    "Build / CI / tooling"
+- **Test plan** — List new or modified `*.test.ts` / `*.test.tsx` files. If
+  any file under `packages/extension/` changed, include the manual `.vsix`
+  smoke test step from the template. Use checkbox bullets; leave unchecked
+  for the human author to mark off.
+- **Checklist** — Pre-tick items you can verify from the diff alone:
+  - Conventional Commits PR title (look at the proposed title)
+  - No edits to `README.md`, `CHANGELOG.md`, `packages/*/README.md`, or
+    marketplace metadata fields in `packages/extension/package.json`
+  - No `.specify/` edits
+  - No `: any` introduced in `.ts`/`.tsx` files without a trailing comment
+    explaining why
+  - No native deps added to `packages/core/package.json` dependencies
+  - No `localStorage.` calls in `packages/extension/src/webview/`
+  - All `uses:` lines in new/modified workflow YAML reference a full 40-char
+    commit SHA (not a `@v<n>` tag)
+  Leave unticked anything that requires runtime verification (`pnpm test`,
+  `pnpm build`, `pnpm package`).
+- **Notes for reviewers** — Surface anything reviewer-relevant that the diff
+  alone does not make obvious:
+  - Net diff over ~400 LOC → explain why the PR cannot be split
+  - Cross-package boundary crossings → explain the contract change
+  - Schema or shared-graph contract changes → call out which pass is touched
+  - Deferred scope → list explicitly (e.g., "S5 workspace indexing not in
+    this slice")
+  - Behavioral changes that are not user-visible but matter to maintainers
+
+### Hard constraints
+
+- Do not edit `README.md`, `CHANGELOG.md`, `packages/*/README.md`, or
+  marketplace metadata as part of generating a PR description. The PR body is
+  the only artifact you write.
+- Do not invent acceptance criteria, FRs, or success criteria. If the spec
+  defines them, link the spec; if it doesn't, do not fabricate them.
+- Do not tick checklist items you cannot verify. Conservative under-ticking
+  is preferred over false confidence.
+- If the diff includes files outside your lane (`packages/*/src/`,
+  `.dextree/`, `.specify/`), describe them factually in Summary and Affected
+  surfaces, but do not propose changes to them in Notes.
+
 <!-- SPECKIT START -->
 
 ## Active implementation plan
