@@ -43,12 +43,14 @@ async function deleteExistingRows(
   await connection.run("DELETE FROM import_ref WHERE file_id = $file_id", {
     file_id: existingFileId,
   });
+  // Two separate statements because DuckDB's named-parameter binding fails
+  // when the same $name appears more than once in a single prepared statement
+  // ("Failed to retrieve bind parameter index"). Splitting avoids the trap.
+  await connection.run("DELETE FROM edge WHERE source_id = $file_id", {
+    file_id: existingFileId,
+  });
   await connection.run(
-    `
-      DELETE FROM edge
-      WHERE source_id = $file_id
-         OR target_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
-    `,
+    "DELETE FROM edge WHERE target_id IN (SELECT id FROM symbol WHERE file_id = $file_id)",
     { file_id: existingFileId },
   );
   await connection.run("DELETE FROM symbol WHERE file_id = $file_id", {
