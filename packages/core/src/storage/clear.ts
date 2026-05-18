@@ -94,11 +94,9 @@ export async function clearWorkspace(
   await connection.run("BEGIN TRANSACTION");
 
   try {
-    // NOTE: DuckDB's named-parameter binding ("@duckdb/node-api") fails with
-    // "Failed to retrieve bind parameter index" when the same $name appears
-    // more than once in a single prepared statement.  We work around that by
-    // splitting otherwise-compound DELETEs so each placeholder occurs once
-    // per statement.
+    // NOTE: @duckdb/node-api throws "Failed to retrieve bind parameter index"
+    // when the params dict contains a key the SQL statement does not reference.
+    // Each connection.run below therefore receives ONLY the keys its SQL uses.
     const fileIdSubquery = `(SELECT id FROM file WHERE path = $workspace_root OR path LIKE $workspace_prefix)`;
     const symbolIdSubquery = `(SELECT s.id FROM symbol s INNER JOIN file f ON f.id = s.file_id
                                WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix)`;
@@ -112,12 +110,15 @@ export async function clearWorkspace(
     await connection.run(`DELETE FROM import_ref WHERE file_id IN ${fileIdSubquery}`, params);
     await connection.run(`DELETE FROM diagnostic WHERE file_id IN ${fileIdSubquery}`, params);
     await connection.run(`DELETE FROM symbol WHERE file_id IN ${fileIdSubquery}`, params);
-    await connection.run(`DELETE FROM file WHERE path = $workspace_root`, params);
-    await connection.run(`DELETE FROM file WHERE path LIKE $workspace_prefix`, params);
-    await connection.run(
-      `DELETE FROM workspace_cache WHERE workspace_root = $workspace_root`,
-      params,
-    );
+    await connection.run(`DELETE FROM file WHERE path = $workspace_root`, {
+      workspace_root: params.workspace_root,
+    });
+    await connection.run(`DELETE FROM file WHERE path LIKE $workspace_prefix`, {
+      workspace_prefix: params.workspace_prefix,
+    });
+    await connection.run(`DELETE FROM workspace_cache WHERE workspace_root = $workspace_root`, {
+      workspace_root: params.workspace_root,
+    });
 
     await connection.run("COMMIT");
   } catch (error) {
