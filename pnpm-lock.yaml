@@ -68,6 +68,12 @@ importers:
       '@duckdb/node-api':
         specifier: ^1.5.2-r.1
         version: 1.5.2-r.1
+      graphology:
+        specifier: ^0.26.0
+        version: 0.26.0(graphology-types@0.24.8)
+      graphology-pagerank:
+        specifier: ^1.1.0
+        version: 1.1.0(graphology-types@0.24.8)
       ignore:
         specifier: ^7.0.5
         version: 7.0.5
@@ -2041,8 +2047,17 @@ packages:
     peerDependencies:
       graphology-types: '>=0.19.0'
 
+  graphology-pagerank@1.1.0:
+    resolution: {integrity: sha512-ubhzN7HDKYSaFFvzqQsqQp14LIgCPNGaioWVZgc5E49NEKUOtCVehWEDF/9QXDUiK+4cMzj/yRoneJbYR0Rc3A==}
+    deprecated: This package is no longer maintained. pagerank for graphology can now be found under graphology-metrics/centrality/pagerank
+
   graphology-types@0.24.8:
     resolution: {integrity: sha512-hDRKYXa8TsoZHjgEaysSRyPdT6uB78Ci8WnjgbStlQysz7xR52PInxNsmnB7IBOM1BhikxkNyCVEFgmPKnpx3Q==}
+
+  graphology-utils@1.8.0:
+    resolution: {integrity: sha512-Pa7SW30OMm8fVtyH49b3GJ/uxlMHGfXly50wIhlcc7ZoX9ahZa7sPBz+obo4WZClrRV6wh3tIu0GJoI42eao1A==}
+    peerDependencies:
+      graphology-types: '>=0.19.0'
 
   graphology-utils@2.5.2:
     resolution: {integrity: sha512-ckHg8MXrXJkOARk56ZaSCM1g1Wihe2d6iTmz1enGOz4W/l831MBCKSayeFQfowgF8wd+PQ4rlch/56Vs/VZLDQ==}
@@ -5142,7 +5157,18 @@ snapshots:
       graphology-types: 0.24.8
       graphology-utils: 2.5.2(graphology-types@0.24.8)
 
+  graphology-pagerank@1.1.0(graphology-types@0.24.8):
+    dependencies:
+      graphology-utils: 1.8.0(graphology-types@0.24.8)
+      lodash: 4.18.1
+    transitivePeerDependencies:
+      - graphology-types
+
   graphology-types@0.24.8: {}
+
+  graphology-utils@1.8.0(graphology-types@0.24.8):
+    dependencies:
+      graphology-types: 0.24.8
 
   graphology-utils@2.5.2(graphology-types@0.24.8):
     dependencies:

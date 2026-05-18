@@ -63,27 +63,27 @@ describe("getWorkspaceSubgraph", () => {
 
       expect(graph.nodes).toEqual(
         expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: "file-alpha",
             type: "file",
             label: "alpha.ts",
             filePath: "/workspace/src/alpha.ts",
             startLine: 1,
-          },
-          {
+          }),
+          expect.objectContaining({
             id: "symbol-alpha",
             type: "symbol",
             label: "alpha",
             filePath: "/workspace/src/alpha.ts",
             startLine: 1,
-          },
-          {
+          }),
+          expect.objectContaining({
             id: "file-beta",
             type: "file",
             label: "beta.ts",
             filePath: "/workspace/src/beta.ts",
             startLine: 1,
-          },
+          }),
         ]),
       );
 
@@ -147,6 +147,48 @@ describe("getWorkspaceSubgraph", () => {
       const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
 
       expect(graph).toEqual({ nodes: [], edges: [] });
+    } finally {
+      database.close();
+    }
+  });
+
+  it("populates importance on every node when the graph has 2+ nodes", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("beta"));
+      await replaceFileGraph(
+        database.connection,
+        makeExtractedData("alpha", { imports: ["src/beta.ts"] }),
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+
+      for (const node of graph.nodes) {
+        expect(typeof node.importance).toBe("number");
+        expect(Number.isFinite(node.importance ?? Number.NaN)).toBe(true);
+      }
+    } finally {
+      database.close();
+    }
+  });
+
+  it("sets importance to 1 for a single-node graph (degenerate)", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      // Insert a file with no symbols so the graph has exactly one node
+      await database.connection.run(
+        `INSERT INTO file (id, path, relative_path, language, loc, hash) VALUES
+         ('only', '/workspace/src/only.ts', 'src/only.ts', 'typescript', 1, 'h')`,
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+
+      expect(graph.nodes).toHaveLength(1);
+      expect(graph.nodes[0]?.importance).toBe(1);
     } finally {
       database.close();
     }

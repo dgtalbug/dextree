@@ -4,6 +4,32 @@ import forceAtlas2 from "graphology-layout-forceatlas2";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import Sigma from "sigma";
 
+import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
+
+const FADE_ALPHA = 0.15;
+
+function toFadedColor(color: unknown): string {
+  if (typeof color !== "string" || color.length === 0) {
+    return `rgba(128, 128, 128, ${FADE_ALPHA})`;
+  }
+
+  const rgbaMatch = color.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+  if (rgbaMatch !== null) {
+    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${FADE_ALPHA})`;
+  }
+
+  const hexMatch = color.match(/^#([0-9a-f]{6})$/i);
+  if (hexMatch !== null) {
+    const hex = hexMatch[1] as string;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${FADE_ALPHA})`;
+  }
+
+  return `rgba(128, 128, 128, ${FADE_ALPHA})`;
+}
+
 interface ThemeColors {
   backgroundColor: string;
   labelColor: string;
@@ -102,6 +128,34 @@ function initialPosition(
   };
 }
 
+const FILE_SIZE_RANGE = { min: 10, max: 22, base: 12 } as const;
+const SYMBOL_SIZE_RANGE = { min: 4, max: 14, base: 6 } as const;
+
+function computeSizeBounds(nodes: GraphNode[]): { min: number; max: number } {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const node of nodes) {
+    if (typeof node.importance === "number" && Number.isFinite(node.importance)) {
+      if (node.importance < min) min = node.importance;
+      if (node.importance > max) max = node.importance;
+    }
+  }
+  return { min, max };
+}
+
+function sizeForNode(node: GraphNode, bounds: { min: number; max: number }): number {
+  const range = node.type === "file" ? FILE_SIZE_RANGE : SYMBOL_SIZE_RANGE;
+  if (
+    typeof node.importance !== "number" ||
+    !Number.isFinite(node.importance) ||
+    bounds.max <= bounds.min
+  ) {
+    return range.base;
+  }
+  const t = (node.importance - bounds.min) / (bounds.max - bounds.min);
+  return range.min + t * (range.max - range.min);
+}
+
 function buildGraph(
   nodes: GraphNode[],
   edges: GraphEdge[],
@@ -112,6 +166,7 @@ function buildGraph(
   const seenNodeIds = new Set<string>();
   const seenEdgeIds = new Set<string>();
   let generatedEdgeIndex = 0;
+  const importanceBounds = computeSizeBounds(nodes);
 
   for (const [index, node] of nodes.entries()) {
     if (node.id.trim() === "" || seenNodeIds.has(node.id)) {
@@ -128,7 +183,7 @@ function buildGraph(
       nodeKind: node.type,
       x,
       y,
-      size: node.type === "file" ? 12 : 6,
+      size: sizeForNode(node, importanceBounds),
       color: node.type === "file" ? colors.fileNodeColor : colors.symbolNodeColor,
     });
   }
@@ -409,6 +464,7 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
 
 export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const hoverRef = useRef<HoverNeighborhood | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
 
@@ -426,6 +482,18 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     let sigma: Sigma | null = null;
     let observer: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    const enterNodeListener = (event: { node: string }): void => {
+      hoverRef.current = computeHoverNeighborhood(graph, event.node);
+      if (sigma !== null) {
+        refreshSigma(sigma);
+      }
+    };
+    const leaveNodeListener = (): void => {
+      hoverRef.current = null;
+      if (sigma !== null) {
+        refreshSigma(sigma);
+      }
+    };
 
     if (!canUseWebGL()) {
       setError(null);
@@ -457,6 +525,20 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
         defaultNodeType: "circle",
         defaultEdgeType: "line",
         defaultEdgeColor: "#888888",
+        nodeReducer: (node, data) => {
+          const hover = hoverRef.current;
+          if (hover === null || hover.nodeIds.has(node)) {
+            return data;
+          }
+          return { ...data, color: toFadedColor(data.color) };
+        },
+        edgeReducer: (edge, data) => {
+          const hover = hoverRef.current;
+          if (hover === null || hover.edgeIds.has(edge)) {
+            return data;
+          }
+          return { ...data, color: toFadedColor(data.color) };
+        },
       });
 
       applyTheme(graph, sigma, container);
@@ -476,6 +558,9 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
         };
         onNavigate(attributes.filePath, attributes.startLine);
       });
+
+      sigma.on("enterNode", enterNodeListener);
+      sigma.on("leaveNode", leaveNodeListener);
 
       observer = new MutationObserver(() => {
         if (sigma !== null) {
@@ -497,6 +582,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     return () => {
       observer?.disconnect();
       resizeObserver?.disconnect();
+      hoverRef.current = null;
       sigma?.kill();
     };
   }, [edges, nodes, onNavigate]);

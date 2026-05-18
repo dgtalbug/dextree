@@ -305,4 +305,78 @@ describe("GraphView", () => {
     fireEvent.click(fallbackNode);
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 6);
   });
+
+  it("registers nodeReducer and edgeReducer Sigma settings", () => {
+    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+
+    const settings = sigmaConstructor.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(typeof settings.nodeReducer).toBe("function");
+    expect(typeof settings.edgeReducer).toBe("function");
+  });
+
+  it("registers enterNode and leaveNode event listeners on Sigma", () => {
+    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+
+    const events = mockSigma.on.mock.calls.map((call) => call[0]);
+    expect(events).toContain("enterNode");
+    expect(events).toContain("leaveNode");
+  });
+
+  it("scales node size proportionally to importance when provided", () => {
+    const nodesWithImportance = [
+      { ...baseNodes[0]!, importance: 0.1 },
+      { ...baseNodes[1]!, importance: 0.9 },
+      { ...baseNodes[2]!, importance: 0.5 },
+    ];
+
+    render(<GraphView nodes={nodesWithImportance} edges={baseEdges} onNavigate={vi.fn()} />);
+
+    const graph = sigmaConstructor.mock.calls[0]?.[0];
+
+    const file1Size = graph.getNodeAttribute("file-1", "size") as number;
+    const symbol1Size = graph.getNodeAttribute("symbol-1", "size") as number;
+    const symbol2Size = graph.getNodeAttribute("symbol-2", "size") as number;
+
+    // The highest-importance symbol node should be larger than the lowest.
+    expect(symbol1Size).toBeGreaterThan(symbol2Size);
+    // File node base size should still exceed symbol nodes for visual hierarchy.
+    expect(file1Size).toBeGreaterThan(symbol2Size);
+  });
+
+  it("falls back to uniform node sizes when importance is not provided", () => {
+    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+
+    const graph = sigmaConstructor.mock.calls[0]?.[0];
+
+    expect(graph.getNodeAttribute("symbol-1", "size")).toBe(
+      graph.getNodeAttribute("symbol-2", "size"),
+    );
+  });
+
+  it("fades non-neighbor nodes and edges when a node is hovered", () => {
+    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+
+    const settings = sigmaConstructor.mock.calls[0]?.[2] as {
+      nodeReducer: (node: string, data: Record<string, unknown>) => Record<string, unknown>;
+      edgeReducer: (edge: string, data: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const enterNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "enterNode")?.[1];
+    enterNodeHandler?.({ node: "file-1" });
+
+    // file-1 hovered -> file-1, symbol-1, symbol-2 stay full opacity
+    // (edge-defines and edge-imports both touch file-1, edge-calls does not)
+    const fadedNode = settings.nodeReducer("symbol-2", { color: "rgb(255, 180, 120)", size: 6 });
+    // symbol-2 IS a neighbor via edge-imports, so it should not be faded
+    expect(fadedNode.color).toBe("rgb(255, 180, 120)");
+
+    // edge-calls (symbol-1 -> symbol-2) does not touch file-1, so it should fade
+    const fadedEdge = settings.edgeReducer("edge-calls", { color: "rgb(255, 170, 90)" });
+    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.15\)/);
+
+    const leaveNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "leaveNode")?.[1];
+    leaveNodeHandler?.({});
+
+    const restoredEdge = settings.edgeReducer("edge-calls", { color: "rgb(255, 170, 90)" });
+    expect(restoredEdge.color).toBe("rgb(255, 170, 90)");
+  });
 });
