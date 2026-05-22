@@ -48,6 +48,7 @@ export type {
 } from "./types.js";
 
 export { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
+export { recomputeGraphHealth } from "./quality/index.js";
 
 /**
  * Thrown by `DuckTreeIndexer.initialize` when the persisted schema cannot be

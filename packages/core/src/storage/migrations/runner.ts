@@ -31,10 +31,67 @@ const MIGRATION_001: Migration = {
   `,
 };
 
-// Migrations 002 and 003 land in subsequent tasks (T018, T027). The runner is
-// already wired to consume the full list, so adding a migration is a one-line
-// append.
-const MIGRATIONS: readonly Migration[] = [MIGRATION_001];
+const MIGRATION_002: Migration = {
+  version: 2,
+  description: "add annotation/module/test entity tables",
+  sql: `
+    CREATE TABLE IF NOT EXISTS annotation (
+      id VARCHAR PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      args JSON DEFAULT '{}',
+      range STRUCT(
+        start_line UINTEGER,
+        start_col UINTEGER,
+        end_line UINTEGER,
+        end_col UINTEGER
+      ),
+      parent_symbol_id VARCHAR NOT NULL,
+      language VARCHAR NOT NULL,
+      metadata JSON DEFAULT '{}',
+      _schema_version UINTEGER NOT NULL DEFAULT 3
+    );
+
+    CREATE TABLE IF NOT EXISTS module (
+      id VARCHAR PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      fqn VARCHAR NOT NULL,
+      language VARCHAR NOT NULL,
+      package VARCHAR,
+      version VARCHAR,
+      metadata JSON DEFAULT '{}',
+      _schema_version UINTEGER NOT NULL DEFAULT 3
+    );
+
+    CREATE TABLE IF NOT EXISTS test (
+      id VARCHAR PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      framework VARCHAR NOT NULL,
+      file_id VARCHAR NOT NULL,
+      range STRUCT(
+        start_line UINTEGER,
+        start_col UINTEGER,
+        end_line UINTEGER,
+        end_col UINTEGER
+      ) NOT NULL,
+      target_symbol_id VARCHAR,
+      target_confidence FLOAT DEFAULT 0.0,
+      metadata JSON DEFAULT '{}',
+      _schema_version UINTEGER NOT NULL DEFAULT 3
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_annotation_parent ON annotation(parent_symbol_id);
+    CREATE INDEX IF NOT EXISTS idx_module_fqn ON module(fqn);
+    CREATE INDEX IF NOT EXISTS idx_test_file ON test(file_id);
+    CREATE INDEX IF NOT EXISTS idx_test_target ON test(target_symbol_id);
+
+    INSERT INTO _schema_version (version, description)
+    SELECT 2, 'add annotation/module/test entity tables'
+    WHERE NOT EXISTS (SELECT 1 FROM _schema_version WHERE version = 2);
+  `,
+};
+
+// Migration 003 lands in US3 (T027). The runner already consumes the full list.
+const MIGRATIONS: readonly Migration[] = [MIGRATION_001, MIGRATION_002];
 
 export interface MigrationResultOk {
   status: "ok";

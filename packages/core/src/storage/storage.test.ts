@@ -268,12 +268,7 @@ afterEach(() => {
 });
 
 describe("DuckTreeIndexer.initialize with applyMigrations", () => {
-  it("leaves a v1-shaped DB at the highest registered migration version", async () => {
-    // NOTE: At MVP foundation (this PR), only migration 001 ships. Migrations 002
-    // (annotation/module/test tables, US2) and 003 (edge unification, US3) land in
-    // the same slice but in later commits. Once those migrations land, this test
-    // will assert `maxVersion === SCHEMA_VERSION (3)`. Until then the assertion
-    // matches what the runner can actually do.
+  it("brings a v1-shaped DB up through migration 002 on first open", async () => {
     const database = await openDatabase(":memory:");
 
     try {
@@ -293,10 +288,20 @@ describe("DuckTreeIndexer.initialize with applyMigrations", () => {
       const row = rows[0] as { max_version: number | bigint };
       const maxVersion =
         typeof row.max_version === "bigint" ? Number(row.max_version) : row.max_version;
-      // Today: max is 1 (only migration 001 is registered).
-      // After US2/US3: this assertion bumps to SCHEMA_VERSION.
-      expect(maxVersion).toBeGreaterThanOrEqual(1);
+      // After US2: max is 2 (migrations 001 + 002 registered).
+      // After US3: this assertion bumps to SCHEMA_VERSION (3).
+      expect(maxVersion).toBeGreaterThanOrEqual(2);
       expect(maxVersion).toBeLessThanOrEqual(SCHEMA_VERSION);
+
+      // Migration 002 brought the entity tables into existence.
+      const tablesReader = await database.connection.run(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name",
+      );
+      const tableRows = await tablesReader.getRowObjectsJS();
+      const tableNames = tableRows.map((r) => (r as { table_name: string }).table_name);
+      expect(tableNames).toContain("annotation");
+      expect(tableNames).toContain("module");
+      expect(tableNames).toContain("test");
     } finally {
       database.close();
     }
@@ -321,5 +326,238 @@ describe("DuckTreeIndexer.initialize with applyMigrations", () => {
     // is the exported class. Behavior is covered end-to-end by runner.test.ts.
     expect(typeof createIndexer).toBe("function");
     expect(SchemaError.prototype).toBeInstanceOf(Error);
+  });
+});
+
+describe("core entity tables (annotation, module, test)", () => {
+  it("round-trips an annotation row with all columns surviving and default _schema_version", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      await database.connection.run(
+        `
+          INSERT INTO annotation (id, name, parent_symbol_id, language, range)
+          VALUES (
+            'ann-1',
+            'Deprecated',
+            'symbol-1',
+            'typescript',
+            struct_pack(start_line := 1, start_col := 0, end_line := 1, end_col := 12)
+          )
+        `,
+      );
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT id, name, parent_symbol_id, language, _schema_version FROM annotation WHERE id = 'ann-1'",
+        )
+      ).getRowObjectsJS();
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0] as {
+        id: string;
+        name: string;
+        parent_symbol_id: string;
+        language: string;
+        _schema_version: number | bigint;
+      };
+      const version =
+        typeof row._schema_version === "bigint" ? Number(row._schema_version) : row._schema_version;
+      expect(row.id).toBe("ann-1");
+      expect(row.name).toBe("Deprecated");
+      expect(row.parent_symbol_id).toBe("symbol-1");
+      expect(row.language).toBe("typescript");
+      expect(version).toBe(SCHEMA_VERSION);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("round-trips a module row with package + version metadata", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      await database.connection.run(
+        `
+          INSERT INTO module (id, name, fqn, language, package, version)
+          VALUES ('mod-1', '@dextree/core', '@dextree/core', 'typescript', '@dextree/core', '0.0.0')
+        `,
+      );
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT name, package, version, _schema_version FROM module WHERE id = 'mod-1'",
+        )
+      ).getRowObjectsJS();
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0] as {
+        name: string;
+        package: string;
+        version: string;
+        _schema_version: number | bigint;
+      };
+      const version =
+        typeof row._schema_version === "bigint" ? Number(row._schema_version) : row._schema_version;
+      expect(row.name).toBe("@dextree/core");
+      expect(row.package).toBe("@dextree/core");
+      expect(row.version).toBe("0.0.0");
+      expect(version).toBe(SCHEMA_VERSION);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("round-trips a test row with framework + target", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      await database.connection.run(
+        `
+          INSERT INTO test (id, name, framework, file_id, range, target_symbol_id, target_confidence)
+          VALUES (
+            'test-1',
+            'greet returns hello',
+            'vitest',
+            'file-1',
+            struct_pack(start_line := 5, start_col := 0, end_line := 8, end_col := 1),
+            'symbol-greet',
+            0.85
+          )
+        `,
+      );
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT name, framework, file_id, target_symbol_id, target_confidence, _schema_version FROM test WHERE id = 'test-1'",
+        )
+      ).getRowObjectsJS();
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0] as {
+        name: string;
+        framework: string;
+        file_id: string;
+        target_symbol_id: string;
+        target_confidence: number;
+        _schema_version: number | bigint;
+      };
+      const version =
+        typeof row._schema_version === "bigint" ? Number(row._schema_version) : row._schema_version;
+      expect(row.framework).toBe("vitest");
+      expect(row.target_symbol_id).toBe("symbol-greet");
+      expect(row.target_confidence).toBeCloseTo(0.85, 5);
+      expect(version).toBe(SCHEMA_VERSION);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("creates the four expected indexes on the new entity tables", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT index_name, table_name FROM duckdb_indexes() WHERE table_name IN ('annotation', 'module', 'test') ORDER BY index_name",
+        )
+      ).getRowObjectsJS();
+
+      const indexNames = rows.map((r) => (r as { index_name: string }).index_name);
+      expect(indexNames).toContain("idx_annotation_parent");
+      expect(indexNames).toContain("idx_module_fqn");
+      expect(indexNames).toContain("idx_test_file");
+      expect(indexNames).toContain("idx_test_target");
+    } finally {
+      database.close();
+    }
+  });
+});
+
+describe("repository defaults (no hardcoded literals)", () => {
+  it("file rows pick up _schema_version from the column DEFAULT, not a hardcoded literal", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("greet"));
+
+      const rows = await (
+        await database.connection.run("SELECT _schema_version FROM file WHERE id = 'file-1'")
+      ).getRowObjectsJS();
+
+      const row = rows[0] as { _schema_version: number | bigint };
+      const version =
+        typeof row._schema_version === "bigint" ? Number(row._schema_version) : row._schema_version;
+      // If a future SCHEMA_VERSION bump silently leaves rows behind, this test
+      // catches it: written rows must equal the live constant, not a frozen 1.
+      expect(version).toBe(SCHEMA_VERSION);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("symbol rows default fan_in to 0 and is_core to FALSE via column DEFAULT", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("greet"));
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT fan_in, is_core, _schema_version FROM symbol WHERE id = 'symbol-greet'",
+        )
+      ).getRowObjectsJS();
+
+      const row = rows[0] as {
+        fan_in: number | bigint;
+        is_core: boolean;
+        _schema_version: number | bigint;
+      };
+      const fanIn = typeof row.fan_in === "bigint" ? Number(row.fan_in) : row.fan_in;
+      const version =
+        typeof row._schema_version === "bigint" ? Number(row._schema_version) : row._schema_version;
+      expect(fanIn).toBe(0);
+      expect(row.is_core).toBe(false);
+      expect(version).toBe(SCHEMA_VERSION);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("does not reset file metadata when the same file is re-indexed", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("greet"));
+
+      // Simulate a future enrichment slice tagging the file before reindex.
+      await database.connection.run(
+        "UPDATE file SET tags = ['hot']::VARCHAR[], is_core = TRUE WHERE id = 'file-1'",
+      );
+
+      // Re-index the same file (different symbol name = different hash).
+      await replaceFileGraph(database.connection, makeExtractedData("wave"));
+
+      const rows = await (
+        await database.connection.run("SELECT tags, is_core FROM file WHERE id = 'file-1'")
+      ).getRowObjectsJS();
+      const row = rows[0] as { tags: string[]; is_core: boolean };
+      // M7 audit fix: reindex must preserve tags/is_core, not reset them.
+      expect(row.tags).toEqual(["hot"]);
+      expect(row.is_core).toBe(true);
+    } finally {
+      database.close();
+    }
   });
 });

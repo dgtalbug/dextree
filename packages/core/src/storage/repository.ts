@@ -59,6 +59,11 @@ async function deleteExistingRows(
 }
 
 async function insertFile(connection: DuckDBConnection, input: ExtractedIndexData): Promise<void> {
+  // _schema_version, is_core, fan_in, tags, labels, metadata, last_modified,
+  // last_author, change_count_30d are omitted from the column list — they take
+  // their schema-defined DEFAULTs. fan_in/is_core are populated later by
+  // `recomputeGraphHealth` (S11.7); the rest stay at their defaults until git
+  // (S10) or diagnostics (S9) fill them in.
   await connection.run(
     `
       INSERT INTO file (
@@ -68,15 +73,7 @@ async function insertFile(connection: DuckDBConnection, input: ExtractedIndexDat
         language,
         loc,
         hash,
-        last_indexed,
-        _schema_version,
-        last_modified,
-        last_author,
-        change_count_30d,
-        is_core,
-        tags,
-        labels,
-        metadata
+        last_indexed
       ) VALUES (
         $id,
         $path,
@@ -84,15 +81,7 @@ async function insertFile(connection: DuckDBConnection, input: ExtractedIndexDat
         $language,
         $loc,
         $hash,
-        CURRENT_TIMESTAMP,
-        1,
-        NULL,
-        NULL,
-        NULL,
-        FALSE,
-        []::VARCHAR[],
-        []::VARCHAR[],
-        '{}'::JSON
+        CURRENT_TIMESTAMP
       )
     `,
     {
@@ -107,6 +96,11 @@ async function insertFile(connection: DuckDBConnection, input: ExtractedIndexDat
 }
 
 async function updateFile(connection: DuckDBConnection, input: ExtractedIndexData): Promise<void> {
+  // Update only the columns that change when a file is re-indexed (path metadata,
+  // size, hash, last_indexed). is_core, fan_in, tags, labels, metadata, and the
+  // git-derived columns are deliberately NOT reset: they're owned by other
+  // subsystems (S9 diagnostics, S10 git, S11.7 graph health) and a reindex
+  // should preserve their state. Closes audit finding M7.
   await connection.run(
     `
       UPDATE file
@@ -115,15 +109,7 @@ async function updateFile(connection: DuckDBConnection, input: ExtractedIndexDat
         language = $language,
         loc = $loc,
         hash = $hash,
-        last_indexed = CURRENT_TIMESTAMP,
-        _schema_version = 1,
-        last_modified = NULL,
-        last_author = NULL,
-        change_count_30d = NULL,
-        is_core = FALSE,
-        tags = []::VARCHAR[],
-        labels = []::VARCHAR[],
-        metadata = '{}'::JSON
+        last_indexed = CURRENT_TIMESTAMP
       WHERE id = $id
     `,
     {
@@ -137,6 +123,9 @@ async function updateFile(connection: DuckDBConnection, input: ExtractedIndexDat
 }
 
 async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol): Promise<void> {
+  // _schema_version, fan_in, is_core are omitted — column DEFAULTs handle them.
+  // The pass-2 enrichment columns (visibility, signature, return_type, etc.) are
+  // also omitted; they're nullable and stay NULL until LSP enrichment (S8) runs.
   await connection.run(
     `
       INSERT INTO symbol (
@@ -146,22 +135,7 @@ async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol):
         kind,
         file_id,
         range,
-        language,
-        fan_in,
-        is_core,
-        flags,
-        metrics,
-        _schema_version,
-        visibility,
-        signature,
-        return_type,
-        parameter_types,
-        docstring,
-        diagnostics,
-        embedding,
-        tags,
-        labels,
-        metadata
+        language
       ) VALUES (
         $id,
         $fqn,
@@ -174,22 +148,7 @@ async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol):
           end_line := $end_line,
           end_col := $end_col
         ),
-        $language,
-        0,
-        FALSE,
-        []::VARCHAR[],
-        '{}'::JSON,
-        1,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL
+        $language
       )
     `,
     {
