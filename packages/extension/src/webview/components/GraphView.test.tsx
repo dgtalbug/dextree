@@ -16,11 +16,11 @@ const {
   }> = [];
   const canvasGetContext = vi.fn();
 
-const mockSigma = {
-  setSetting: vi.fn(),
-  on: vi.fn(),
-  kill: vi.fn(),
-  refresh: vi.fn(),
+  const mockSigma = {
+    setSetting: vi.fn(),
+    on: vi.fn(),
+    kill: vi.fn(),
+    refresh: vi.fn(),
   };
 
   const sigmaConstructor = vi.fn((_graph, _container, _settings) => mockSigma);

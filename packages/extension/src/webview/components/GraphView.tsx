@@ -153,7 +153,9 @@ function readThemeColors(): ThemeColors {
     backgroundColor: styles.getPropertyValue("--vscode-editor-background").trim() || "transparent",
     labelColor: foreground,
     disabledColor:
-      styles.getPropertyValue("--vscode-disabledForeground").trim() || styles.getPropertyValue("--vscode-descriptionForeground").trim() || foreground,
+      styles.getPropertyValue("--vscode-disabledForeground").trim() ||
+      styles.getPropertyValue("--vscode-descriptionForeground").trim() ||
+      foreground,
     fileNodeColor:
       styles.getPropertyValue("--vscode-symbolIcon-fileForeground").trim() || foreground,
     symbolKindColors: {
@@ -1012,7 +1014,10 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     const graph = graphRef.current;
     const sigma = sigmaRef.current;
 
-    selectionRef.current = computeDescendantSelection(graph ?? new MultiDirectedGraph(), selectedNodeId);
+    selectionRef.current = computeDescendantSelection(
+      graph ?? new MultiDirectedGraph(),
+      selectedNodeId,
+    );
 
     if (graph === null || sigma === null) {
       setOverlaySegments([]);

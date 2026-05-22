@@ -10,6 +10,7 @@ import {
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import {
   createIndexWorkspaceCommand,
+  requestWorkspaceIndexingCancel,
   type IndexWorkspaceProgressUpdate,
 } from "./commands/indexWorkspace.js";
 import { registerOpenGraphViewCommand } from "./commands/openGraphView.js";
@@ -192,6 +193,9 @@ export async function activate(context: ActivationContext): Promise<void> {
         onIndexed: refreshViewsAfterIndex,
       }),
     ),
+    vscode.commands.registerCommand("dextree.cancelWorkspaceIndexing", () => {
+      requestWorkspaceIndexingCancel();
+    }),
     vscode.commands.registerCommand(
       "dextree.clearWorkspaceIndex",
       createClearWorkspaceIndexCommand({

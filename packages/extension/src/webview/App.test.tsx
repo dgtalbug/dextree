@@ -104,7 +104,7 @@ describe("App", () => {
     });
 
     expect(screen.getByTestId("graph-view").textContent).toBe("graph:1:0");
-    expect(screen.getByText("app.ts")).toBeTruthy();
+    expect(screen.getAllByText("app.ts").length).toBeGreaterThan(0);
     expect(screen.getByText("1 / 4")).toBeTruthy();
   });
 
@@ -165,6 +165,24 @@ describe("App", () => {
       type: "navigate",
       filePath: "/workspace/src/app.ts",
       line: 6,
+    });
+  });
+
+  it("posts command messages when panel action buttons are clicked", () => {
+    render(<App vscodeApi={vscodeApi} />);
+    vscodeApi.postMessage.mockClear();
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+    });
+
+    // "Clear Workspace" button should dispatch a command
+    const clearBtn = screen.getByTitle("Clear the current workspace index");
+    fireEvent.click(clearBtn);
+
+    expect(vscodeApi.postMessage).toHaveBeenCalledWith({
+      type: "command",
+      command: "clear-workspace",
     });
   });
 });

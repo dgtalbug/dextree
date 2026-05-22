@@ -40,11 +40,19 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   build-vsix:
-    name: build-vsix
+    name: build-vsix (${{ matrix.target }})
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - darwin-arm64
+          - darwin-x64
+          - linux-x64
+          - win32-x64
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -54,38 +62,56 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Setup workspace
         uses: ./.github/actions/setup
-      - name: Package .vsix
+      - name: Package .vsix (${{ matrix.target }})
+        env:
+          VSCE_TARGET: ${{ matrix.target }}
         run: pnpm package
       - name: Upload .vsix artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: dextree-vsix-${{ needs.release-please.outputs.version }}
+          name: dextree-vsix-${{ needs.release-please.outputs.version }}-${{ matrix.target }}
           path: packages/extension/*.vsix
           if-no-files-found: error
           retention-days: 30
 
   publish-marketplace:
-    name: publish-marketplace
+    name: publish-marketplace (${{ matrix.target }})
     needs:
       - release-please
       - build-vsix
     if: needs.release-please.outputs.release_created == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - darwin-arm64
+          - darwin-x64
+          - linux-x64
+          - win32-x64
     uses: ./.github/workflows/_publish-marketplace.yml
     with:
       version: ${{ needs.release-please.outputs.version }}
-      vsix-artifact-name: dextree-vsix-${{ needs.release-please.outputs.version }}
+      vsix-artifact-name: dextree-vsix-${{ needs.release-please.outputs.version }}-${{ matrix.target }}
     secrets:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
   publish-openvsx:
-    name: publish-openvsx
+    name: publish-openvsx (${{ matrix.target }})
     needs:
       - release-please
       - build-vsix
     if: needs.release-please.outputs.release_created == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - darwin-arm64
+          - darwin-x64
+          - linux-x64
+          - win32-x64
     uses: ./.github/workflows/_publish-openvsx.yml
     with:
       version: ${{ needs.release-please.outputs.version }}
-      vsix-artifact-name: dextree-vsix-${{ needs.release-please.outputs.version }}
+      vsix-artifact-name: dextree-vsix-${{ needs.release-please.outputs.version }}-${{ matrix.target }}
     secrets:
       OVSX_PAT: ${{ secrets.OVSX_PAT }}

@@ -34,6 +34,14 @@ const SUPPORTED_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,py,md}";
 const EXCLUDE_GLOB = "{**/node_modules/**,**/dist/**,**/.git/**,**/out/**,**/build/**}";
 
 let isIndexing = false;
+let cancellationRequested = false;
+
+/** Request cancellation of the currently running workspace index. No-op if not indexing. */
+export function requestWorkspaceIndexingCancel(): void {
+  if (isIndexing) {
+    cancellationRequested = true;
+  }
+}
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -51,6 +59,7 @@ export function createIndexWorkspaceCommand(
     // Claim the guard synchronously before any await so a second invocation
     // that arrives during file discovery is correctly rejected.
     isIndexing = true;
+    cancellationRequested = false;
 
     try {
       const root = vscode.workspace.workspaceFolders?.[0];
@@ -91,83 +100,70 @@ export function createIndexWorkspaceCommand(
       });
       await indexer.clearWorkspace(root.uri.fsPath);
 
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: `Dextree: Indexing ${files.length} files`,
-          cancellable: true,
-        },
-        async (progress, token) => {
-          const cacheIdentity = await resolveCacheIdentity({
-            workspaceRoot: root.uri.fsPath,
-          });
-          let indexed = 0;
-          let failed = 0;
-          let cancelled = false;
-          const total = files.length;
-          let lastFileName: string | null = null;
+      const cacheIdentity = await resolveCacheIdentity({
+        workspaceRoot: root.uri.fsPath,
+      });
+      let indexed = 0;
+      let failed = 0;
+      let cancelled = false;
+      const total = files.length;
+      let lastFileName: string | null = null;
 
-          for (const [index, file] of files.entries()) {
-            if (token.isCancellationRequested) {
-              cancelled = true;
-              break;
-            }
+      for (const [index, file] of files.entries()) {
+        if (cancellationRequested) {
+          cancelled = true;
+          break;
+        }
 
-            lastFileName = basename(file.fsPath);
-            progress.report({
-              increment: (1 / total) * 100,
-              message: `${index + 1} / ${total} — ${lastFileName}`,
-            });
-            dependencies.onIndexingProgress?.({
-              current: index + 1,
-              total,
-              fileName: lastFileName,
-              failed,
-              cancelled: false,
-              status: "indexing",
-            });
+        lastFileName = basename(file.fsPath);
+        dependencies.onIndexingProgress?.({
+          current: index + 1,
+          total,
+          fileName: lastFileName,
+          failed,
+          cancelled: false,
+          status: "indexing",
+        });
 
-            try {
-              await indexer.indexFile(file.fsPath, root.uri.fsPath, cacheIdentity);
-              indexed++;
-            } catch (error) {
-              failed++;
-              dependencies.logger.error(`Failed to index ${file.fsPath}`, error);
-              dependencies.onIndexingProgress?.({
-                current: index + 1,
-                total,
-                fileName: lastFileName,
-                failed,
-                cancelled: false,
-                status: "failed",
-              });
-            }
-
-            await yieldToEventLoop();
-          }
-
-          dependencies.onIndexed?.();
-          dependencies.onIndexingFinished?.({
-            current: cancelled ? indexed + failed : total,
+        try {
+          await indexer.indexFile(file.fsPath, root.uri.fsPath, cacheIdentity);
+          indexed++;
+        } catch (error) {
+          failed++;
+          dependencies.logger.error(`Failed to index ${file.fsPath}`, error);
+          dependencies.onIndexingProgress?.({
+            current: index + 1,
             total,
             fileName: lastFileName,
             failed,
-            cancelled,
-            status: cancelled ? "cancelled" : "completed",
+            cancelled: false,
+            status: "failed",
           });
+        }
 
-          let summary: string;
-          if (cancelled) {
-            summary = `Cancelled — ${indexed} of ${total} file(s) indexed${failed > 0 ? ` (${failed} failed — see Dextree output)` : ""}.`;
-          } else if (failed > 0) {
-            summary = `Indexed ${indexed} files (${failed} failed — see Dextree output).`;
-          } else {
-            summary = `Indexed ${indexed} files.`;
-          }
+        await yieldToEventLoop();
+      }
 
-          await vscode.window.showInformationMessage(`Dextree: ${summary}`);
-        },
-      );
+      dependencies.onIndexed?.();
+      dependencies.onIndexingFinished?.({
+        current: cancelled ? indexed + failed : total,
+        total,
+        fileName: lastFileName,
+        failed,
+        cancelled,
+        status: cancelled ? "cancelled" : "completed",
+      });
+
+      // Show a summary notification for failures or cancellations
+      if (cancelled || failed > 0) {
+        let summary: string;
+        if (cancelled) {
+          summary = `Cancelled — ${indexed} of ${total} file(s) indexed${failed > 0 ? ` (${failed} failed — see Dextree output)` : ""}.`;
+        } else {
+          summary = `Indexed ${indexed} files (${failed} failed — see Dextree output).`;
+        }
+        await vscode.window.showInformationMessage(`Dextree: ${summary}`);
+      }
     } finally {
       isIndexing = false;
     }

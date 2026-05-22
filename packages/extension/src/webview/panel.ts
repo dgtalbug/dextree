@@ -1,7 +1,20 @@
 import * as vscode from "vscode";
 import { getWebviewContent } from "./html.js";
-import type { GraphMessage, HostToWebviewMessage, IndexingMessage } from "./protocol/messages.js";
+import type {
+  CommandMessage,
+  GraphMessage,
+  HostToWebviewMessage,
+  IndexingMessage,
+} from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
+
+// Whitelisted webview→host commands. Only these command IDs are allowed.
+const WEBVIEW_COMMANDS: Record<string, string> = {
+  "index-workspace": "dextree.indexWorkspace",
+  "cancel-indexing": "dextree.cancelWorkspaceIndexing",
+  "clear-workspace": "dextree.clearWorkspaceIndex",
+  "clear-all": "dextree.clearAllIndex",
+};
 
 // Module-level singleton — exactly one panel per extension session.
 let currentPanel: vscode.WebviewPanel | undefined;
@@ -72,16 +85,26 @@ export const WebviewPanelManager = {
     // Navigation messages from the webview (FR-007, FR-013)
     currentPanel.webview.onDidReceiveMessage(
       (msg: unknown) => {
+        if (typeof msg !== "object" || msg === null) return;
+        const record = msg as Record<string, unknown>;
+
         // Webview signals it's ready — re-push cached graph to avoid race condition
-        if (
-          typeof msg === "object" &&
-          msg !== null &&
-          (msg as Record<string, unknown>)["type"] === "ready"
-        ) {
+        if (record["type"] === "ready") {
           isWebviewReady = true;
           postCachedState();
           return;
         }
+
+        // Webview dispatches a whitelisted VS Code command
+        if (record["type"] === "command") {
+          const cmdMsg = msg as CommandMessage;
+          const vsCommand = WEBVIEW_COMMANDS[cmdMsg.command];
+          if (vsCommand !== undefined) {
+            void vscode.commands.executeCommand(vsCommand);
+          }
+          return;
+        }
+
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const validated = validateNavigateMessage(msg, workspaceRoot);
         if (validated === null) {
@@ -100,12 +123,12 @@ export const WebviewPanelManager = {
 
     // Clean up module reference when panel is closed (FR-005)
     currentPanel.onDidDispose(
-        () => {
-          currentPanel = undefined;
-          cachedGraph = undefined;
-          cachedIndexing = undefined;
-          isWebviewReady = false;
-        },
+      () => {
+        currentPanel = undefined;
+        cachedGraph = undefined;
+        cachedIndexing = undefined;
+        isWebviewReady = false;
+      },
       undefined,
       context.subscriptions,
     );

@@ -138,7 +138,9 @@ export async function getWorkspaceSubgraph(
     ...symbolRows.map((row) => {
       const range = normalizeRange(row.range);
       const symbolKind =
-        typeof row.symbolKind === "string" ? (row.symbolKind as GraphNode["symbolKind"]) : undefined;
+        typeof row.symbolKind === "string"
+          ? (row.symbolKind as GraphNode["symbolKind"])
+          : undefined;
       return {
         id: String(row.id),
         type: "symbol" as const,

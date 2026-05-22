@@ -31,10 +31,7 @@ function useReducedMotionPreference(): boolean {
   return reducedMotion;
 }
 
-export function LoadingState({
-  indexing,
-  label = "Indexing symbols...",
-}: LoadingStateProps) {
+export function LoadingState({ indexing, label = "Indexing symbols..." }: LoadingStateProps) {
   const reducedMotion = useReducedMotionPreference();
   const total = indexing?.total ?? 0;
   const current = indexing?.current ?? 0;

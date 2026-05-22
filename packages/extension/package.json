@@ -71,7 +71,7 @@
     "watch:webview": "vite build --watch",
     "dev": "node dev.mjs",
     "prepackage": "pnpm build",
-    "package": "vsce package --no-dependencies",
+    "package": "node scripts/package.mjs",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --max-warnings=0",
     "test": "vitest run --root ../.. --config vitest.config.ts --project extension --project webview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json"

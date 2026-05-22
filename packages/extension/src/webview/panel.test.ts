@@ -88,6 +88,7 @@ vi.mock("vscode", () => ({
   ViewColumn: { One: 1 },
   commands: {
     registerCommand: vi.fn((_cmd, handler) => ({ dispose: vi.fn(), handler })),
+    executeCommand: vi.fn(),
   },
   Position: class MockPosition {
     constructor(
@@ -418,5 +419,44 @@ describe("WebviewPanelManager navigation (US2)", () => {
 
     expect(openTextDocument).not.toHaveBeenCalled();
     expect(showTextDocument).not.toHaveBeenCalled();
+  });
+
+  it("dispatches whitelisted command messages to vscode.commands.executeCommand", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    const vscode = await import("vscode");
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+    WebviewPanelManager.create(context as never);
+
+    const messageHandler = mockOnDidReceiveMessage.mock.calls[0]?.[0];
+
+    await (messageHandler as (msg: unknown) => void)({
+      type: "command",
+      command: "clear-workspace",
+    });
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith("dextree.clearWorkspaceIndex");
+  });
+
+  it("ignores unknown command IDs", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    const vscode = await import("vscode");
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+    WebviewPanelManager.create(context as never);
+
+    const messageHandler = mockOnDidReceiveMessage.mock.calls[0]?.[0];
+    (vscode.commands.executeCommand as ReturnType<typeof vi.fn>).mockClear();
+
+    await (messageHandler as (msg: unknown) => void)({
+      type: "command",
+      command: "evil-command",
+    });
+
+    expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
   });
 });

@@ -5,33 +5,6 @@ const findFiles = vi.fn();
 const resolveCacheIdentity = vi.fn();
 const createWorkspaceIgnore = vi.fn();
 
-const ProgressLocation = { Notification: 15 } as const;
-
-let cancellationRequestedAfterCall: number | null = null;
-
-type ProgressTask = (
-  progress: { report: (value: { increment?: number; message?: string }) => void },
-  token: { isCancellationRequested: boolean },
-) => Promise<unknown>;
-
-const withProgress = vi.fn(async (_options: unknown, task: ProgressTask) => {
-  let calls = 0;
-  const token = {
-    get isCancellationRequested(): boolean {
-      const shouldCancel =
-        cancellationRequestedAfterCall !== null && calls >= cancellationRequestedAfterCall;
-      calls += 1;
-      return shouldCancel;
-    },
-  };
-
-  const progress = { report: vi.fn() };
-  if (task) {
-    return task(progress, token);
-  }
-  return undefined;
-});
-
 const workspaceState: { workspaceFolders: Array<{ uri: { fsPath: string }; name: string }> } = {
   workspaceFolders: [],
 };
@@ -39,7 +12,6 @@ const workspaceState: { workspaceFolders: Array<{ uri: { fsPath: string }; name:
 vi.mock("vscode", () => ({
   window: {
     showInformationMessage,
-    withProgress,
   },
   workspace: {
     get workspaceFolders() {
@@ -47,7 +19,6 @@ vi.mock("vscode", () => ({
     },
     findFiles,
   },
-  ProgressLocation,
 }));
 
 vi.mock("../cache/resolveCacheIdentity.js", () => ({
@@ -97,8 +68,6 @@ beforeEach(() => {
   findFiles.mockReset();
   resolveCacheIdentity.mockReset();
   createWorkspaceIgnore.mockReset();
-  withProgress.mockClear();
-  cancellationRequestedAfterCall = null;
 
   workspaceState.workspaceFolders = [{ uri: { fsPath: "/workspace" }, name: "workspace" }];
 
@@ -204,10 +173,18 @@ describe("createIndexWorkspaceCommand — FR-005 (clean reindex via clearWorkspa
 
 describe("createIndexWorkspaceCommand — FR-003 (cancellation)", () => {
   it("stops indexing after the current file when cancellation is requested", async () => {
-    cancellationRequestedAfterCall = 1; // cancel after 1 file is checked
-
-    const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
+    const { createIndexWorkspaceCommand, requestWorkspaceIndexingCancel } =
+      await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
+
+    let callCount = 0;
+    indexer.indexFile.mockImplementation(async () => {
+      callCount++;
+      // Cancel after first file is indexed
+      if (callCount >= 1) requestWorkspaceIndexingCancel();
+      return { relativePath: "x", symbolCount: 0, symbols: [], elapsedMs: 1 };
+    });
+
     const command = createIndexWorkspaceCommand({
       logger: createLogger(),
       getIndexer: () => Promise.resolve(indexer as never),
@@ -219,10 +196,15 @@ describe("createIndexWorkspaceCommand — FR-003 (cancellation)", () => {
   });
 
   it("does not throw when cancellation interrupts the loop", async () => {
-    cancellationRequestedAfterCall = 0; // cancel immediately
-
-    const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
+    const { createIndexWorkspaceCommand, requestWorkspaceIndexingCancel } =
+      await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
+
+    indexer.indexFile.mockImplementation(async () => {
+      requestWorkspaceIndexingCancel();
+      return { relativePath: "x", symbolCount: 0, symbols: [], elapsedMs: 1 };
+    });
+
     const command = createIndexWorkspaceCommand({
       logger: createLogger(),
       getIndexer: () => Promise.resolve(indexer as never),
