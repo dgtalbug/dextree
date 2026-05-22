@@ -59,7 +59,7 @@ async function deleteExistingRows(
 async function insertFile(connection: DuckDBConnection, input: ExtractedIndexData): Promise<void> {
   // _schema_version, is_core, fan_in, tags, labels, metadata, last_modified,
   // last_author, change_count_30d are omitted from the column list — they take
-  // their schema-defined DEFAULTs. fan_in/is_core are populated later by
+  // their schema-defined default values. fan_in/is_core are populated later by
   // `recomputeGraphHealth` (S11.7); the rest stay at their defaults until git
   // (S10) or diagnostics (S9) fill them in.
   await connection.run(
@@ -121,7 +121,7 @@ async function updateFile(connection: DuckDBConnection, input: ExtractedIndexDat
 }
 
 async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol): Promise<void> {
-  // _schema_version, fan_in, is_core are omitted — column DEFAULTs handle them.
+  // _schema_version, fan_in, is_core are omitted — column defaults handle them.
   // The pass-2 enrichment columns (visibility, signature, return_type, etc.) are
   // also omitted; they're nullable and stay NULL until LSP enrichment (S8) runs.
   await connection.run(
