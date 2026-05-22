@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createExtractorRegistry } from "./registry.js";
-import type {
-  Extractor,
-  ExtractInput,
-  ExtractionResult,
-} from "./types.js";
+import type { Extractor, ExtractInput, ExtractionResult } from "./types.js";
 
 function makeInput(overrides: Partial<ExtractInput> = {}): ExtractInput {
   return {
@@ -71,9 +67,7 @@ describe("ExtractorRegistry", () => {
         order.push("a");
         return {
           ...emptyResult(),
-          edges: [
-            { id: "e-a", sourceId: "f", targetId: null, kind: "A_KIND", metadata: {} },
-          ],
+          edges: [{ id: "e-a", sourceId: "f", targetId: null, kind: "A_KIND", metadata: {} }],
         };
       },
     };
@@ -85,9 +79,7 @@ describe("ExtractorRegistry", () => {
         order.push("b");
         return {
           ...emptyResult(),
-          edges: [
-            { id: "e-b", sourceId: "f", targetId: null, kind: "B_KIND", metadata: {} },
-          ],
+          edges: [{ id: "e-b", sourceId: "f", targetId: null, kind: "B_KIND", metadata: {} }],
         };
       },
     };
@@ -118,9 +110,7 @@ describe("ExtractorRegistry", () => {
       supports: () => true,
       extract: async () => ({
         ...emptyResult(),
-        edges: [
-          { id: "ok", sourceId: "f", targetId: null, kind: "OK", metadata: {} },
-        ],
+        edges: [{ id: "ok", sourceId: "f", targetId: null, kind: "OK", metadata: {} }],
       }),
     };
     registry.register(broken);

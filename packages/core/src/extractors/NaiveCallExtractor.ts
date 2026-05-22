@@ -22,12 +22,7 @@ const NAMED_SCOPE_TYPES = new Set([
 ]);
 
 /** TS/JS languages this extractor runs on — must match BaselineTsJsExtractor. */
-const SUPPORTED = new Set([
-  "typescript",
-  "javascript",
-  "typescriptreact",
-  "javascriptreact",
-]);
+const SUPPORTED = new Set(["typescript", "javascript", "typescriptreact", "javascriptreact"]);
 
 function emptyResult(): ExtractionResult {
   return {
@@ -70,10 +65,7 @@ function extractCalleeName(callNode: Node): string | null {
  * Look up a symbol by name in the symbols the baseline extractor produced for
  * this file. Returns the symbol's id, or `null` if not found or ambiguous.
  */
-function resolveTargetId(
-  calleeName: string,
-  symbols: SymbolRef[],
-): string | null {
+function resolveTargetId(calleeName: string, symbols: SymbolRef[]): string | null {
   // Only match symbols that represent directly-callable declarations
   // (functions, methods, classes). Variable declarators (const cb = fn) are
   // excluded so that indirect calls via variable references return null target.
@@ -99,8 +91,6 @@ function collectCallExpressions(root: Node): Node[] {
   walk(root);
   return results;
 }
-
-
 
 /**
  * Pass-1 naive CALLS extractor. Walks tree-sitter `call_expression` nodes,
@@ -157,7 +147,7 @@ export class NaiveCallExtractor implements Extractor {
           callee_name: calleeName,
           call_site_range: {
             start_line: callNode.startPosition.row + 1, // 1-based
-            start_col: callNode.startPosition.column,   // 0-based
+            start_col: callNode.startPosition.column, // 0-based
             end_line: callNode.endPosition.row + 1,
             end_col: callNode.endPosition.column,
           },
@@ -234,11 +224,14 @@ function buildSymbolMap(root: Node, _fileId: string): SymbolRef[] {
       case "enum_declaration": {
         const nameNode =
           node.childForFieldName("name") ??
-          node.children.find(
-            (c) => c.type === "identifier" || c.type === "type_identifier",
-          ) ??
+          node.children.find((c) => c.type === "identifier" || c.type === "type_identifier") ??
           null;
-        if (nameNode) addSymbol(node, nameNode.text, node.type === "function_declaration" || node.type === "class_declaration");
+        if (nameNode)
+          addSymbol(
+            node,
+            nameNode.text,
+            node.type === "function_declaration" || node.type === "class_declaration",
+          );
         break;
       }
       case "method_definition": {
@@ -273,11 +266,7 @@ function buildSymbolMap(root: Node, _fileId: string): SymbolRef[] {
  * Walks up the AST to find the nearest enclosing named scope, then looks up
  * that scope in `fileSymbols` by range. Falls back to `fileId`.
  */
-function resolveSourceIdFromNode(
-  callNode: Node,
-  fileSymbols: SymbolRef[],
-  fileId: string,
-): string {
+function resolveSourceIdFromNode(callNode: Node, fileSymbols: SymbolRef[], fileId: string): string {
   let candidate: Node | null = callNode.parent;
   while (candidate !== null) {
     if (candidate.parent === null) {

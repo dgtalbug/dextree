@@ -230,7 +230,12 @@ describe("GraphView", () => {
   });
 
   it("renders CUSTOM_X edges with a neutral fallback color without throwing (US3 FR-011)", () => {
-    const customEdge = { id: "edge-custom", source: "file-1", target: "symbol-1", kind: "CUSTOM_X" as never };
+    const customEdge = {
+      id: "edge-custom",
+      source: "file-1",
+      target: "symbol-1",
+      kind: "CUSTOM_X" as never,
+    };
     expect(() => {
       render(<GraphView nodes={baseNodes} edges={[customEdge]} onNavigate={vi.fn()} />);
     }).not.toThrow();

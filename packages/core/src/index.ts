@@ -3,10 +3,7 @@ import { dirname } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
 
-import {
-  buildBaselineFileRecord,
-  createDefaultExtractorRegistry,
-} from "./extractors/index.js";
+import { buildBaselineFileRecord, createDefaultExtractorRegistry } from "./extractors/index.js";
 import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
 import { parseTypeScriptSource } from "./parser/parser.js";
@@ -58,10 +55,7 @@ export type {
 
 export { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
 export { recomputeGraphHealth } from "./quality/index.js";
-export {
-  createDefaultExtractorRegistry,
-  createExtractorRegistry,
-} from "./extractors/index.js";
+export { createDefaultExtractorRegistry, createExtractorRegistry } from "./extractors/index.js";
 export type {
   EdgeRow,
   Extractor,
@@ -153,7 +147,8 @@ class DuckTreeIndexer implements Indexer {
       // Registry contract invariant 6: if no extractor populated `file`, build
       // a minimal `ExtractedFileRecord` from the input so the file row still
       // gets written (e.g. .md / plaintext / new languages without a baseline).
-      const file = result.file ?? buildBaselineFileRecord(absolutePath, workspaceRoot, source, fileId);
+      const file =
+        result.file ?? buildBaselineFileRecord(absolutePath, workspaceRoot, source, fileId);
       if (file === null) {
         // Unreachable — buildBaselineFileRecord never returns null. Kept for
         // type narrowing.

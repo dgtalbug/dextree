@@ -22,4 +22,10 @@ export function createDefaultExtractorRegistry(): ExtractorRegistry {
 export { createExtractorRegistry } from "./registry.js";
 export { BaselineTsJsExtractor, buildBaselineFileRecord } from "./BaselineTsJsExtractor.js";
 export { NaiveCallExtractor } from "./NaiveCallExtractor.js";
-export type { Extractor, ExtractorRegistry, ExtractInput, ExtractionResult, EdgeRow } from "./types.js";
+export type {
+  Extractor,
+  ExtractorRegistry,
+  ExtractInput,
+  ExtractionResult,
+  EdgeRow,
+} from "./types.js";

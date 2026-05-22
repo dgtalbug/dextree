@@ -4,12 +4,7 @@ import { relative, sep } from "node:path";
 import { detectLanguage, extractTypeScriptFromTree } from "../parser/extractor.js";
 import type { Extractor, ExtractInput, ExtractionResult } from "./types.js";
 
-const SUPPORTED = new Set([
-  "typescript",
-  "javascript",
-  "typescriptreact",
-  "javascriptreact",
-]);
+const SUPPORTED = new Set(["typescript", "javascript", "typescriptreact", "javascriptreact"]);
 
 function emptyResult(): ExtractionResult {
   return {
@@ -104,4 +99,3 @@ export function buildBaselineFileRecord(
     hash: hashSource(source),
   };
 }
-

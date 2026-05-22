@@ -1,10 +1,6 @@
 import type { Tree } from "web-tree-sitter";
 
-import type {
-  ExtractedFileRecord,
-  ExtractedImportRef,
-  StoredSymbol,
-} from "../types.js";
+import type { ExtractedFileRecord, ExtractedImportRef, StoredSymbol } from "../types.js";
 
 /**
  * Input handed to each extractor by the registry. Read-only by contract; extractors

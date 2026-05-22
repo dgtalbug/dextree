@@ -202,7 +202,9 @@ describe("NaiveCallExtractor", () => {
         language: "typescript",
       });
       // Lines must be 1-based (≥ 1)
-      expect((edge.metadata["call_site_range"] as { start_line: number }).start_line).toBeGreaterThanOrEqual(1);
+      expect(
+        (edge.metadata["call_site_range"] as { start_line: number }).start_line,
+      ).toBeGreaterThanOrEqual(1);
     } finally {
       cleanup();
     }
