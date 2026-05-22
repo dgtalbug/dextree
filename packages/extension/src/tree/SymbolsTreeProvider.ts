@@ -12,12 +12,6 @@ const ROOT_ACTIONS = [
     icon: "sync",
     description: "Scan the current workspace",
   },
-  {
-    label: "Open Graph View",
-    command: "dextree.openGraphView",
-    icon: "type-hierarchy",
-    description: "Open the interactive workspace graph",
-  },
 ] as const;
 
 // ---------------------------------------------------------------------------

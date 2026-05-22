@@ -18,17 +18,42 @@ on:
         default: "Canary pre-release. Not for production use."
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: pre-release-${{ inputs.prerelease_tag }}
   cancel-in-progress: false
 
 jobs:
-  build-and-draft:
-    name: build-and-draft
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Validate tag format
+        run: |
+          if ! echo "${{ inputs.prerelease_tag }}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$'; then
+            echo "::error::Pre-release tag must match v<major>.<minor>.<patch>[-suffix]"
+            exit 1
+          fi
+
+  build-vsix:
+    name: build-vsix (${{ matrix.target }})
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - darwin-arm64
+          - darwin-x64
+          - linux-x64
+          - win32-x64
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -38,32 +63,53 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup workspace
         uses: ./.github/actions/setup
-      - name: Validate tag format
-        run: |
-          if ! echo "${{ inputs.prerelease_tag }}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$'; then
-            echo "::error::Pre-release tag must match v<major>.<minor>.<patch>[-suffix]"
-            exit 1
-          fi
-      - name: Package .vsix
+      - name: Package .vsix (${{ matrix.target }})
+        env:
+          VSCE_TARGET: ${{ matrix.target }}
         run: pnpm package
-      - name: Locate .vsix
-        id: vsix
-        run: |
-          VSIX_PATH="$(find packages/extension -maxdepth 1 -name '*.vsix' -print -quit)"
-          if [ -z "$VSIX_PATH" ]; then
-            echo "::error::No .vsix produced"
-            exit 1
-          fi
-          echo "path=$VSIX_PATH" >> "$GITHUB_OUTPUT"
-      - name: Create draft GitHub release with .vsix
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dextree-vsix-${{ inputs.prerelease_tag }}-${{ matrix.target }}
+          path: packages/extension/*.vsix
+          if-no-files-found: error
+          retention-days: 7
+
+  draft-release:
+    name: draft-release
+    needs: build-vsix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Download all .vsix artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+          pattern: dextree-vsix-${{ inputs.prerelease_tag }}-*
+          merge-multiple: true
+      - name: Create or update draft GitHub release with all .vsix files
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Idempotent: if the tag already has a draft, update; else create.
+          # Each matrix target produced one .vsix in artifacts/. Attach them all.
+          mapfile -t VSIX_PATHS < <(find artifacts -maxdepth 1 -name '*.vsix')
+          if [ "${#VSIX_PATHS[@]}" -eq 0 ]; then
+            echo "::error::No .vsix files downloaded from artifacts"
+            exit 1
+          fi
+          printf 'Attaching: %s\n' "${VSIX_PATHS[@]}"
           if gh release view "${{ inputs.prerelease_tag }}" >/dev/null 2>&1; then
-            gh release upload "${{ inputs.prerelease_tag }}" "${{ steps.vsix.outputs.path }}" --clobber
+            gh release upload "${{ inputs.prerelease_tag }}" "${VSIX_PATHS[@]}" --clobber
           else
-            gh release create "${{ inputs.prerelease_tag }}" "${{ steps.vsix.outputs.path }}" \
+            gh release create "${{ inputs.prerelease_tag }}" "${VSIX_PATHS[@]}" \
               --draft \
               --prerelease \
               --title "${{ inputs.prerelease_tag }} (canary)" \

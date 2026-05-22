@@ -1,14 +1,22 @@
-import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { GraphEdge, GraphNode, SymbolKind } from "@dextree/core";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
+import { motion } from "framer-motion";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import Sigma from "sigma";
+
+import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
+
+const FADE_ALPHA = 0.16;
+const SINGLE_CLICK_DELAY_MS = 180;
+const CAMERA_CENTER_DURATION_MS = 380;
 
 interface ThemeColors {
   backgroundColor: string;
   labelColor: string;
+  disabledColor: string;
   fileNodeColor: string;
-  symbolNodeColor: string;
+  symbolKindColors: Record<SymbolKind | "default", string>;
   definesEdgeColor: string;
   importsEdgeColor: string;
   callsEdgeColor: string;
@@ -18,6 +26,28 @@ interface GraphViewProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   onNavigate: (filePath: string, line: number) => void;
+}
+
+interface GraphNodeAttributes {
+  label: string;
+  filePath: string;
+  startLine: number;
+  nodeKind: GraphNode["type"];
+  symbolKind?: GraphNode["symbolKind"];
+  x: number;
+  y: number;
+  size: number;
+  baseSize: number;
+  color: string;
+  baseColor: string;
+}
+
+interface GraphEdgeAttributes {
+  edgeKind: GraphEdge["kind"];
+  color: string;
+  baseColor: string;
+  size: number;
+  baseSize: number;
 }
 
 interface FallbackNode {
@@ -44,6 +74,59 @@ interface FallbackGraph {
   edges: FallbackEdge[];
 }
 
+interface SelectionTraversal {
+  selectedNodeId: string;
+  nodeIds: Set<string>;
+  edgeIds: Set<string>;
+  orderedEdgeIds: string[];
+}
+
+interface OverlaySegment {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  kind: GraphEdge["kind"];
+}
+
+interface SigmaNodeDisplayData {
+  x: number;
+  y: number;
+  hidden?: boolean;
+}
+
+type SigmaWithExtras = Sigma & {
+  getNodeDisplayData?: (node: string) => SigmaNodeDisplayData | undefined;
+  getCamera?: () => {
+    animate?: (
+      state: { x: number; y: number; ratio: number },
+      options?: { duration?: number },
+    ) => void;
+    getState?: () => { ratio: number };
+  };
+};
+
+function useReducedMotionPreference(): boolean {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(mediaQuery.matches);
+
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return reducedMotion;
+}
+
 function canUseWebGL(): boolean {
   const canvas = document.createElement("canvas");
 
@@ -60,19 +143,55 @@ function canUseWebGL(): boolean {
 
 function readThemeColors(): ThemeColors {
   const styles = getComputedStyle(document.body);
-  const foreground = styles.getPropertyValue("--vscode-foreground").trim() || "#cccccc";
+  const foreground = styles.getPropertyValue("--vscode-foreground").trim();
+  const classColor =
+    styles.getPropertyValue("--vscode-symbolIcon-classForeground").trim() || foreground;
+  const interfaceColor =
+    styles.getPropertyValue("--vscode-symbolIcon-interfaceForeground").trim() || classColor;
 
   return {
     backgroundColor: styles.getPropertyValue("--vscode-editor-background").trim() || "transparent",
     labelColor: foreground,
+    disabledColor:
+      styles.getPropertyValue("--vscode-disabledForeground").trim() ||
+      styles.getPropertyValue("--vscode-descriptionForeground").trim() ||
+      foreground,
     fileNodeColor:
       styles.getPropertyValue("--vscode-symbolIcon-fileForeground").trim() || foreground,
-    symbolNodeColor:
-      styles.getPropertyValue("--vscode-symbolIcon-classForeground").trim() || foreground,
+    symbolKindColors: {
+      default: classColor,
+      function:
+        styles.getPropertyValue("--vscode-symbolIcon-functionForeground").trim() || foreground,
+      class: classColor,
+      interface: interfaceColor,
+      enum: styles.getPropertyValue("--vscode-symbolIcon-enumForeground").trim() || classColor,
+      variable:
+        styles.getPropertyValue("--vscode-symbolIcon-variableForeground").trim() || foreground,
+      type: interfaceColor || classColor,
+    },
     definesEdgeColor: styles.getPropertyValue("--vscode-charts-blue").trim() || foreground,
     importsEdgeColor: styles.getPropertyValue("--vscode-charts-green").trim() || foreground,
     callsEdgeColor: styles.getPropertyValue("--vscode-charts-orange").trim() || foreground,
   };
+}
+
+function toFadedColor(color: unknown, fallbackColor: string): string {
+  const nextColor = typeof color === "string" && color.length > 0 ? color : fallbackColor;
+  const rgbaMatch = nextColor.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+  if (rgbaMatch !== null) {
+    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${FADE_ALPHA})`;
+  }
+
+  const hexMatch = nextColor.match(/^#([0-9a-f]{6})$/i);
+  if (hexMatch !== null) {
+    const hex = hexMatch[1] as string;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${FADE_ALPHA})`;
+  }
+
+  return fallbackColor;
 }
 
 function edgeColor(kind: GraphEdge["kind"], colors: ThemeColors): string {
@@ -88,18 +207,85 @@ function edgeColor(kind: GraphEdge["kind"], colors: ThemeColors): string {
   }
 }
 
+function edgeSize(kind: GraphEdge["kind"]): number {
+  switch (kind) {
+    case "IMPORTS":
+      return 2.7;
+    case "CALLS":
+      return 1.8;
+    case "DEFINES":
+    default:
+      return 2.2;
+  }
+}
+
+function symbolColor(node: GraphNode, colors: ThemeColors): string {
+  if (node.type === "file") {
+    return colors.fileNodeColor;
+  }
+
+  if (node.symbolKind === "type") {
+    return colors.symbolKindColors.type || colors.symbolKindColors.class;
+  }
+
+  if (node.symbolKind !== undefined) {
+    return colors.symbolKindColors[node.symbolKind] || colors.symbolKindColors.default;
+  }
+
+  return colors.symbolKindColors.default;
+}
+
 function initialPosition(
   index: number,
   totalNodes: number,
   nodeType: GraphNode["type"],
 ): { x: number; y: number } {
   const angle = (index / Math.max(totalNodes, 1)) * Math.PI * 2;
-  const radius = nodeType === "file" ? 1 : 0.7;
+  const radius = nodeType === "file" ? 1.15 : 0.68;
 
   return {
     x: Math.cos(angle) * radius,
     y: Math.sin(angle) * radius,
   };
+}
+
+const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
+const SYMBOL_SIZE_RANGE = { min: 5, max: 15, base: 7 } as const;
+
+function computeSizeBounds(nodes: GraphNode[]): { min: number; max: number } {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+
+  for (const node of nodes) {
+    if (typeof node.importance !== "number" || !Number.isFinite(node.importance)) {
+      continue;
+    }
+
+    if (node.importance < min) {
+      min = node.importance;
+    }
+
+    if (node.importance > max) {
+      max = node.importance;
+    }
+  }
+
+  return { min, max };
+}
+
+function sizeForNode(node: GraphNode, bounds: { min: number; max: number }): number {
+  const range = node.type === "file" ? FILE_SIZE_RANGE : SYMBOL_SIZE_RANGE;
+
+  if (
+    typeof node.importance !== "number" ||
+    !Number.isFinite(node.importance) ||
+    bounds.max <= bounds.min
+  ) {
+    return range.base;
+  }
+
+  const t = (node.importance - bounds.min) / (bounds.max - bounds.min);
+  return range.min + t * (range.max - range.min);
 }
 
 function buildGraph(
@@ -111,6 +297,7 @@ function buildGraph(
   const totalNodes = Math.max(nodes.length, 1);
   const seenNodeIds = new Set<string>();
   const seenEdgeIds = new Set<string>();
+  const importanceBounds = computeSizeBounds(nodes);
   let generatedEdgeIndex = 0;
 
   for (const [index, node] of nodes.entries()) {
@@ -118,7 +305,9 @@ function buildGraph(
       continue;
     }
 
-    const { x, y } = initialPosition(index, totalNodes, node.type);
+    const position = initialPosition(index, totalNodes, node.type);
+    const color = symbolColor(node, colors);
+    const size = sizeForNode(node, importanceBounds);
     seenNodeIds.add(node.id);
 
     graph.addNode(node.id, {
@@ -126,11 +315,14 @@ function buildGraph(
       filePath: node.filePath,
       startLine: Number.isFinite(node.startLine) ? node.startLine : 1,
       nodeKind: node.type,
-      x,
-      y,
-      size: node.type === "file" ? 12 : 6,
-      color: node.type === "file" ? colors.fileNodeColor : colors.symbolNodeColor,
-    });
+      symbolKind: node.symbolKind,
+      x: position.x,
+      y: position.y,
+      size,
+      baseSize: size,
+      color,
+      baseColor: color,
+    } satisfies GraphNodeAttributes);
   }
 
   for (const edge of edges) {
@@ -146,10 +338,15 @@ function buildGraph(
     seenEdgeIds.add(edgeId);
 
     try {
+      const color = edgeColor(edge.kind, colors);
+      const size = edgeSize(edge.kind);
       graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
         edgeKind: edge.kind,
-        color: edgeColor(edge.kind, colors),
-      });
+        color,
+        baseColor: color,
+        size,
+        baseSize: size,
+      } satisfies GraphEdgeAttributes);
     } catch {
       continue;
     }
@@ -158,17 +355,46 @@ function buildGraph(
   return graph;
 }
 
+function stabilizeFileAnchors(graph: MultiDirectedGraph): void {
+  const fileNodes: string[] = [];
+  let centroidX = 0;
+  let centroidY = 0;
+  let count = 0;
+
+  graph.forEachNode((node, attributes) => {
+    centroidX += Number(attributes.x);
+    centroidY += Number(attributes.y);
+    count += 1;
+
+    if ((attributes as GraphNodeAttributes).nodeKind === "file") {
+      fileNodes.push(node);
+    }
+  });
+
+  if (count === 0 || fileNodes.length === 0) {
+    return;
+  }
+
+  centroidX /= count;
+  centroidY /= count;
+
+  for (const nodeId of fileNodes) {
+    const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
+    const dx = Number(attributes.x) - centroidX;
+    const dy = Number(attributes.y) - centroidY;
+    const magnitude = Math.max(Math.hypot(dx, dy), 0.01);
+    const radius = magnitude * 1.14 + 0.2;
+
+    graph.mergeNodeAttributes(nodeId, {
+      x: centroidX + (dx / magnitude) * radius,
+      y: centroidY + (dy / magnitude) * radius,
+    });
+  }
+}
+
 function snapshotGraph(graph: MultiDirectedGraph): FallbackGraph {
   const nodes = graph.nodes().map((nodeId) => {
-    const attributes = graph.getNodeAttributes(nodeId) as {
-      label: string;
-      filePath: string;
-      startLine: number;
-      x: number;
-      y: number;
-      color: string;
-      nodeKind: GraphNode["type"];
-    };
+    const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
 
     return {
       id: nodeId,
@@ -177,7 +403,7 @@ function snapshotGraph(graph: MultiDirectedGraph): FallbackGraph {
       startLine: attributes.startLine,
       x: Number.isFinite(attributes.x) ? attributes.x : 0,
       y: Number.isFinite(attributes.y) ? attributes.y : 0,
-      color: attributes.color,
+      color: attributes.baseColor,
       type: attributes.nodeKind,
     };
   });
@@ -199,7 +425,7 @@ function snapshotGraph(graph: MultiDirectedGraph): FallbackGraph {
     id: edgeId,
     source: graph.source(edgeId),
     target: graph.target(edgeId),
-    color: String(graph.getEdgeAttribute(edgeId, "color")),
+    color: String(graph.getEdgeAttribute(edgeId, "baseColor")),
     kind: graph.getEdgeAttribute(edgeId, "edgeKind") as GraphEdge["kind"],
   }));
 
@@ -258,7 +484,7 @@ function StaticGraphFallback({
   const nodesById = new Map(fallbackGraph.nodes.map((node) => [node.id, node]));
 
   return (
-    <div className="dxt-fallback-graph" data-testid="graph-view-fallback">
+    <div className="dxt-fallback-graph dxt-graph-stage" data-testid="graph-view-fallback">
       <div className="dxt-fallback-layout">
         <div className="dxt-fallback-surface">
           <svg
@@ -368,6 +594,96 @@ function StaticGraphFallback({
   );
 }
 
+function computeDescendantSelection(
+  graph: MultiDirectedGraph,
+  selectedNodeId: string | null,
+): SelectionTraversal | null {
+  if (selectedNodeId === null || !graph.hasNode(selectedNodeId)) {
+    return null;
+  }
+
+  const nodeIds = new Set<string>([selectedNodeId]);
+  const edgeIds = new Set<string>();
+  const orderedEdgeIds: string[] = [];
+  const queue = [selectedNodeId];
+
+  while (queue.length > 0) {
+    const currentNodeId = queue.shift() as string;
+
+    graph.forEachOutboundEdge(currentNodeId, (edge, attributes, _source, target) => {
+      edgeIds.add(edge);
+      orderedEdgeIds.push(edge);
+
+      if (!nodeIds.has(target)) {
+        nodeIds.add(target);
+        queue.push(target);
+      }
+
+      if ((attributes as GraphEdgeAttributes).edgeKind === "DEFINES") {
+        nodeIds.add(currentNodeId);
+      }
+    });
+  }
+
+  return {
+    selectedNodeId,
+    nodeIds,
+    edgeIds,
+    orderedEdgeIds,
+  };
+}
+
+function createOverlaySegments(
+  graph: MultiDirectedGraph,
+  sigma: Sigma,
+  selection: SelectionTraversal | null,
+): OverlaySegment[] {
+  if (selection === null) {
+    return [];
+  }
+
+  const sigmaWithExtras = sigma as SigmaWithExtras;
+  const getNodeDisplayData = sigmaWithExtras.getNodeDisplayData;
+
+  if (typeof getNodeDisplayData !== "function") {
+    return [];
+  }
+
+  const segments: OverlaySegment[] = [];
+
+  for (const edgeId of selection.orderedEdgeIds.slice(0, 24)) {
+    const sourceId = graph.source(edgeId);
+    const targetId = graph.target(edgeId);
+    const source = getNodeDisplayData.call(sigmaWithExtras, sourceId);
+    const target = getNodeDisplayData.call(sigmaWithExtras, targetId);
+
+    if (
+      source === undefined ||
+      target === undefined ||
+      source.hidden ||
+      target.hidden ||
+      !Number.isFinite(source.x) ||
+      !Number.isFinite(source.y) ||
+      !Number.isFinite(target.x) ||
+      !Number.isFinite(target.y)
+    ) {
+      continue;
+    }
+
+    segments.push({
+      id: edgeId,
+      x1: source.x,
+      y1: source.y,
+      x2: target.x,
+      y2: target.y,
+      color: String(graph.getEdgeAttribute(edgeId, "baseColor")),
+      kind: graph.getEdgeAttribute(edgeId, "edgeKind") as GraphEdge["kind"],
+    });
+  }
+
+  return segments;
+}
+
 function applySigmaSetting(sigma: Sigma, key: string, value: unknown): void {
   (sigma as unknown as { setSetting: (setting: string, nextValue: unknown) => void }).setSetting(
     key,
@@ -386,31 +702,81 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
   container.style.backgroundColor = colors.backgroundColor;
 
   graph.forEachNode((node, attributes) => {
-    graph.setNodeAttribute(
-      node,
-      "color",
-      attributes.nodeKind === "file" ? colors.fileNodeColor : colors.symbolNodeColor,
-    );
+    const nextColor =
+      attributes.nodeKind === "file"
+        ? colors.fileNodeColor
+        : symbolColor(
+            {
+              id: node,
+              type: attributes.nodeKind,
+              label: attributes.label,
+              filePath: attributes.filePath,
+              startLine: attributes.startLine,
+              symbolKind: attributes.symbolKind,
+            },
+            colors,
+          );
+
+    graph.mergeNodeAttributes(node, {
+      color: nextColor,
+      baseColor: nextColor,
+    });
   });
 
   graph.forEachEdge((edge, attributes) => {
-    graph.setEdgeAttribute(
-      edge,
-      "color",
-      edgeColor(attributes.edgeKind as GraphEdge["kind"], colors),
-    );
+    const nextColor = edgeColor(attributes.edgeKind as GraphEdge["kind"], colors);
+    graph.mergeEdgeAttributes(edge, {
+      color: nextColor,
+      baseColor: nextColor,
+    });
   });
 
   applySigmaSetting(sigma, "labelColor", { color: colors.labelColor });
-  applySigmaSetting(sigma, "defaultNodeColor", colors.symbolNodeColor);
+  applySigmaSetting(sigma, "defaultNodeColor", colors.symbolKindColors.default);
   applySigmaSetting(sigma, "defaultEdgeColor", colors.definesEdgeColor);
   refreshSigma(sigma);
 }
 
+function centerCameraOnNode(graph: MultiDirectedGraph, sigma: Sigma, nodeId: string): void {
+  const sigmaWithExtras = sigma as SigmaWithExtras;
+  const camera = sigmaWithExtras.getCamera?.();
+  const state = camera?.getState?.();
+
+  if (camera?.animate === undefined || state === undefined || !graph.hasNode(nodeId)) {
+    return;
+  }
+
+  const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
+  camera.animate(
+    {
+      x: attributes.x,
+      y: attributes.y,
+      ratio: state.ratio,
+    },
+    { duration: CAMERA_CENTER_DURATION_MS },
+  );
+}
+
 export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const graphRef = useRef<MultiDirectedGraph | null>(null);
+  const sigmaRef = useRef<Sigma | null>(null);
+  const hoverRef = useRef<HoverNeighborhood | null>(null);
+  const selectionRef = useRef<SelectionTraversal | null>(null);
+  const clickTimeoutRef = useRef<number | null>(null);
+  const reducedMotion = useReducedMotionPreference();
+
   const [error, setError] = useState<string | null>(null);
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
+
+  useEffect(() => {
+    setSelectedNodeId(null);
+    selectionRef.current = null;
+    hoverRef.current = null;
+    setOverlaySegments([]);
+  }, [edges, nodes]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -421,16 +787,79 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
 
     const colors = readThemeColors();
     const graph = buildGraph(nodes, edges, colors);
+    graphRef.current = graph;
+
     const buildFallbackGraph = () => snapshotGraph(graph);
+    const updateOverlay = (): void => {
+      const activeGraph = graphRef.current;
+      const sigma = sigmaRef.current;
+
+      if (activeGraph === null || sigma === null) {
+        setOverlaySegments([]);
+        return;
+      }
+
+      setOverlaySegments(createOverlaySegments(activeGraph, sigma, selectionRef.current));
+    };
 
     let sigma: Sigma | null = null;
     let observer: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
+    const enterNodeListener = (event: { node: string }): void => {
+      hoverRef.current = computeHoverNeighborhood(graph, event.node);
+      if (sigma !== null) {
+        refreshSigma(sigma);
+      }
+    };
+
+    const leaveNodeListener = (): void => {
+      hoverRef.current = null;
+      if (sigma !== null) {
+        refreshSigma(sigma);
+      }
+    };
+
+    const navigateToNode = (nodeId: string): void => {
+      const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
+      onNavigate(attributes.filePath, attributes.startLine);
+    };
+
+    const selectNode = (nodeId: string): void => {
+      setSelectedNodeId(nodeId);
+      selectionRef.current = computeDescendantSelection(graph, nodeId);
+
+      if (sigma !== null) {
+        refreshSigma(sigma);
+        updateOverlay();
+        if (!reducedMotion) {
+          centerCameraOnNode(graph, sigma, nodeId);
+        }
+      }
+    };
+
+    const clearSelection = (): void => {
+      if (clickTimeoutRef.current !== null) {
+        window.clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+
+      setSelectedNodeId(null);
+      selectionRef.current = null;
+      setOverlaySegments([]);
+
+      if (sigma !== null) {
+        refreshSigma(sigma);
+      }
+    };
+
     if (!canUseWebGL()) {
+      sigmaRef.current = null;
       setError(null);
       setFallbackGraph(buildFallbackGraph());
-      return;
+      return () => {
+        graphRef.current = null;
+      };
     }
 
     try {
@@ -444,6 +873,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
               slowDown: 1.5,
             },
           });
+          stabilizeFileAnchors(graph);
         } catch (layoutError) {
           console.error("Dextree graph layout failed", layoutError);
         }
@@ -456,30 +886,99 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
         labelRenderedSizeThreshold: 0,
         defaultNodeType: "circle",
         defaultEdgeType: "line",
-        defaultEdgeColor: "#888888",
+        defaultEdgeColor: colors.definesEdgeColor,
+        nodeReducer: (node, data) => {
+          const hover = hoverRef.current;
+          const selection = selectionRef.current;
+          const activeFocus = hover ?? selection;
+
+          if (activeFocus === null || activeFocus.nodeIds.has(node)) {
+            if (selection !== null && hover === null && selection.selectedNodeId === node) {
+              return {
+                ...data,
+                size: Number(data.baseSize ?? data.size) * 1.28,
+                zIndex: 2,
+              };
+            }
+
+            return data;
+          }
+
+          return {
+            ...data,
+            color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
+            label: "",
+          };
+        },
+        edgeReducer: (edge, data) => {
+          const hover = hoverRef.current;
+          const selection = selectionRef.current;
+          const activeFocus = hover ?? selection;
+
+          if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
+            if (selection !== null && hover === null && selection.edgeIds.has(edge)) {
+              return {
+                ...data,
+                size: Number(data.baseSize ?? data.size) * 1.34,
+                zIndex: 1,
+              };
+            }
+
+            return data;
+          }
+
+          return {
+            ...data,
+            color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
+            size: Math.max(Number(data.baseSize ?? data.size) * 0.72, 1),
+          };
+        },
       });
 
+      sigmaRef.current = sigma;
       applyTheme(graph, sigma, container);
       setFallbackGraph(null);
+      setOverlaySegments([]);
 
       resizeObserver = new ResizeObserver(() => {
         if (sigma !== null) {
           refreshSigma(sigma);
+          updateOverlay();
         }
       });
       resizeObserver.observe(container);
 
       sigma.on("clickNode", (event) => {
-        const attributes = graph.getNodeAttributes(event.node) as {
-          filePath: string;
-          startLine: number;
-        };
-        onNavigate(attributes.filePath, attributes.startLine);
+        if (clickTimeoutRef.current !== null) {
+          window.clearTimeout(clickTimeoutRef.current);
+        }
+
+        clickTimeoutRef.current = window.setTimeout(() => {
+          clickTimeoutRef.current = null;
+          selectNode(event.node);
+        }, SINGLE_CLICK_DELAY_MS);
       });
+
+      sigma.on("doubleClickNode", (event) => {
+        if (clickTimeoutRef.current !== null) {
+          window.clearTimeout(clickTimeoutRef.current);
+          clickTimeoutRef.current = null;
+        }
+
+        navigateToNode(event.node);
+      });
+
+      sigma.on("clickStage", () => {
+        clearSelection();
+      });
+
+      sigma.on("enterNode", enterNodeListener);
+      sigma.on("leaveNode", leaveNodeListener);
 
       observer = new MutationObserver(() => {
         if (sigma !== null) {
           applyTheme(graph, sigma, container);
+          updateOverlay();
         }
       });
       observer.observe(document.body, {
@@ -490,16 +989,44 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       setError(null);
     } catch (err) {
       console.error("Dextree graph renderer failed", err);
+      sigmaRef.current = null;
       setError(err instanceof Error ? err.message : "Could not initialize graph renderer.");
       setFallbackGraph(buildFallbackGraph());
     }
 
     return () => {
+      if (clickTimeoutRef.current !== null) {
+        window.clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+
       observer?.disconnect();
       resizeObserver?.disconnect();
-      sigma?.kill();
+      hoverRef.current = null;
+      selectionRef.current = null;
+      sigmaRef.current?.kill();
+      sigmaRef.current = null;
+      graphRef.current = null;
     };
-  }, [edges, nodes, onNavigate]);
+  }, [edges, nodes, onNavigate, reducedMotion]);
+
+  useEffect(() => {
+    const graph = graphRef.current;
+    const sigma = sigmaRef.current;
+
+    selectionRef.current = computeDescendantSelection(
+      graph ?? new MultiDirectedGraph(),
+      selectedNodeId,
+    );
+
+    if (graph === null || sigma === null) {
+      setOverlaySegments([]);
+      return;
+    }
+
+    refreshSigma(sigma);
+    setOverlaySegments(createOverlaySegments(graph, sigma, selectionRef.current));
+  }, [selectedNodeId]);
 
   if (fallbackGraph !== null) {
     return <StaticGraphFallback fallbackGraph={fallbackGraph} onNavigate={onNavigate} />;
@@ -514,9 +1041,68 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     );
   }
 
+  const travelerSegments = overlaySegments
+    .filter((segment) => segment.kind === "IMPORTS")
+    .slice(0, 3);
+  const fallbackTravelers =
+    travelerSegments.length > 0 ? travelerSegments : overlaySegments.slice(0, 3);
+
   return (
-    <div className="dxt-graph-view" data-testid="graph-view-shell">
-      <div id="dxt-graph-container" data-testid="graph-view" ref={containerRef} />
+    <div className="dxt-graph-view dxt-graph-stage" data-testid="graph-view-shell">
+      <div className="dxt-graph-surface">
+        <div id="dxt-graph-container" data-testid="graph-view" ref={containerRef} />
+        <svg
+          className="dxt-selection-overlay"
+          data-testid="selection-overlay"
+          aria-hidden="true"
+          preserveAspectRatio="none"
+        >
+          {overlaySegments.map((segment) => (
+            <motion.line
+              key={segment.id}
+              className="dxt-selection-path"
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y2}
+              stroke={segment.color}
+              initial={false}
+              {...(reducedMotion
+                ? {}
+                : {
+                    animate: { strokeDashoffset: [-16, -2] },
+                    transition: {
+                      duration: 1.4,
+                      repeat: Number.POSITIVE_INFINITY,
+                      ease: "linear" as const,
+                    },
+                  })}
+            />
+          ))}
+
+          {!reducedMotion
+            ? fallbackTravelers.map((segment, index) => (
+                <motion.circle
+                  key={`${segment.id}-traveler-${index}`}
+                  className="dxt-selection-traveler"
+                  r={3.5}
+                  fill={segment.color}
+                  initial={false}
+                  animate={{
+                    cx: [segment.x1, segment.x2],
+                    cy: [segment.y1, segment.y2],
+                  }}
+                  transition={{
+                    duration: 1.25 + index * 0.12,
+                    repeat: Number.POSITIVE_INFINITY,
+                    ease: "linear",
+                    delay: index * 0.16,
+                  }}
+                />
+              ))
+            : null}
+        </svg>
+      </div>
     </div>
   );
 }

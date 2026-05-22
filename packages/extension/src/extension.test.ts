@@ -16,7 +16,9 @@ const getWorkspaceFolder = vi.fn();
 const showInformationMessage = vi.fn();
 const showErrorMessage = vi.fn();
 const showWarningMessage = vi.fn();
+const createPanel = vi.fn();
 const pushGraph = vi.fn();
+const pushIndexing = vi.fn();
 const isPanelOpen = vi.fn(() => false);
 const resolveCacheIdentity = vi.fn();
 const withProgress = vi.fn(async (_options, task) =>
@@ -50,8 +52,10 @@ vi.mock("@dextree/core", () => ({
 
 vi.mock("./webview/panel.js", () => ({
   WebviewPanelManager: {
+    create: createPanel,
     isOpen: isPanelOpen,
     pushGraph,
+    pushIndexing,
   },
 }));
 
@@ -73,6 +77,7 @@ vi.mock("vscode", () => ({
   },
   commands: {
     registerCommand,
+    executeCommand: vi.fn().mockResolvedValue(undefined),
   },
   EventEmitter: class MockEventEmitter {
     fire = vi.fn();
@@ -107,7 +112,9 @@ describe("activate", () => {
     showInformationMessage.mockReset();
     showErrorMessage.mockReset();
     showWarningMessage.mockReset();
+    createPanel.mockReset();
     pushGraph.mockReset();
+    pushIndexing.mockReset();
     isPanelOpen.mockReset();
     resolveCacheIdentity.mockReset();
     withProgress.mockClear();
@@ -314,6 +321,16 @@ describe("activate", () => {
     await indexWorkspaceHandler?.();
 
     await vi.waitFor(() => {
+      expect(createPanel).toHaveBeenCalled();
+      expect(pushIndexing).toHaveBeenCalledWith({
+        phase: "starting",
+        current: 0,
+        total: 1,
+        fileName: null,
+        failed: 0,
+        cancelled: false,
+        status: "starting",
+      });
       expect(mockIndexer.indexFile).toHaveBeenCalledWith("/workspace/src/greet.ts", "/workspace", {
         cacheKey: "/workspace",
         workspaceRoot: "/workspace",
@@ -332,6 +349,15 @@ describe("activate", () => {
           },
         ],
         edges: [],
+      });
+      expect(pushIndexing).toHaveBeenCalledWith({
+        phase: "finished",
+        current: 1,
+        total: 1,
+        fileName: "greet.ts",
+        failed: 0,
+        cancelled: false,
+        status: "completed",
       });
     });
   });

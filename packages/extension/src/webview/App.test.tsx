@@ -55,6 +55,7 @@ describe("App", () => {
 
     expect(vscodeApi.postMessage).toHaveBeenCalledWith({ type: "ready" });
     expect(screen.getByText("Building graph…")).toBeTruthy();
+    expect(screen.getByTestId("graph-scaffold")).toBeTruthy();
   });
 
   it("shows the empty state when the host posts an empty graph", () => {
@@ -81,6 +82,76 @@ describe("App", () => {
     expect(screen.getByTestId("graph-view").textContent).toBe("graph:1:0");
   });
 
+  it("keeps the cached graph visible while indexing is in progress", () => {
+    render(<App vscodeApi={vscodeApi} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            type: "indexing",
+            phase: "progress",
+            current: 1,
+            total: 4,
+            fileName: "app.ts",
+            failed: 0,
+            cancelled: false,
+            status: "indexing",
+          },
+        }),
+      );
+    });
+
+    expect(screen.getByTestId("graph-view").textContent).toBe("graph:1:0");
+    expect(screen.getAllByText("app.ts").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 / 4")).toBeTruthy();
+  });
+
+  it("clears the overlay when indexing finishes without waiting for another graph message", () => {
+    render(<App vscodeApi={vscodeApi} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            type: "indexing",
+            phase: "progress",
+            current: 3,
+            total: 4,
+            fileName: "app.ts",
+            failed: 0,
+            cancelled: false,
+            status: "indexing",
+          },
+        }),
+      );
+    });
+
+    expect(screen.getByText("3 / 4")).toBeTruthy();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            type: "indexing",
+            phase: "finished",
+            current: 4,
+            total: 4,
+            fileName: "app.ts",
+            failed: 0,
+            cancelled: false,
+            status: "completed",
+          },
+        }),
+      );
+    });
+
+    expect(screen.queryByText("3 / 4")).toBeNull();
+    expect(screen.getByTestId("graph-view").textContent).toBe("graph:1:0");
+  });
+
   it("posts navigate messages when GraphView requests navigation", () => {
     render(<App vscodeApi={vscodeApi} />);
     vscodeApi.postMessage.mockClear();
@@ -94,6 +165,24 @@ describe("App", () => {
       type: "navigate",
       filePath: "/workspace/src/app.ts",
       line: 6,
+    });
+  });
+
+  it("posts command messages when panel action buttons are clicked", () => {
+    render(<App vscodeApi={vscodeApi} />);
+    vscodeApi.postMessage.mockClear();
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+    });
+
+    // "Clear Workspace" button should dispatch a command
+    const clearBtn = screen.getByTitle("Clear the current workspace index");
+    fireEvent.click(clearBtn);
+
+    expect(vscodeApi.postMessage).toHaveBeenCalledWith({
+      type: "command",
+      command: "clear-workspace",
     });
   });
 });

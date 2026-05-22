@@ -55,6 +55,7 @@ export interface GraphNode {
   label: string;
   filePath: string;
   startLine: number;
+  symbolKind?: SymbolKind;
   importance?: number;
 }
 

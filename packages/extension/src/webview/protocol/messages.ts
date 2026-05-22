@@ -27,8 +27,23 @@ export interface GraphMessage {
   edges: GraphEdge[];
 }
 
+export type IndexingPhase = "starting" | "progress" | "finished";
+
+export type IndexingStatus = "starting" | "indexing" | "failed" | "completed" | "cancelled";
+
+export interface IndexingMessage {
+  type: "indexing";
+  phase: IndexingPhase;
+  current: number;
+  total: number;
+  fileName: string | null;
+  failed: number;
+  cancelled: boolean;
+  status: IndexingStatus;
+}
+
 /** Union of all messages the extension host can send to the webview. */
-export type HostToWebviewMessage = GraphMessage;
+export type HostToWebviewMessage = GraphMessage | IndexingMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension Host messages
@@ -54,8 +69,19 @@ export interface ReadyMessage {
   type: "ready";
 }
 
+export type GraphCommandId =
+  | "index-workspace"
+  | "cancel-indexing"
+  | "clear-workspace"
+  | "clear-all";
+
+export interface CommandMessage {
+  type: "command";
+  command: GraphCommandId;
+}
+
 /** Union of all messages the webview can send to the extension host. */
-export type WebviewToHostMessage = NavigateMessage | ReadyMessage;
+export type WebviewToHostMessage = NavigateMessage | ReadyMessage | CommandMessage;
 
 // ---------------------------------------------------------------------------
 // Type guard helpers
@@ -65,12 +91,12 @@ export type WebviewToHostMessage = NavigateMessage | ReadyMessage;
 export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMessage {
   if (typeof value !== "object" || value === null) return false;
   const msg = value as Record<string, unknown>;
-  return msg["type"] === "graph";
+  return msg["type"] === "graph" || msg["type"] === "indexing";
 }
 
 /** Narrows an unknown value to WebviewToHostMessage. */
 export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
   if (typeof value !== "object" || value === null) return false;
   const msg = value as Record<string, unknown>;
-  return msg["type"] === "navigate" || msg["type"] === "ready";
+  return msg["type"] === "navigate" || msg["type"] === "ready" || msg["type"] === "command";
 }

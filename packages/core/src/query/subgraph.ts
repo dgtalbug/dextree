@@ -1,6 +1,8 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
+import { MultiDirectedGraph } from "graphology";
 
 import type { GraphEdge, GraphNode, SymbolRange, WorkspaceSubgraph } from "../types.js";
+import { computeNodeImportance } from "./pagerank.js";
 
 function workspaceParams(workspaceRoot: string) {
   return {
@@ -48,6 +50,7 @@ export async function getWorkspaceSubgraph(
           s.id,
           s.name AS label,
           f.path AS filePath,
+          s.kind AS symbolKind,
           s.range AS range
         FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
@@ -134,12 +137,17 @@ export async function getWorkspaceSubgraph(
     }),
     ...symbolRows.map((row) => {
       const range = normalizeRange(row.range);
+      const symbolKind =
+        typeof row.symbolKind === "string"
+          ? (row.symbolKind as GraphNode["symbolKind"])
+          : undefined;
       return {
         id: String(row.id),
         type: "symbol" as const,
         label: String(row.label),
         filePath: String(row.filePath),
         startLine: range.startLine + 1,
+        ...(symbolKind === undefined ? {} : { symbolKind }),
       };
     }),
   ];
@@ -165,5 +173,39 @@ export async function getWorkspaceSubgraph(
     })),
   ];
 
+  enrichWithImportance(nodes, edges);
+
   return { nodes, edges };
+}
+
+function enrichWithImportance(nodes: GraphNode[], edges: GraphEdge[]): void {
+  if (nodes.length === 0) {
+    return;
+  }
+
+  const transient = new MultiDirectedGraph();
+  const nodeIds = new Set<string>();
+
+  for (const node of nodes) {
+    if (!nodeIds.has(node.id)) {
+      transient.addNode(node.id);
+      nodeIds.add(node.id);
+    }
+  }
+
+  for (const edge of edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
+      continue;
+    }
+    transient.addEdge(edge.source, edge.target);
+  }
+
+  const scores = computeNodeImportance(transient);
+
+  for (const node of nodes) {
+    const score = scores.get(node.id);
+    if (typeof score === "number" && Number.isFinite(score)) {
+      node.importance = score;
+    }
+  }
 }

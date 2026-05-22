@@ -8,7 +8,11 @@ import {
   createClearWorkspaceIndexCommand,
 } from "./commands/clearIndex.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
-import { createIndexWorkspaceCommand } from "./commands/indexWorkspace.js";
+import {
+  createIndexWorkspaceCommand,
+  requestWorkspaceIndexingCancel,
+  type IndexWorkspaceProgressUpdate,
+} from "./commands/indexWorkspace.js";
 import { registerOpenGraphViewCommand } from "./commands/openGraphView.js";
 import { createLogger, type Logger } from "./logger.js";
 import { SymbolsTreeProvider } from "./tree/SymbolsTreeProvider.js";
@@ -143,6 +147,21 @@ export async function activate(context: ActivationContext): Promise<void> {
     })();
   };
 
+  const pushIndexing = (
+    phase: "starting" | "progress" | "finished",
+    update: IndexWorkspaceProgressUpdate,
+  ): void => {
+    WebviewPanelManager.pushIndexing({
+      phase,
+      current: update.current,
+      total: update.total,
+      fileName: update.fileName,
+      failed: update.failed,
+      cancelled: update.cancelled,
+      status: update.status,
+    });
+  };
+
   context.subscriptions.push(
     outputChannel,
     registerOpenGraphViewCommand(context as unknown as vscode.ExtensionContext, getIndexer),
@@ -160,9 +179,23 @@ export async function activate(context: ActivationContext): Promise<void> {
       createIndexWorkspaceCommand({
         logger,
         getIndexer,
+        onIndexingStarted: (update) => {
+          WebviewPanelManager.create(context as unknown as vscode.ExtensionContext);
+          void pushCurrentGraph();
+          pushIndexing("starting", update);
+        },
+        onIndexingProgress: (update) => {
+          pushIndexing("progress", update);
+        },
+        onIndexingFinished: (update) => {
+          pushIndexing("finished", update);
+        },
         onIndexed: refreshViewsAfterIndex,
       }),
     ),
+    vscode.commands.registerCommand("dextree.cancelWorkspaceIndexing", () => {
+      requestWorkspaceIndexingCancel();
+    }),
     vscode.commands.registerCommand(
       "dextree.clearWorkspaceIndex",
       createClearWorkspaceIndexCommand({

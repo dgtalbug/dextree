@@ -4,33 +4,7 @@ const showInformationMessage = vi.fn();
 const findFiles = vi.fn();
 const resolveCacheIdentity = vi.fn();
 const createWorkspaceIgnore = vi.fn();
-
-const ProgressLocation = { Notification: 15 } as const;
-
-let cancellationRequestedAfterCall: number | null = null;
-
-type ProgressTask = (
-  progress: { report: (value: { increment?: number; message?: string }) => void },
-  token: { isCancellationRequested: boolean },
-) => Promise<unknown>;
-
-const withProgress = vi.fn(async (_options: unknown, task: ProgressTask) => {
-  let calls = 0;
-  const token = {
-    get isCancellationRequested(): boolean {
-      const shouldCancel =
-        cancellationRequestedAfterCall !== null && calls >= cancellationRequestedAfterCall;
-      calls += 1;
-      return shouldCancel;
-    },
-  };
-
-  const progress = { report: vi.fn() };
-  if (task) {
-    return task(progress, token);
-  }
-  return undefined;
-});
+const executeCommand = vi.fn();
 
 const workspaceState: { workspaceFolders: Array<{ uri: { fsPath: string }; name: string }> } = {
   workspaceFolders: [],
@@ -39,7 +13,6 @@ const workspaceState: { workspaceFolders: Array<{ uri: { fsPath: string }; name:
 vi.mock("vscode", () => ({
   window: {
     showInformationMessage,
-    withProgress,
   },
   workspace: {
     get workspaceFolders() {
@@ -47,7 +20,9 @@ vi.mock("vscode", () => ({
     },
     findFiles,
   },
-  ProgressLocation,
+  commands: {
+    executeCommand,
+  },
 }));
 
 vi.mock("../cache/resolveCacheIdentity.js", () => ({
@@ -97,8 +72,8 @@ beforeEach(() => {
   findFiles.mockReset();
   resolveCacheIdentity.mockReset();
   createWorkspaceIgnore.mockReset();
-  withProgress.mockClear();
-  cancellationRequestedAfterCall = null;
+  executeCommand.mockReset();
+  executeCommand.mockResolvedValue(undefined);
 
   workspaceState.workspaceFolders = [{ uri: { fsPath: "/workspace" }, name: "workspace" }];
 
@@ -120,7 +95,7 @@ beforeEach(() => {
   ]);
 });
 
-describe("createIndexWorkspaceCommand — FR-001 (file discovery + ignore filter)", () => {
+describe("createIndexWorkspaceCommand — file discovery + ignore filter", () => {
   it("calls findFiles with the supported-language glob", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
@@ -174,7 +149,7 @@ describe("createIndexWorkspaceCommand — FR-001 (file discovery + ignore filter
   });
 });
 
-describe("createIndexWorkspaceCommand — FR-005 (clean reindex via clearWorkspace)", () => {
+describe("createIndexWorkspaceCommand — clean reindex via clearWorkspace", () => {
   it("calls indexer.clearWorkspace BEFORE the first indexFile call", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
@@ -202,12 +177,20 @@ describe("createIndexWorkspaceCommand — FR-005 (clean reindex via clearWorkspa
   });
 });
 
-describe("createIndexWorkspaceCommand — FR-003 (cancellation)", () => {
+describe("createIndexWorkspaceCommand — cancellation", () => {
   it("stops indexing after the current file when cancellation is requested", async () => {
-    cancellationRequestedAfterCall = 1; // cancel after 1 file is checked
-
-    const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
+    const { createIndexWorkspaceCommand, requestWorkspaceIndexingCancel } =
+      await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
+
+    let callCount = 0;
+    indexer.indexFile.mockImplementation(async () => {
+      callCount++;
+      // Cancel after first file is indexed
+      if (callCount >= 1) requestWorkspaceIndexingCancel();
+      return { relativePath: "x", symbolCount: 0, symbols: [], elapsedMs: 1 };
+    });
+
     const command = createIndexWorkspaceCommand({
       logger: createLogger(),
       getIndexer: () => Promise.resolve(indexer as never),
@@ -219,10 +202,15 @@ describe("createIndexWorkspaceCommand — FR-003 (cancellation)", () => {
   });
 
   it("does not throw when cancellation interrupts the loop", async () => {
-    cancellationRequestedAfterCall = 0; // cancel immediately
-
-    const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
+    const { createIndexWorkspaceCommand, requestWorkspaceIndexingCancel } =
+      await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
+
+    indexer.indexFile.mockImplementation(async () => {
+      requestWorkspaceIndexingCancel();
+      return { relativePath: "x", symbolCount: 0, symbols: [], elapsedMs: 1 };
+    });
+
     const command = createIndexWorkspaceCommand({
       logger: createLogger(),
       getIndexer: () => Promise.resolve(indexer as never),
@@ -232,7 +220,7 @@ describe("createIndexWorkspaceCommand — FR-003 (cancellation)", () => {
   });
 });
 
-describe("createIndexWorkspaceCommand — FR-004 (single-in-flight guard)", () => {
+describe("createIndexWorkspaceCommand — single-in-flight guard", () => {
   it("refuses a second concurrent invocation with an info message", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
@@ -287,7 +275,7 @@ describe("createIndexWorkspaceCommand — FR-004 (single-in-flight guard)", () =
   }, 10_000);
 });
 
-describe("createIndexWorkspaceCommand — FR-006 (per-file failure tolerance)", () => {
+describe("createIndexWorkspaceCommand — per-file failure tolerance", () => {
   it("logs failures and continues with remaining files", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
@@ -311,5 +299,50 @@ describe("createIndexWorkspaceCommand — FR-006 (per-file failure tolerance)", 
       .map((args) => String(args[0]))
       .find((msg) => msg.includes("failed"));
     expect(summaryCall).toBeDefined();
+  });
+});
+
+describe("createIndexWorkspaceCommand — indexing lifecycle callbacks", () => {
+  it("reports start, per-file progress, and finished callbacks", async () => {
+    const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
+    const indexer = createMockIndexer();
+    const onIndexingStarted = vi.fn();
+    const onIndexingProgress = vi.fn();
+    const onIndexingFinished = vi.fn();
+
+    const command = createIndexWorkspaceCommand({
+      logger: createLogger(),
+      getIndexer: () => Promise.resolve(indexer as never),
+      onIndexingStarted,
+      onIndexingProgress,
+      onIndexingFinished,
+    });
+
+    await command();
+
+    expect(onIndexingStarted).toHaveBeenCalledWith({
+      current: 0,
+      total: 3,
+      fileName: null,
+      failed: 0,
+      cancelled: false,
+      status: "starting",
+    });
+    expect(onIndexingProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        current: 1,
+        total: 3,
+        fileName: "a.ts",
+        status: "indexing",
+      }),
+    );
+    expect(onIndexingFinished).toHaveBeenCalledWith({
+      current: 3,
+      total: 3,
+      fileName: "c.ts",
+      failed: 0,
+      cancelled: false,
+      status: "completed",
+    });
   });
 });

@@ -8,13 +8,40 @@ import type { Logger } from "../logger.js";
 export interface IndexWorkspaceCommandDependencies {
   logger: Logger;
   getIndexer: () => Promise<Indexer>;
+  onIndexingStarted?: (update: IndexWorkspaceProgressUpdate) => void;
+  onIndexingProgress?: (update: IndexWorkspaceProgressUpdate) => void;
+  onIndexingFinished?: (update: IndexWorkspaceProgressUpdate) => void;
   onIndexed?: () => void;
+}
+
+export type IndexWorkspaceProgressStatus =
+  | "starting"
+  | "indexing"
+  | "failed"
+  | "completed"
+  | "cancelled";
+
+export interface IndexWorkspaceProgressUpdate {
+  current: number;
+  total: number;
+  fileName: string | null;
+  failed: number;
+  cancelled: boolean;
+  status: IndexWorkspaceProgressStatus;
 }
 
 const SUPPORTED_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,py,md}";
 const EXCLUDE_GLOB = "{**/node_modules/**,**/dist/**,**/.git/**,**/out/**,**/build/**}";
 
 let isIndexing = false;
+let cancellationRequested = false;
+
+/** Request cancellation of the currently running workspace index. No-op if not indexing. */
+export function requestWorkspaceIndexingCancel(): void {
+  if (isIndexing) {
+    cancellationRequested = true;
+  }
+}
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -32,6 +59,8 @@ export function createIndexWorkspaceCommand(
     // Claim the guard synchronously before any await so a second invocation
     // that arrives during file discovery is correctly rejected.
     isIndexing = true;
+    cancellationRequested = false;
+    await vscode.commands.executeCommand("setContext", "dextree.isIndexing", true);
 
     try {
       const root = vscode.workspace.workspaceFolders?.[0];
@@ -62,61 +91,83 @@ export function createIndexWorkspaceCommand(
       }
 
       const indexer = await dependencies.getIndexer();
+      dependencies.onIndexingStarted?.({
+        current: 0,
+        total: files.length,
+        fileName: null,
+        failed: 0,
+        cancelled: false,
+        status: "starting",
+      });
       await indexer.clearWorkspace(root.uri.fsPath);
 
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: `Dextree: Indexing ${files.length} files`,
-          cancellable: true,
-        },
-        async (progress, token) => {
-          const cacheIdentity = await resolveCacheIdentity({
-            workspaceRoot: root.uri.fsPath,
+      const cacheIdentity = await resolveCacheIdentity({
+        workspaceRoot: root.uri.fsPath,
+      });
+      let indexed = 0;
+      let failed = 0;
+      let cancelled = false;
+      const total = files.length;
+      let lastFileName: string | null = null;
+
+      for (const [index, file] of files.entries()) {
+        if (cancellationRequested) {
+          cancelled = true;
+          break;
+        }
+
+        lastFileName = basename(file.fsPath);
+        dependencies.onIndexingProgress?.({
+          current: index + 1,
+          total,
+          fileName: lastFileName,
+          failed,
+          cancelled: false,
+          status: "indexing",
+        });
+
+        try {
+          await indexer.indexFile(file.fsPath, root.uri.fsPath, cacheIdentity);
+          indexed++;
+        } catch (error) {
+          failed++;
+          dependencies.logger.error(`Failed to index ${file.fsPath}`, error);
+          dependencies.onIndexingProgress?.({
+            current: index + 1,
+            total,
+            fileName: lastFileName,
+            failed,
+            cancelled: false,
+            status: "failed",
           });
-          let indexed = 0;
-          let failed = 0;
-          let cancelled = false;
-          const total = files.length;
+        }
 
-          for (const file of files) {
-            if (token.isCancellationRequested) {
-              cancelled = true;
-              break;
-            }
+        await yieldToEventLoop();
+      }
 
-            progress.report({
-              increment: (1 / total) * 100,
-              message: `${indexed + 1} / ${total} — ${basename(file.fsPath)}`,
-            });
+      dependencies.onIndexed?.();
+      dependencies.onIndexingFinished?.({
+        current: cancelled ? indexed + failed : total,
+        total,
+        fileName: lastFileName,
+        failed,
+        cancelled,
+        status: cancelled ? "cancelled" : "completed",
+      });
 
-            try {
-              await indexer.indexFile(file.fsPath, root.uri.fsPath, cacheIdentity);
-              indexed++;
-            } catch (error) {
-              failed++;
-              dependencies.logger.error(`Failed to index ${file.fsPath}`, error);
-            }
-
-            await yieldToEventLoop();
-          }
-
-          dependencies.onIndexed?.();
-
-          let summary: string;
-          if (cancelled) {
-            summary = `Cancelled — ${indexed} of ${total} file(s) indexed${failed > 0 ? ` (${failed} failed — see Dextree output)` : ""}.`;
-          } else if (failed > 0) {
-            summary = `Indexed ${indexed} files (${failed} failed — see Dextree output).`;
-          } else {
-            summary = `Indexed ${indexed} files.`;
-          }
-
-          await vscode.window.showInformationMessage(`Dextree: ${summary}`);
-        },
-      );
+      // Show a summary notification for failures or cancellations
+      if (cancelled || failed > 0) {
+        let summary: string;
+        if (cancelled) {
+          summary = `Cancelled — ${indexed} of ${total} file(s) indexed${failed > 0 ? ` (${failed} failed — see Dextree output)` : ""}.`;
+        } else {
+          summary = `Indexed ${indexed} files (${failed} failed — see Dextree output).`;
+        }
+        await vscode.window.showInformationMessage(`Dextree: ${summary}`);
+      }
     } finally {
       isIndexing = false;
+      await vscode.commands.executeCommand("setContext", "dextree.isIndexing", false);
     }
   };
 }

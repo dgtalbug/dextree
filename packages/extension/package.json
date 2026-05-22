@@ -71,7 +71,7 @@
     "watch:webview": "vite build --watch",
     "dev": "node dev.mjs",
     "prepackage": "pnpm build",
-    "package": "vsce package --no-dependencies",
+    "package": "node scripts/package.mjs",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --max-warnings=0",
     "test": "vitest run --root ../.. --config vitest.config.ts --project extension --project webview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json"
@@ -109,6 +109,12 @@
       {
         "command": "dextree.clearAllIndex",
         "title": "Dextree: Clear All Indexed Data"
+      },
+      {
+        "command": "dextree.cancelWorkspaceIndexing",
+        "title": "Dextree: Cancel Workspace Indexing",
+        "icon": "$(stop-circle)",
+        "enablement": "dextree.isIndexing"
       }
     ],
     "menus": {
@@ -117,11 +123,6 @@
           "command": "dextree.indexWorkspace",
           "when": "view == dextree.symbolsView",
           "group": "navigation@1"
-        },
-        {
-          "command": "dextree.openGraphView",
-          "when": "view == dextree.symbolsView",
-          "group": "navigation@2"
         }
       ]
     },
@@ -145,7 +146,7 @@
     "viewsWelcome": [
       {
         "view": "dextree.symbolsView",
-        "contents": "No symbols indexed yet.\n\n[$(sync) Index Workspace](command:dextree.indexWorkspace)\n\n[$(type-hierarchy) Open Graph View](command:dextree.openGraphView)\n\nOr run [Dextree: Index File](command:dextree.indexFile) on a single open file."
+        "contents": "No symbols indexed yet.\n\n[$(sync) Index Workspace](command:dextree.indexWorkspace)\n\nOr run [Dextree: Index File](command:dextree.indexFile) on a single open file, or open the graph later from the Command Palette with [Dextree: Open Graph View](command:dextree.openGraphView)."
       }
     ]
   }
