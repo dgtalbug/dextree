@@ -3,26 +3,45 @@ import { useEffect, useReducer } from "react";
 import { EmptyState } from "./components/EmptyState.js";
 import { GraphView } from "./components/GraphView.js";
 import { LoadingState } from "./components/LoadingState.js";
+import type { IndexingMessage } from "./protocol/messages.js";
 import { isHostToWebviewMessage } from "./protocol/messages.js";
 
 // ---------------------------------------------------------------------------
 // State model — discriminated union (FR-002, FR-008)
 // ---------------------------------------------------------------------------
 
-type AppState =
-  | { status: "loading" }
-  | { status: "empty" }
-  | { status: "loaded"; nodes: GraphNode[]; edges: GraphEdge[] };
+interface AppState {
+  hasReceivedGraph: boolean;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  indexing: IndexingMessage | null;
+}
 
-type AppAction = { type: "graph"; nodes: GraphNode[]; edges: GraphEdge[] };
+type AppAction =
+  | { type: "graph"; nodes: GraphNode[]; edges: GraphEdge[] }
+  | { type: "indexing"; message: IndexingMessage };
 
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "graph":
-      // Never return to 'loading' once we've received a message
-      return action.nodes.length === 0
-        ? { status: "empty" }
-        : { status: "loaded", nodes: action.nodes, edges: action.edges };
+      return {
+        hasReceivedGraph: true,
+        nodes: action.nodes,
+        edges: action.edges,
+        indexing: state.indexing?.phase === "finished" ? null : state.indexing,
+      };
+    case "indexing":
+      if (action.message.phase === "finished") {
+        return {
+          ...state,
+          indexing: null,
+        };
+      }
+
+      return {
+        ...state,
+        indexing: action.message,
+      };
     default:
       return state;
   }
@@ -39,13 +58,23 @@ interface AppProps {
 }
 
 export function App({ vscodeApi }: AppProps) {
-  const [state, dispatch] = useReducer(reducer, { status: "loading" });
+  const [state, dispatch] = useReducer(reducer, {
+    hasReceivedGraph: false,
+    nodes: [],
+    edges: [],
+    indexing: null,
+  });
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       const msg: unknown = event.data;
       if (!isHostToWebviewMessage(msg)) return;
-      dispatch({ type: "graph", nodes: msg.nodes, edges: msg.edges });
+      if (msg.type === "graph") {
+        dispatch({ type: "graph", nodes: msg.nodes, edges: msg.edges });
+        return;
+      }
+
+      dispatch({ type: "indexing", message: msg });
     }
 
     window.addEventListener("message", handleMessage);
@@ -59,12 +88,36 @@ export function App({ vscodeApi }: AppProps) {
     vscodeApi.postMessage({ type: "navigate", filePath, line });
   }
 
-  switch (state.status) {
-    case "loading":
-      return <LoadingState label="Building graph…" />;
-    case "empty":
-      return <EmptyState />;
-    case "loaded":
-      return <GraphView nodes={state.nodes} edges={state.edges} onNavigate={handleNavigate} />;
+  const hasGraph = state.nodes.length > 0;
+  const showEmptyState = state.hasReceivedGraph && !hasGraph && state.indexing === null;
+  const showLoadingOverlay = !showEmptyState && (state.indexing !== null || !state.hasReceivedGraph);
+  const loadingLabel = state.indexing === null ? "Building graph…" : "Indexing workspace…";
+
+  if (showEmptyState) {
+    return <EmptyState />;
   }
+
+  return (
+    <div className={`dxt-app-shell${showLoadingOverlay ? " dxt-app-shell-indexing" : ""}`}>
+      <div className="dxt-graph-layer">
+        {hasGraph ? (
+          <GraphView nodes={state.nodes} edges={state.edges} onNavigate={handleNavigate} />
+        ) : (
+          <div
+            className="dxt-graph-scaffold dxt-graph-stage"
+            data-testid="graph-scaffold"
+            aria-hidden="true"
+          />
+        )}
+      </div>
+
+      {showLoadingOverlay ? (
+        state.indexing !== null ? (
+          <LoadingState indexing={state.indexing} label={loadingLabel} />
+        ) : (
+          <LoadingState label={loadingLabel} />
+        )
+      ) : null}
+    </div>
+  );
 }

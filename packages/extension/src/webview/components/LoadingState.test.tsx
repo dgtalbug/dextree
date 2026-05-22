@@ -13,9 +13,23 @@ describe("LoadingState", () => {
     expect(screen.getByText("Building graph...")).toBeTruthy();
   });
 
-  it("renders the type-hierarchy codicon", () => {
-    const { container } = render(<LoadingState />);
-    const icon = container.querySelector(".codicon-type-hierarchy");
-    expect(icon).toBeTruthy();
+  it("renders live indexing progress details when provided", () => {
+    render(
+      <LoadingState
+        indexing={{
+          type: "indexing",
+          phase: "progress",
+          current: 2,
+          total: 5,
+          fileName: "graph.ts",
+          failed: 1,
+          cancelled: false,
+          status: "failed",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("graph.ts")).toBeTruthy();
+    expect(screen.getByText("2 / 5 · 1 failed")).toBeTruthy();
   });
 });

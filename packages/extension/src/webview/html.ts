@@ -58,17 +58,80 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       background-color: var(--vscode-editor-background);
     }
 
-    #root {
-      height: 100%;
-      overflow: hidden;
-      padding: 8px;
-    }
+     #root {
+       height: 100%;
+       overflow: hidden;
+       padding: 8px;
+     }
 
-    .dxt-loading,
-    .dxt-empty,
-    .dxt-error {
-      display: flex;
-      flex-direction: column;
+     .dxt-app-shell {
+       position: relative;
+       height: 100%;
+       min-height: 240px;
+     }
+
+     .dxt-graph-layer {
+       position: relative;
+       height: 100%;
+       transition:
+         opacity 120ms ease,
+         transform 180ms ease;
+     }
+
+     .dxt-app-shell-indexing .dxt-graph-layer {
+       opacity: 0.62;
+       transform: scale(0.995);
+     }
+
+     .dxt-graph-stage {
+       position: relative;
+       overflow: hidden;
+       border: 1px solid var(--vscode-panel-border, transparent);
+       border-radius: 8px;
+       background:
+         radial-gradient(circle at 16% 14%, color-mix(in srgb, var(--vscode-symbolIcon-fileForeground) 22%, transparent), transparent 40%),
+         radial-gradient(circle at 84% 22%, color-mix(in srgb, var(--vscode-charts-green) 20%, transparent), transparent 42%),
+         radial-gradient(circle at 52% 88%, color-mix(in srgb, var(--vscode-charts-orange) 16%, transparent), transparent 46%),
+         linear-gradient(
+           180deg,
+           color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-foreground) 12%),
+           color-mix(in srgb, var(--vscode-editor-background) 96%, var(--vscode-foreground) 4%)
+         );
+     }
+
+     .dxt-graph-stage::before,
+     .dxt-graph-stage::after {
+       content: "";
+       position: absolute;
+       inset: 0;
+       pointer-events: none;
+     }
+
+     .dxt-graph-stage::before {
+       background-image:
+         radial-gradient(circle, color-mix(in srgb, var(--vscode-foreground) 18%, transparent) 0.75px, transparent 0.75px);
+       background-size: 20px 20px;
+       opacity: 0.2;
+     }
+
+     .dxt-graph-stage::after {
+       background:
+         radial-gradient(circle at center, transparent 42%, color-mix(in srgb, var(--vscode-editor-background) 76%, transparent) 100%);
+       opacity: 0.9;
+     }
+
+     .dxt-graph-scaffold {
+       position: relative;
+       height: 100%;
+       min-height: 240px;
+       border-radius: 8px;
+     }
+
+     .dxt-loading,
+     .dxt-empty,
+     .dxt-error {
+       display: flex;
+       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 8px;
@@ -101,12 +164,12 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       justify-content: center;
       min-width: 88px;
       padding: 8px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-      border: 1px solid var(--vscode-panel-border, transparent);
-      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
-    }
+       border-radius: 999px;
+       font-size: 12px;
+       font-weight: 600;
+       border: 1px solid var(--vscode-panel-border, transparent);
+       box-shadow: 0 4px 18px color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+     }
 
     .dxt-preview-node-file {
       left: 12px;
@@ -161,13 +224,154 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       font-size: 32px;
     }
 
-    .dxt-graph-view {
-      height: 100%;
-    }
+     .dxt-graph-view {
+       height: 100%;
+     }
 
-    .dxt-fallback-graph {
-      height: 100%;
-    }
+     .dxt-graph-surface {
+       position: relative;
+       height: 100%;
+       min-height: 240px;
+       border-radius: 8px;
+     }
+
+     .dxt-loading-overlay {
+       position: absolute;
+       inset: 0;
+       display: flex;
+       align-items: flex-start;
+       justify-content: center;
+       padding: 16px;
+       pointer-events: none;
+     }
+
+     .dxt-index-rail {
+       display: flex;
+       flex-direction: column;
+       gap: 10px;
+       width: min(540px, 100%);
+       padding: 12px 14px;
+       border: 1px solid color-mix(in srgb, var(--vscode-panel-border, transparent) 72%, transparent);
+       border-radius: 12px;
+       background:
+         linear-gradient(
+           135deg,
+           color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-charts-blue) 8%),
+           color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-charts-green) 8%)
+         );
+       box-shadow: 0 10px 28px color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+        backdrop-filter: blur(4px);
+      }
+
+     .dxt-index-rail-active {
+       background:
+         linear-gradient(
+           135deg,
+           color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-symbolIcon-fileForeground) 10%),
+           color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-charts-blue) 12%)
+         );
+     }
+
+     .dxt-index-rail-failed {
+       background:
+         linear-gradient(
+           135deg,
+           color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-inputValidation-errorBorder) 10%),
+           color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-charts-orange) 12%)
+         );
+     }
+
+     .dxt-index-rail-cancelled {
+       background:
+         linear-gradient(
+           135deg,
+           color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-descriptionForeground) 10%),
+           color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-charts-blue) 8%)
+         );
+     }
+
+     .dxt-index-rail-header,
+     .dxt-index-meta {
+       display: flex;
+       align-items: center;
+       justify-content: space-between;
+       gap: 12px;
+     }
+
+     .dxt-index-chip,
+     .dxt-index-count {
+       display: inline-flex;
+       align-items: center;
+       min-height: 26px;
+       padding: 0 10px;
+       border-radius: 999px;
+       border: 1px solid color-mix(in srgb, var(--vscode-panel-border, transparent) 72%, transparent);
+       background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-foreground) 12%);
+       font-size: 12px;
+       line-height: 1;
+     }
+
+     .dxt-index-chip {
+       max-width: 100%;
+       font-weight: 600;
+       color: var(--vscode-foreground);
+       white-space: nowrap;
+       overflow: hidden;
+       text-overflow: ellipsis;
+     }
+
+     .dxt-index-count {
+       color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+     }
+
+     .dxt-index-track {
+       position: relative;
+       height: 10px;
+       overflow: hidden;
+       border-radius: 999px;
+       background: color-mix(in srgb, var(--vscode-editor-background) 78%, var(--vscode-foreground) 22%);
+     }
+
+     .dxt-index-progress,
+     .dxt-index-beam {
+       position: absolute;
+       inset: 0;
+       transform-origin: left center;
+     }
+
+     .dxt-index-progress {
+       background: linear-gradient(
+         90deg,
+         color-mix(in srgb, var(--vscode-symbolIcon-fileForeground) 88%, transparent),
+         color-mix(in srgb, var(--vscode-charts-blue) 80%, transparent),
+         color-mix(in srgb, var(--vscode-charts-green) 76%, transparent)
+       );
+     }
+
+     .dxt-index-beam {
+       width: 28%;
+       background: linear-gradient(
+         90deg,
+         transparent,
+         color-mix(in srgb, var(--vscode-foreground) 28%, transparent),
+         transparent
+       );
+     }
+
+     .dxt-index-meta {
+       justify-content: flex-start;
+       color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+       font-size: 12px;
+       opacity: 0.92;
+     }
+
+     .dxt-index-meta .codicon {
+       font-size: 16px;
+     }
+
+     .dxt-fallback-graph {
+       height: 100%;
+     }
 
     .dxt-fallback-layout {
       display: grid;
@@ -320,14 +524,36 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       }
     }
 
-    #dxt-graph-container {
-      width: 100%;
-      height: 100%;
-      min-height: 240px;
-      border-radius: 3px;
-      background-color: var(--vscode-editor-background);
-    }
-  </style>
+     #dxt-graph-container {
+       width: 100%;
+       height: 100%;
+       min-height: 240px;
+       border-radius: 8px;
+       background-color: transparent;
+     }
+
+     .dxt-selection-overlay {
+       position: absolute;
+       inset: 0;
+       width: 100%;
+       height: 100%;
+       pointer-events: none;
+       overflow: visible;
+     }
+
+     .dxt-selection-path {
+       stroke-width: 2.8;
+       stroke-linecap: round;
+       stroke-dasharray: 10 7;
+       opacity: 0.94;
+       filter: drop-shadow(0 0 12px color-mix(in srgb, currentColor 34%, transparent));
+     }
+
+     .dxt-selection-traveler {
+       opacity: 1;
+       filter: drop-shadow(0 0 16px color-mix(in srgb, currentColor 42%, transparent));
+     }
+   </style>
 </head>
 <body>
   <div id="root"></div>

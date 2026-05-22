@@ -8,7 +8,26 @@ import type { Logger } from "../logger.js";
 export interface IndexWorkspaceCommandDependencies {
   logger: Logger;
   getIndexer: () => Promise<Indexer>;
+  onIndexingStarted?: (update: IndexWorkspaceProgressUpdate) => void;
+  onIndexingProgress?: (update: IndexWorkspaceProgressUpdate) => void;
+  onIndexingFinished?: (update: IndexWorkspaceProgressUpdate) => void;
   onIndexed?: () => void;
+}
+
+export type IndexWorkspaceProgressStatus =
+  | "starting"
+  | "indexing"
+  | "failed"
+  | "completed"
+  | "cancelled";
+
+export interface IndexWorkspaceProgressUpdate {
+  current: number;
+  total: number;
+  fileName: string | null;
+  failed: number;
+  cancelled: boolean;
+  status: IndexWorkspaceProgressStatus;
 }
 
 const SUPPORTED_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,py,md}";
@@ -62,6 +81,14 @@ export function createIndexWorkspaceCommand(
       }
 
       const indexer = await dependencies.getIndexer();
+      dependencies.onIndexingStarted?.({
+        current: 0,
+        total: files.length,
+        fileName: null,
+        failed: 0,
+        cancelled: false,
+        status: "starting",
+      });
       await indexer.clearWorkspace(root.uri.fsPath);
 
       await vscode.window.withProgress(
@@ -78,16 +105,26 @@ export function createIndexWorkspaceCommand(
           let failed = 0;
           let cancelled = false;
           const total = files.length;
+          let lastFileName: string | null = null;
 
-          for (const file of files) {
+          for (const [index, file] of files.entries()) {
             if (token.isCancellationRequested) {
               cancelled = true;
               break;
             }
 
+            lastFileName = basename(file.fsPath);
             progress.report({
               increment: (1 / total) * 100,
-              message: `${indexed + 1} / ${total} — ${basename(file.fsPath)}`,
+              message: `${index + 1} / ${total} — ${lastFileName}`,
+            });
+            dependencies.onIndexingProgress?.({
+              current: index + 1,
+              total,
+              fileName: lastFileName,
+              failed,
+              cancelled: false,
+              status: "indexing",
             });
 
             try {
@@ -96,12 +133,28 @@ export function createIndexWorkspaceCommand(
             } catch (error) {
               failed++;
               dependencies.logger.error(`Failed to index ${file.fsPath}`, error);
+              dependencies.onIndexingProgress?.({
+                current: index + 1,
+                total,
+                fileName: lastFileName,
+                failed,
+                cancelled: false,
+                status: "failed",
+              });
             }
 
             await yieldToEventLoop();
           }
 
           dependencies.onIndexed?.();
+          dependencies.onIndexingFinished?.({
+            current: cancelled ? indexed + failed : total,
+            total,
+            fileName: lastFileName,
+            failed,
+            cancelled,
+            status: cancelled ? "cancelled" : "completed",
+          });
 
           let summary: string;
           if (cancelled) {

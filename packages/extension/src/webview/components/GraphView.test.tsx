@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -16,11 +16,11 @@ const {
   }> = [];
   const canvasGetContext = vi.fn();
 
-  const mockSigma = {
-    setSetting: vi.fn(),
-    on: vi.fn(),
-    kill: vi.fn(),
-    refresh: vi.fn(),
+const mockSigma = {
+  setSetting: vi.fn(),
+  on: vi.fn(),
+  kill: vi.fn(),
+  refresh: vi.fn(),
   };
 
   const sigmaConstructor = vi.fn((_graph, _container, _settings) => mockSigma);
@@ -94,6 +94,7 @@ const baseNodes = [
     label: "greet",
     filePath: "/workspace/src/app.ts",
     startLine: 6,
+    symbolKind: "function" as const,
   },
   {
     id: "symbol-2",
@@ -101,6 +102,7 @@ const baseNodes = [
     label: "formatDate",
     filePath: "/workspace/src/util.ts",
     startLine: 4,
+    symbolKind: "class" as const,
   },
 ];
 
@@ -116,7 +118,11 @@ function themeFor(className: string): Record<string, string> {
       "--vscode-editor-background": "rgb(250, 250, 250)",
       "--vscode-foreground": "rgb(30, 30, 30)",
       "--vscode-symbolIcon-fileForeground": "rgb(50, 100, 200)",
+      "--vscode-symbolIcon-functionForeground": "rgb(170, 90, 220)",
       "--vscode-symbolIcon-classForeground": "rgb(180, 80, 40)",
+      "--vscode-symbolIcon-interfaceForeground": "rgb(70, 140, 200)",
+      "--vscode-symbolIcon-enumForeground": "rgb(160, 110, 50)",
+      "--vscode-symbolIcon-variableForeground": "rgb(190, 140, 40)",
       "--vscode-charts-blue": "rgb(80, 140, 255)",
       "--vscode-charts-green": "rgb(50, 160, 90)",
       "--vscode-charts-orange": "rgb(220, 120, 40)",
@@ -127,7 +133,11 @@ function themeFor(className: string): Record<string, string> {
     "--vscode-editor-background": "rgb(30, 30, 30)",
     "--vscode-foreground": "rgb(220, 220, 220)",
     "--vscode-symbolIcon-fileForeground": "rgb(120, 160, 255)",
+    "--vscode-symbolIcon-functionForeground": "rgb(200, 140, 255)",
     "--vscode-symbolIcon-classForeground": "rgb(255, 180, 120)",
+    "--vscode-symbolIcon-interfaceForeground": "rgb(130, 190, 255)",
+    "--vscode-symbolIcon-enumForeground": "rgb(255, 210, 120)",
+    "--vscode-symbolIcon-variableForeground": "rgb(220, 200, 120)",
     "--vscode-charts-blue": "rgb(100, 170, 255)",
     "--vscode-charts-green": "rgb(90, 200, 140)",
     "--vscode-charts-orange": "rgb(255, 170, 90)",
@@ -136,6 +146,7 @@ function themeFor(className: string): Record<string, string> {
 
 describe("GraphView", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     document.body.className = "vscode-dark";
     canvasGetContext.mockReset();
     canvasGetContext.mockImplementation((contextId: string) => {
@@ -167,6 +178,10 @@ describe("GraphView", () => {
     );
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders the graph container and initializes Sigma", () => {
     render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
 
@@ -182,8 +197,8 @@ describe("GraphView", () => {
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
 
-    expect(graph.getNodeAttribute("file-1", "size")).toBe(12);
-    expect(graph.getNodeAttribute("symbol-1", "size")).toBe(6);
+    expect(graph.getNodeAttribute("file-1", "size")).toBe(16);
+    expect(graph.getNodeAttribute("symbol-1", "size")).toBe(7);
     expect(graph.getNodeAttribute("file-1", "color")).not.toBe(
       graph.getNodeAttribute("symbol-1", "color"),
     );
@@ -214,22 +229,28 @@ describe("GraphView", () => {
     expect(definesColor).not.toBe(callsColor);
   });
 
-  it("calls onNavigate with the node file path and line when a symbol node is clicked", () => {
+  it("selects a node on single click without navigating immediately", () => {
     const onNavigate = vi.fn();
     render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
 
     const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
     clickNodeHandler?.({ node: "symbol-1" });
 
-    expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 6);
+    expect(onNavigate).not.toHaveBeenCalled();
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("calls onNavigate with line 1 when a file node is clicked", () => {
+  it("navigates on double click", () => {
     const onNavigate = vi.fn();
     render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
 
-    const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
-    clickNodeHandler?.({ node: "file-1" });
+    const doubleClickNodeHandler = mockSigma.on.mock.calls.find(
+      (call) => call[0] === "doubleClickNode",
+    )?.[1];
+    doubleClickNodeHandler?.({ node: "file-1" });
 
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 1);
   });
@@ -320,6 +341,8 @@ describe("GraphView", () => {
     const events = mockSigma.on.mock.calls.map((call) => call[0]);
     expect(events).toContain("enterNode");
     expect(events).toContain("leaveNode");
+    expect(events).toContain("clickStage");
+    expect(events).toContain("doubleClickNode");
   });
 
   it("scales node size proportionally to importance when provided", () => {
@@ -371,12 +394,42 @@ describe("GraphView", () => {
 
     // edge-calls (symbol-1 -> symbol-2) does not touch file-1, so it should fade
     const fadedEdge = settings.edgeReducer("edge-calls", { color: "rgb(255, 170, 90)" });
-    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.15\)/);
+    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.16\)/);
 
     const leaveNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "leaveNode")?.[1];
     leaveNodeHandler?.({});
 
     const restoredEdge = settings.edgeReducer("edge-calls", { color: "rgb(255, 170, 90)" });
     expect(restoredEdge.color).toBe("rgb(255, 170, 90)");
+  });
+
+  it("emphasizes descendant edges after a node is selected", () => {
+    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+
+    const settings = sigmaConstructor.mock.calls[0]?.[2] as {
+      edgeReducer: (edge: string, data: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+    clickNodeHandler?.({ node: "symbol-1" });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    const selectedEdge = settings.edgeReducer("edge-calls", {
+      color: "rgb(255, 170, 90)",
+      baseColor: "rgb(255, 170, 90)",
+      size: 1.8,
+      baseSize: 1.8,
+    });
+    const fadedEdge = settings.edgeReducer("edge-imports", {
+      color: "rgb(90, 200, 140)",
+      baseColor: "rgb(90, 200, 140)",
+      size: 2.7,
+      baseSize: 2.7,
+    });
+
+    expect(Number(selectedEdge.size)).toBeGreaterThan(1.8);
+    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.16\)/);
   });
 });

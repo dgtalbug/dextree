@@ -50,6 +50,7 @@ export async function getWorkspaceSubgraph(
           s.id,
           s.name AS label,
           f.path AS filePath,
+          s.kind AS symbolKind,
           s.range AS range
         FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
@@ -136,12 +137,15 @@ export async function getWorkspaceSubgraph(
     }),
     ...symbolRows.map((row) => {
       const range = normalizeRange(row.range);
+      const symbolKind =
+        typeof row.symbolKind === "string" ? (row.symbolKind as GraphNode["symbolKind"]) : undefined;
       return {
         id: String(row.id),
         type: "symbol" as const,
         label: String(row.label),
         filePath: String(row.filePath),
         startLine: range.startLine + 1,
+        ...(symbolKind === undefined ? {} : { symbolKind }),
       };
     }),
   ];

@@ -313,3 +313,48 @@ describe("createIndexWorkspaceCommand — FR-006 (per-file failure tolerance)", 
     expect(summaryCall).toBeDefined();
   });
 });
+
+describe("createIndexWorkspaceCommand — indexing lifecycle callbacks", () => {
+  it("reports start, per-file progress, and finished callbacks", async () => {
+    const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
+    const indexer = createMockIndexer();
+    const onIndexingStarted = vi.fn();
+    const onIndexingProgress = vi.fn();
+    const onIndexingFinished = vi.fn();
+
+    const command = createIndexWorkspaceCommand({
+      logger: createLogger(),
+      getIndexer: () => Promise.resolve(indexer as never),
+      onIndexingStarted,
+      onIndexingProgress,
+      onIndexingFinished,
+    });
+
+    await command();
+
+    expect(onIndexingStarted).toHaveBeenCalledWith({
+      current: 0,
+      total: 3,
+      fileName: null,
+      failed: 0,
+      cancelled: false,
+      status: "starting",
+    });
+    expect(onIndexingProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        current: 1,
+        total: 3,
+        fileName: "a.ts",
+        status: "indexing",
+      }),
+    );
+    expect(onIndexingFinished).toHaveBeenCalledWith({
+      current: 3,
+      total: 3,
+      fileName: "c.ts",
+      failed: 0,
+      cancelled: false,
+      status: "completed",
+    });
+  });
+});

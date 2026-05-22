@@ -1,13 +1,42 @@
 import * as vscode from "vscode";
 import { getWebviewContent } from "./html.js";
-import type { GraphMessage } from "./protocol/messages.js";
+import type { GraphMessage, HostToWebviewMessage, IndexingMessage } from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
 
 // Module-level singleton — exactly one panel per extension session.
 let currentPanel: vscode.WebviewPanel | undefined;
 // Last graph pushed — re-sent when webview posts 'ready' (handles race condition).
 let cachedGraph: GraphMessage | undefined;
+let cachedIndexing: IndexingMessage | undefined;
 let isWebviewReady = false;
+
+function postCachedState(): void {
+  if (currentPanel === undefined || !isWebviewReady) {
+    return;
+  }
+
+  const messages: HostToWebviewMessage[] = [];
+
+  if (cachedGraph !== undefined) {
+    messages.push(cachedGraph);
+  }
+
+  if (cachedIndexing !== undefined) {
+    messages.push(cachedIndexing);
+  }
+
+  for (const message of messages) {
+    void currentPanel.webview.postMessage(message);
+  }
+}
+
+function postMessage(message: HostToWebviewMessage): void {
+  if (currentPanel === undefined || !isWebviewReady) {
+    return;
+  }
+
+  void currentPanel.webview.postMessage(message);
+}
 
 /**
  * Manages the Dextree Graph View webview panel (FR-001 through FR-013).
@@ -50,9 +79,7 @@ export const WebviewPanelManager = {
           (msg as Record<string, unknown>)["type"] === "ready"
         ) {
           isWebviewReady = true;
-          if (cachedGraph !== undefined) {
-            void currentPanel?.webview.postMessage(cachedGraph);
-          }
+          postCachedState();
           return;
         }
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -73,11 +100,12 @@ export const WebviewPanelManager = {
 
     // Clean up module reference when panel is closed (FR-005)
     currentPanel.onDidDispose(
-      () => {
-        currentPanel = undefined;
-        cachedGraph = undefined;
-        isWebviewReady = false;
-      },
+        () => {
+          currentPanel = undefined;
+          cachedGraph = undefined;
+          cachedIndexing = undefined;
+          isWebviewReady = false;
+        },
       undefined,
       context.subscriptions,
     );
@@ -95,8 +123,23 @@ export const WebviewPanelManager = {
       nodes: graph.nodes,
       edges: graph.edges,
     };
-    if (currentPanel === undefined || !isWebviewReady) return;
-    void currentPanel.webview.postMessage(cachedGraph);
+    postCachedState();
+  },
+
+  pushIndexing(indexing: Omit<IndexingMessage, "type">): void {
+    const message: IndexingMessage = {
+      type: "indexing",
+      ...indexing,
+    };
+
+    if (message.phase === "finished") {
+      cachedIndexing = undefined;
+      postMessage(message);
+      return;
+    }
+
+    cachedIndexing = message;
+    postCachedState();
   },
 
   /**

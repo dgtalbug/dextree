@@ -199,6 +199,78 @@ describe("WebviewPanelManager", () => {
     expect(mockPostMessage).toHaveBeenCalledWith({ type: "graph", nodes: [], edges: [] });
   });
 
+  it("replays cached graph and indexing state in ready order", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+
+    WebviewPanelManager.pushGraph({ nodes: [], edges: [] });
+    WebviewPanelManager.pushIndexing({
+      phase: "progress",
+      current: 2,
+      total: 3,
+      fileName: "panel.ts",
+      failed: 0,
+      cancelled: false,
+      status: "indexing",
+    });
+    mockPostMessage.mockClear();
+
+    WebviewPanelManager.create(context as never);
+    currentMessageHandler?.({ type: "ready" });
+
+    expect(mockPostMessage.mock.calls[0]?.[0]).toEqual({ type: "graph", nodes: [], edges: [] });
+    expect(mockPostMessage.mock.calls[1]?.[0]).toEqual({
+      type: "indexing",
+      phase: "progress",
+      current: 2,
+      total: 3,
+      fileName: "panel.ts",
+      failed: 0,
+      cancelled: false,
+      status: "indexing",
+    });
+  });
+
+  it("does not replay finished indexing state after it has been sent", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+
+    WebviewPanelManager.create(context as never);
+    currentMessageHandler?.({ type: "ready" });
+    mockPostMessage.mockClear();
+
+    WebviewPanelManager.pushIndexing({
+      phase: "finished",
+      current: 4,
+      total: 4,
+      fileName: "panel.ts",
+      failed: 0,
+      cancelled: true,
+      status: "cancelled",
+    });
+
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "indexing",
+      phase: "finished",
+      current: 4,
+      total: 4,
+      fileName: "panel.ts",
+      failed: 0,
+      cancelled: true,
+      status: "cancelled",
+    });
+
+    mockPostMessage.mockClear();
+    currentMessageHandler?.({ type: "ready" });
+    expect(mockPostMessage).not.toHaveBeenCalled();
+  });
+
   it("replays the cached graph when ready fires during initial html load", async () => {
     const { WebviewPanelManager } = await import("./panel.js");
     const context = {

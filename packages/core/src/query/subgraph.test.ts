@@ -76,6 +76,7 @@ describe("getWorkspaceSubgraph", () => {
             label: "alpha",
             filePath: "/workspace/src/alpha.ts",
             startLine: 1,
+            symbolKind: "function",
           }),
           expect.objectContaining({
             id: "file-beta",
