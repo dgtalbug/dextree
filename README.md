@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status: Pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)]()
 
+**[→ View the full landing page](https://dgtalbug.github.io/dextree/)**
+
 > Index your codebase into a navigable semantic graph — inside VS Code.
 
 Dextree turns your repository into an interactive knowledge graph. Every symbol, call, import, and dependency is indexed into an embedded graph database (DuckDB + DuckPGQ) and made explorable through a WebGL-rendered visualization directly inside VS Code. Unlike competitors that live outside the editor, Dextree fuses the graph with everything VS Code already knows — LSP type information, live diagnostics, git history, and test linkage — to give you signals no headless tool can produce.
