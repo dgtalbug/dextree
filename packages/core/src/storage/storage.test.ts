@@ -330,9 +330,7 @@ describe("DuckTreeIndexer.initialize with applyMigrations", () => {
 
       // Version 4 row must exist in _schema_version.
       const versionRows = await (
-        await database.connection.run(
-          "SELECT version FROM _schema_version WHERE version = 4",
-        )
+        await database.connection.run("SELECT version FROM _schema_version WHERE version = 4")
       ).getRowObjectsJS();
       expect(versionRows).toHaveLength(1);
 

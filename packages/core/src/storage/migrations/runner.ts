@@ -235,7 +235,12 @@ const MIGRATION_004: Migration = {
   `,
 };
 
-const MIGRATIONS: readonly Migration[] = [MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004];
+const MIGRATIONS: readonly Migration[] = [
+  MIGRATION_001,
+  MIGRATION_002,
+  MIGRATION_003,
+  MIGRATION_004,
+];
 
 export interface MigrationResultOk {
   status: "ok";
