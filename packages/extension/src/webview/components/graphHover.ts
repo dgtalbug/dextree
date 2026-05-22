@@ -5,17 +5,12 @@ export interface HoverNeighborhood {
   edgeIds: Set<string>;
 }
 
-const EMPTY: HoverNeighborhood = {
-  nodeIds: new Set(),
-  edgeIds: new Set(),
-};
-
 export function computeHoverNeighborhood(
   graph: MultiDirectedGraph,
   hoveredNodeId: string | null,
 ): HoverNeighborhood {
   if (hoveredNodeId === null || !graph.hasNode(hoveredNodeId)) {
-    return { nodeIds: new Set(EMPTY.nodeIds), edgeIds: new Set(EMPTY.edgeIds) };
+    return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
   }
 
   const nodeIds = new Set<string>([hoveredNodeId]);

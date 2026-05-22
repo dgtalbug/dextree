@@ -60,6 +60,7 @@ export function createIndexWorkspaceCommand(
     // that arrives during file discovery is correctly rejected.
     isIndexing = true;
     cancellationRequested = false;
+    await vscode.commands.executeCommand("setContext", "dextree.isIndexing", true);
 
     try {
       const root = vscode.workspace.workspaceFolders?.[0];
@@ -166,6 +167,7 @@ export function createIndexWorkspaceCommand(
       }
     } finally {
       isIndexing = false;
+      await vscode.commands.executeCommand("setContext", "dextree.isIndexing", false);
     }
   };
 }

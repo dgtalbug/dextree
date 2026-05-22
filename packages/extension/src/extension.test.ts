@@ -77,6 +77,7 @@ vi.mock("vscode", () => ({
   },
   commands: {
     registerCommand,
+    executeCommand: vi.fn().mockResolvedValue(undefined),
   },
   EventEmitter: class MockEventEmitter {
     fire = vi.fn();

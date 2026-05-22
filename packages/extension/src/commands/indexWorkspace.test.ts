@@ -4,6 +4,7 @@ const showInformationMessage = vi.fn();
 const findFiles = vi.fn();
 const resolveCacheIdentity = vi.fn();
 const createWorkspaceIgnore = vi.fn();
+const executeCommand = vi.fn();
 
 const workspaceState: { workspaceFolders: Array<{ uri: { fsPath: string }; name: string }> } = {
   workspaceFolders: [],
@@ -18,6 +19,9 @@ vi.mock("vscode", () => ({
       return workspaceState.workspaceFolders;
     },
     findFiles,
+  },
+  commands: {
+    executeCommand,
   },
 }));
 
@@ -68,6 +72,8 @@ beforeEach(() => {
   findFiles.mockReset();
   resolveCacheIdentity.mockReset();
   createWorkspaceIgnore.mockReset();
+  executeCommand.mockReset();
+  executeCommand.mockResolvedValue(undefined);
 
   workspaceState.workspaceFolders = [{ uri: { fsPath: "/workspace" }, name: "workspace" }];
 
@@ -89,7 +95,7 @@ beforeEach(() => {
   ]);
 });
 
-describe("createIndexWorkspaceCommand — FR-001 (file discovery + ignore filter)", () => {
+describe("createIndexWorkspaceCommand — file discovery + ignore filter", () => {
   it("calls findFiles with the supported-language glob", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
@@ -143,7 +149,7 @@ describe("createIndexWorkspaceCommand — FR-001 (file discovery + ignore filter
   });
 });
 
-describe("createIndexWorkspaceCommand — FR-005 (clean reindex via clearWorkspace)", () => {
+describe("createIndexWorkspaceCommand — clean reindex via clearWorkspace", () => {
   it("calls indexer.clearWorkspace BEFORE the first indexFile call", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
@@ -171,7 +177,7 @@ describe("createIndexWorkspaceCommand — FR-005 (clean reindex via clearWorkspa
   });
 });
 
-describe("createIndexWorkspaceCommand — FR-003 (cancellation)", () => {
+describe("createIndexWorkspaceCommand — cancellation", () => {
   it("stops indexing after the current file when cancellation is requested", async () => {
     const { createIndexWorkspaceCommand, requestWorkspaceIndexingCancel } =
       await import("./indexWorkspace.js");
@@ -214,7 +220,7 @@ describe("createIndexWorkspaceCommand — FR-003 (cancellation)", () => {
   });
 });
 
-describe("createIndexWorkspaceCommand — FR-004 (single-in-flight guard)", () => {
+describe("createIndexWorkspaceCommand — single-in-flight guard", () => {
   it("refuses a second concurrent invocation with an info message", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();
@@ -269,7 +275,7 @@ describe("createIndexWorkspaceCommand — FR-004 (single-in-flight guard)", () =
   }, 10_000);
 });
 
-describe("createIndexWorkspaceCommand — FR-006 (per-file failure tolerance)", () => {
+describe("createIndexWorkspaceCommand — per-file failure tolerance", () => {
   it("logs failures and continues with remaining files", async () => {
     const { createIndexWorkspaceCommand } = await import("./indexWorkspace.js");
     const indexer = createMockIndexer();

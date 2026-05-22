@@ -20,6 +20,6 @@
     },
     "noEmit": true
   },
-  "include": ["src/webview/**/*.ts", "src/webview/**/*.tsx"],
+  "include": ["src/webview/**/*.ts", "src/webview/**/*.tsx", "../core/src/types/**/*.d.ts"],
   "exclude": ["src/webview/**/*.test.ts", "src/webview/**/*.test.tsx"]
 }

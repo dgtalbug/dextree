@@ -109,6 +109,12 @@
       {
         "command": "dextree.clearAllIndex",
         "title": "Dextree: Clear All Indexed Data"
+      },
+      {
+        "command": "dextree.cancelWorkspaceIndexing",
+        "title": "Dextree: Cancel Workspace Indexing",
+        "icon": "$(stop-circle)",
+        "enablement": "dextree.isIndexing"
       }
     ],
     "menus": {
