@@ -164,18 +164,22 @@ At the end of every slice:
 
 ## Current Slice State
 
-Actual state as of 2026-05-16.
+Actual state as of 2026-05-22.
 
-| Spec dir                    | Design slice | State       | Notes                                                                            |
-| --------------------------- | ------------ | ----------- | -------------------------------------------------------------------------------- |
-| `001-hello-symbol`          | S1           | `done`      | Parser → DuckDB → extension command end-to-end                                   |
-| `002-hello-tree-view`       | S2           | `done`      | Sidebar TreeView with file → symbol hierarchy                                    |
-| `003-hello-webview`         | S3           | `in-review` | React webview, message protocol, symbol list, directory tree, nav; on branch 003 |
-| `004-cicd-foundation-fixes` | —            | `in-spec`   | Fix lint/typecheck/coverage scripts before CI is wired; intermediate slice       |
-| `005-cicd-github-actions`   | —            | `in-spec`   | GitHub Actions CI/CD workflow; depends on 004                                    |
-| `006-hello-graph`           | S4           | `in-spec`   | Sigma + graphology graph render; **active spec**                                 |
+| Spec dir                         | Design slice | State               | Notes                                                                                                  |
+| -------------------------------- | ------------ | ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `001-hello-symbol`               | S1           | `done`              | Parser → DuckDB → extension command end-to-end                                                         |
+| `002-hello-tree-view`            | S2           | `done`              | Sidebar TreeView with file → symbol hierarchy                                                          |
+| `003-hello-webview`              | S3           | `in-review`         | React webview, message protocol, symbol list, directory tree, nav; on branch 003                       |
+| `004-cicd-foundation-fixes`      | —            | `in-spec`           | Fix lint/typecheck/coverage scripts before CI is wired; intermediate slice                             |
+| `005-cicd-github-actions`        | —            | `in-spec`           | GitHub Actions CI/CD workflow; depends on 004                                                          |
+| `006-hello-graph`                | S4           | `in-spec`           | Sigma + graphology graph render; **active spec** — depends on pre-S4 schema-alignment slice (see S3.5) |
+| `007-persistent-workspace-cache` | S5           | `in-implementation` | Workspace cache + identity resolution; code lives on `feature/slice-8-hello-workspace`                 |
+| `008-hello-workspace`            | S6           | `in-implementation` | Full-workspace indexing with progress + cancellation; same branch                                      |
 
 > Intermediate slices 004 and 005 are CI/CD prerequisites inserted before S4.
+> S5 and S6 are listed as `in-implementation` because their code already lives on the active branch
+> ahead of formal ROADMAP promotion — see RESEARCH-SCRATCH.md §2.
 > The design slice numbering (S0–S13) and spec directory numbering are independent.
 
 ## Recommended Execution Queue
@@ -246,6 +250,28 @@ navigate to source.
 **Independent proof**: the webview opens and shows indexed symbol data from the
 extension host.
 
+#### S3.5 — Schema alignment + migration scaffolding (pre-S4 hard prerequisite)
+
+**Spec focus**: converge `packages/core/src/storage/schema.ts` with design §8 entity
+model before the S4 graph render locks the wire format. See RESEARCH-SCRATCH.md §3 (Ranked Findings).
+
+**Code focus**:
+
+- Add `Annotation`, `Module`, `Test` tables (currently missing per design §8.2).
+- Parameterize `_schema_version` writes (currently hardcoded literal `1` in
+  `packages/core/src/storage/repository.ts:88,119,182`).
+- Pick: per-edge-kind tables (§8.4) OR unified `edge` table (§8.5). Document choice
+  in `.dextree/memory/decisions.md`.
+- Wire `fan_in` recomputation as the last step of `replaceFileGraph` (currently
+  hardcoded `0`).
+- Add `packages/core/src/storage/migrations/` with `001-initial.sql` baseline and an
+  `applyMigrations()` runner.
+- Add a `_schema_version` registry table populated at `initializeSchema` time.
+
+**Independent proof**: existing tests still green; a single seeded annotation +
+module + test row reads back round-trip; `fan_in` for a known symbol is non-zero
+after indexing.
+
 #### S4 — Hello Graph
 
 **Spec focus**: render a real graph for a small workspace sample using pass 1 edges.
@@ -253,8 +279,19 @@ extension host.
 **Code focus**: graph query path, Sigma integration, subgraph extraction, graph node
 selection.
 
+- **Required**: introduce `Extractor` interface + `ExtractorRegistry` (design §8.6).
+  Refactor existing `extractTypeScriptFile`/`extractPlainFile` as registrants.
+- **Required**: pass-1 emits naive `CALLS` edges from `call_expression` tree-sitter
+  nodes. `metadata.kind = "naive"` for later S8 upgrade-in-place.
+- **Required**: implement the chosen edge-storage variant from S3.5; query layer
+  reads it.
+
+**UI/UX (per RESEARCH-SCRATCH.md §10.2)**: ship minimap viewport rectangle (G1), LOD
+label policy (G7), hover-card mini-LSP basic shell (G6), keyboard cheatsheet `?` +
+`j/k/f/o` bindings (G3). Optional enhancements deferred.
+
 **Independent proof**: a 10-file graph renders, and clicking a node navigates to its
-definition.
+definition. **At least one `CALLS` edge is visible.**
 
 #### S5 — Persistent Workspace Cache
 
@@ -277,8 +314,37 @@ manual reindex.
 **Code focus**: workspace file discovery, incremental indexing loop, progress UI,
 reindex command.
 
+- **Required**: per-file content-hash (SHA-256) staleness check before reparse.
+- **Required**: persisted `file.hash` already exists in schema; wire
+  `if hash unchanged: skip`.
+- **Required**: named pipeline-phase progress — replace generic
+  "Discovering / Parsing / Writing" with `scan → parse → persist → resolve → index`
+  as a horizontal stepper inside `withProgress`; each phase has its own elapsed
+  timer. See RESEARCH-SCRATCH.md §10.2.b G20 + §13.2 (prior art: GitNexus
+  `AnalyzeProgress.tsx`).
+- **Inspirational**: CodeIndexer `sync/merkle.ts` (~200 LOC Merkle tree persisted to
+  disk) — optional acceleration if hash-only proves too slow on 10K+ file repos.
+  See RESEARCH-SCRATCH.md §13.4.
+
+**UI/UX (per RESEARCH-SCRATCH.md §10.2)**: 3-step VS Code walkthrough on first
+activation; spotlight onboarding (G16); status-bar live counter
+`$(database) <n> syms`; empty-state surfaces for 0/1/10 nodes; named pipeline-phase
+stepper (G20).
+
 **Independent proof**: index a representative workspace with visible progress and a
-usable graph at the end.
+usable graph at the end. **Saving an unchanged file is a no-op (no DB writes).**
+
+#### S6.5 — Auto-sync watcher
+
+**Spec focus**: debounced FS watcher (FSEvents/inotify/RDCW via VS Code's
+`FileSystemWatcher`) with selective reparse. Closes the codegraph file-watcher gap.
+
+**Code focus**: workspace `FileSystemWatcher` registration, debounce policy,
+per-file dirty marker integration with S6's hash-based skip path.
+
+**Independent proof**: editing a file outside VS Code (or inside, via save) triggers
+a debounced reparse that updates only the affected symbols. Editing rapidly does not
+queue redundant reparses.
 
 #### S7 — Hello Mermaid
 
@@ -286,7 +352,34 @@ usable graph at the end.
 
 **Code focus**: subgraph serialization, Mermaid export command, output path handling.
 
+- **Required**: native VS Code settings `dextree.exporters.theme` (Light/Dark/Print)
+  as a 3-radio picker. Defer WYSIWYG token editor to E3.
+  See RESEARCH-SCRATCH.md §11.
+
 **Independent proof**: export the current graph view as a valid Mermaid file.
+Theme applied at export time matches the chosen radio.
+
+#### S7.5 — PGQ / SQL query console (FAB)
+
+**Spec focus**: make the §4.8 PGQ / SQL moat **visible** to users. The strategic
+differentiator is invisible without a UI surface that lets power users write
+queries. Falls back to plain SQL if the H5 PGQ feasibility smoke test fails on a
+target platform. See RESEARCH-SCRATCH.md §10.2.b G19 + §13.2 (prior art: GitNexus
+`QueryFAB.tsx`).
+
+**Code focus**: Codicon `terminal` FAB bottom-right of graph; slide-up panel with
+Monaco editor (free — already in VS Code) using a custom `dextree.pgq` language
+config; prefab dropdown of canned queries (`MATCH (n:Function) ...`); results in
+plain HTML `<table>` with CSS Modules (no `@tanstack/react-table` without rules
+amendment); matched nodes highlight in graph.
+
+**Hard prerequisite**: H5 PGQ feasibility smoke test — confirm
+`INSTALL duckpgq; LOAD duckpgq; FROM GRAPH_TABLE (...);` works on Mac + Linux +
+Windows against `@duckdb/node-api@1.5.2-r.1` before scoping this slice. If PGQ
+fails on a target, the console ships in SQL-only mode.
+
+**Independent proof**: opening the FAB and running the default prefab "All
+Functions" query returns rows and highlights the matched nodes in the graph.
 
 ### Phase 2: v0.2 moat features
 
@@ -304,6 +397,19 @@ enriched nodes.
 
 **Independent proof**: pass 1 graph appears immediately, then resolved semantic edges
 upgrade live.
+
+#### S8.5 — Multi-language pass-1
+
+**Spec focus**: extend pass-1 beyond TypeScript to TS/JS/Python/Go/Rust via the
+`ExtractorRegistry` introduced in S4. Closes the 1-vs-19-langs competitive gap.
+See RESEARCH-SCRATCH.md §6.1 (gap analysis).
+
+**Code focus**: per-language `Extractor` registrants; bundle tree-sitter WASM
+grammars under `packages/extension/resources/`; per-language `call_expression`
+heuristics for naive `CALLS`.
+
+**Independent proof**: indexing a mixed-language repo (Python + Go + TS) produces
+symbols and naive `CALLS` edges in all three languages.
 
 #### S9 — Hello Diagnostics
 
@@ -323,6 +429,31 @@ queryable in the graph.
 
 **Independent proof**: graph nodes can be colored or filtered by git recency.
 
+#### S10.5 — Hello Tests
+
+**Spec focus**: link tests to symbols-under-test via framework heuristics
+(jest/vitest/pytest); populate `TESTED_BY` edges (design §8.4) at index time.
+Closes the test-linkage moat gap (no competitor has this).
+See RESEARCH-SCRATCH.md §6.3 (potential edges not yet delivered).
+
+**Code focus**: test-file detection, framework-specific heuristics, `Test` entity
+table writes (relies on S3.5 schema alignment), `TESTED_BY` edge emission.
+
+**Independent proof**: a function with a colocated `*.test.ts` shows the test as a
+linked node in the graph; coverage overlay (#11) lights it up.
+
+#### S10.7 — MCP server (read-only)
+
+**Spec focus**: expose the v0.2 graph to external agents over MCP, read-only, using
+the same SQL/PGQ query layer the webview consumes. Promoted from E2 (v0.3) because
+every traction-y competitor leads with MCP. See RESEARCH-SCRATCH.md §7.4 (MCP sequencing decision).
+
+**Code focus**: `packages/mcp/` (new); `@modelcontextprotocol/sdk`; MCP tools
+wrapping existing `query/*` exports. No write surface, no agent-mutation tools.
+
+**Independent proof**: a Claude Code or Cursor MCP-aware session can call
+`dextree.find_callers(symbol)` and get the same answer the webview hover card shows.
+
 #### S11 — Hello Blast Radius
 
 **Spec focus**: combine git diff plus reverse graph traversal into Dextree's first
@@ -334,23 +465,85 @@ core-file warnings, blast-radius panel.
 **Independent proof**: compare against `main`, show changed symbols, affected
 neighbors, score, and core-file hits.
 
+#### S11.5 — Framework route map
+
+**Spec focus**: detect framework-driven HTTP routes (Express, NestJS, FastAPI, Flask,
+Spring — five to start); materialize `ApiEndpoint` extension nodes (design §8.3).
+Closes the codegraph 14-framework gap.
+See RESEARCH-SCRATCH.md §6 (Gap Analysis) + §13.1 (codegraph framework folders).
+
+**Code focus**: per-framework extractors registered against the §8.6 plugin contract;
+`ApiEndpoint` writes; `ROUTES_TO` edges.
+
+**UI/UX**: process / execution-flow panel — left-side panel grouping detected routes
+by cross-community vs intra-community; clicking a route opens a side-panel detail
+with step list + "Focus in graph" action. **NOT** rendered as Mermaid in the webview
+(locked-rule violation); Mermaid is the export-only path. See RESEARCH-SCRATCH.md
+§10.2.b G18 + §13.2 (prior art: GitNexus `ProcessesPanel.tsx`).
+
+**Independent proof**: indexing an Express app surfaces every route as a queryable
+`ApiEndpoint` with HTTP method + path + handler symbol; the process panel lists them
+grouped by community.
+
+#### S11.7 — PageRank symbol ranking + community overlay
+
+**Spec focus**: port Aider's RepoMap PageRank algorithm
+(`aider/repomap.py:368-540`, ~170 LOC) to graphology; write back to
+`symbols.pagerank` column. Used by S11 blast-radius scoring and every Alfred prompt's
+top-K selection. See RESEARCH-SCRATCH.md §13.3 (Aider PageRank) + §10.2.b G17
+(community overlay) + §13.2 (GitNexus community visualization).
+
+**Code focus**: graphology PageRank traversal; personalization vector built from
+"mentioned identifiers" per Aider; persistence; recompute hook on incremental
+reindex. **Same recompute pass also computes Louvain communities** via
+`graphology-communities-louvain` (allowed under RULE-LIB-002) and writes a
+`community_id` column on `symbol` — communities and PageRank share the graph
+materialization cost.
+
+**UI/UX**: community overlay — nodes colored by community index; soft convex hulls
+behind clusters via Sigma reducers; `C` toggles hull visibility. PageRank exposed
+via node size + tooltip ("imported by 12, central in cluster 3").
+
+**Independent proof**: PageRank values for top-10 symbols on the dextree repo itself
+match the expected centrality intuition (e.g., `initialize`, `replaceFileGraph`,
+`openDatabase` in the top tier); the dextree repo decomposes into ≥3 visually
+distinct communities (parser, storage, webview).
+
 ### Phase 3: v0.3 more surfaces
 
 **Dependency rule**: only expand surfaces after the shared graph contract and the
 extension-host flow are already dependable.
 
-#### E1 — Canvas / PNG / PDF / SVG exports
+#### E1 — Export adapters
 
-**Spec focus**: expand from Mermaid to durable export adapters.
+**Spec focus**: expand from Mermaid to durable export adapters. Ship in sub-slice
+order to front-load the cheapest credibility win.
+See RESEARCH-SCRATCH.md §7.3 (SCIP-before-Canvas decision).
 
-**Code focus**: serializer adapters, artifact theming, export commands.
+- **E1a — SCIP exporter** (ship first). `sourcegraph/scip` is the de-facto interop
+  format; zero competitors emit it. Cheap (`scip.proto` protobuf marshalling) once
+  S8 resolves symbol IDs. Unlocks `src` CLI navigation and Sourcegraph Cloud
+  integration as a distribution channel.
+- **E1b — Canvas exporter**.
+- **E1c — PNG / PDF / SVG via `pdf-lib`**.
 
-#### E2 — MCP server
+**Code focus**: serializer adapters per sub-slice, artifact theming reused from S7
+theme picker, export commands.
 
-**Spec focus**: expose the shared graph to external agents without creating a second
-schema.
+#### E2 — MCP write tools + auto-config installer
 
-**Code focus**: MCP tools/resources over the same query layer.
+**Spec focus**: extend the v0.2 read-only MCP from S10.7 with write tools and an
+auto-config installer (write MCP entries to Claude/Cursor/Codex config files; emit
+`CLAUDE.md` skill hints). The read-only MCP itself ships earlier in S10.7.
+See RESEARCH-SCRATCH.md §7.4 (MCP sequencing decision).
+
+**Code focus**: MCP write tools (re-index, annotate, lens-save); installer command
+`dextree mcp install --target=claude|cursor|codex` writing into each tool's MCP
+config; idempotent re-install.
+
+**Independent proof**: running `dextree mcp install --target=claude` writes a valid
+entry to the user's Claude Code config and the next Claude session sees the Dextree
+MCP server with all read+write tools.
 
 #### E3 — Settings UI webview
 
@@ -370,14 +563,39 @@ their own; otherwise the LLM layer will hide core product gaps.
 **Code focus**: provider abstraction, prompt loading, query execution, preview/send
 flow.
 
+- **Required prerequisite**: repo-map text view (`Dextree: Show repo-map` command)
+  built from PageRank top-K per file, token-budgeted (default 1024). This is the
+  default system prompt every Alfred prompt consumes — Aider proved this is the
+  only way LLM pair-programming scales to large repos. See RESEARCH-SCRATCH.md
+  §10.2.b G21 + §13.3 (prior art: `aider/repomap.py:368-540`). Also serves users
+  who want a non-LLM text snapshot for `Cmd-F` and copy/paste.
+
 **Independent proof**: `architecture-overview` generates a markdown result from the
-current graph.
+current graph; the repo-map command produces a token-budgeted text snapshot without
+any network call.
 
 #### S13 — Built-in prompt library
 
 **Spec focus**: make Alfred useful through prompt coverage, not just plumbing.
 
 **Code focus**: prompt packaging, validation, UX for prompt discovery and execution.
+
+#### S14 — Workspace federation (multi-repo)
+
+**Spec focus**: multi-folder VS Code workspace → one merged graph; cross-repo symbol
+resolution via globally-addressable symbol IDs. Closes the multi-repo / microservice
+mesh gap that GitNexus monetizes as paid enterprise.
+See RESEARCH-SCRATCH.md §7.5 (multi-repo sequencing — note: audit recommends keeping it _late_, this slice represents a deliberate over-ride if we want the wedge).
+
+**Code focus**: extend S5 cache identity to be globally addressable; merged-graph
+query path; cross-repo edge resolution; UI for switching the active scope between
+"all repos" and a single member.
+
+**Independent proof**: open a multi-folder workspace containing 3 microservice repos;
+the graph shows cross-repo `CALLS` edges where an HTTP route in repo A is consumed
+by a client in repo B.
+
+**Target version**: v0.6 (after v0.5 stabilization, before any further surface work).
 
 ### Phase 5: v0.5 extensions
 
