@@ -8,6 +8,7 @@ import { getSymbolsForFile } from "./query/symbols.js";
 import { clearAll, clearWorkspace } from "./storage/clear.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
 import { replaceFileGraph } from "./storage/repository.js";
+import { applyMigrations } from "./storage/migrations/runner.js";
 import { initializeSchema } from "./storage/schema.js";
 import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./storage/workspaceCache.js";
 import {
@@ -48,6 +49,20 @@ export type {
 
 export { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
 
+/**
+ * Thrown by `DuckTreeIndexer.initialize` when the persisted schema cannot be
+ * migrated to the current `SCHEMA_VERSION`. The extension activation path catches
+ * this and surfaces a recovery prompt; callers should NOT treat it as a generic
+ * Error because the user-facing remediation (clear workspace index + reindex) is
+ * specific to schema failures.
+ */
+export class SchemaError extends Error {
+  constructor(reason: string) {
+    super(`Dextree schema migration failed: ${reason}`);
+    this.name = "SchemaError";
+  }
+}
+
 class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;
   private initializationPromise: Promise<void> | null = null;
@@ -69,6 +84,10 @@ class DuckTreeIndexer implements Indexer {
 
       this.databaseHandle = await openDatabase(this.dbPath);
       await initializeSchema(this.databaseHandle.connection);
+      const migrationResult = await applyMigrations(this.databaseHandle.connection);
+      if (migrationResult.status === "failed") {
+        throw new SchemaError(migrationResult.reason);
+      }
     })();
 
     await this.initializationPromise;

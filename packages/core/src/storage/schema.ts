@@ -10,6 +10,7 @@ export const REQUIRED_TABLES = [
   "import_ref",
   "diagnostic",
   "workspace_cache",
+  "_schema_version",
 ] as const;
 
 export const SCHEMA_STATEMENTS = [
@@ -121,6 +122,13 @@ export const SCHEMA_STATEMENTS = [
         end_col UINTEGER
       ),
       metadata JSON DEFAULT '{}'
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS _schema_version (
+      version UINTEGER PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      description VARCHAR NOT NULL
     )
   `,
   `
