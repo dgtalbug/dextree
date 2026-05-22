@@ -173,7 +173,7 @@ describe("applyMigrations", () => {
     expect(callsEdges).toHaveLength(1);
     expect(importsEdges).toHaveLength(2);
 
-    // Registry now lists v1, v2, v3.
+    // Registry now lists v1, v2, v3, v4.
     const versions = (
       await (
         await conn.run("SELECT version FROM _schema_version ORDER BY version")
@@ -182,6 +182,6 @@ describe("applyMigrations", () => {
       const v = (r as { version: number | bigint }).version;
       return typeof v === "bigint" ? Number(v) : v;
     });
-    expect(versions).toEqual([1, 2, 3]);
+    expect(versions).toEqual([1, 2, 3, 4]);
   });
 });

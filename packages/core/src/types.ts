@@ -2,7 +2,7 @@
 //   1 — initial baseline (slice 008 era)
 //   2 — adds annotation, module, test core entity tables (migration 002)
 //   3 — unifies call_site + import_ref into edge with kind/metadata (migration 003)
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export interface WorkspaceCacheIdentity {
   cacheKey: string;
