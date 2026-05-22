@@ -55,7 +55,7 @@ function makeIdentity(workspaceRoot = "/workspace"): WorkspaceCacheIdentity {
 }
 
 describe("storage schema and writes", () => {
-  it("initializes the full S1 schema", async () => {
+  it("initializes the full v3 schema (file/symbol/edge/diagnostic/workspace_cache/_schema_version/annotation/module/test)", async () => {
     const database = await openDatabase(":memory:");
 
     try {

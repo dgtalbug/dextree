@@ -40,12 +40,10 @@ async function deleteExistingRows(
   connection: DuckDBConnection,
   existingFileId: string,
 ): Promise<void> {
-  await connection.run("DELETE FROM import_ref WHERE file_id = $file_id", {
-    file_id: existingFileId,
-  });
   // Two separate statements because DuckDB's named-parameter binding fails
   // when the same $name appears more than once in a single prepared statement
   // ("Failed to retrieve bind parameter index"). Splitting avoids the trap.
+  // edge.source_id covers DEFINES and IMPORTS edges originating from this file.
   await connection.run("DELETE FROM edge WHERE source_id = $file_id", {
     file_id: existingFileId,
   });
@@ -186,30 +184,38 @@ async function insertImportRefs(
   connection: DuckDBConnection,
   input: ExtractedIndexData,
 ): Promise<void> {
+  // Post-v3: imports are stored as `edge` rows with kind='IMPORTS'. The sidecar
+  // `import_ref` table is dropped by migration 003. Per-file metadata (import_path,
+  // imported_symbol, range, language) lives in edge.metadata JSON. The target_id
+  // is left NULL at write time; subgraph queries resolve target file_id via JOIN
+  // on metadata.import_path → file.relative_path.
   for (const importRef of input.imports) {
     await connection.run(
       `
-        INSERT INTO import_ref (
+        INSERT INTO edge (
           id,
-          file_id,
-          import_path,
-          imported_symbol,
-          range,
-          language,
+          source_id,
+          target_id,
+          kind,
+          weight,
           metadata
         ) VALUES (
           $id,
           $file_id,
-          $import_path,
-          $imported_symbol,
-          struct_pack(
-            start_line := $start_line,
-            start_col := $start_col,
-            end_line := $end_line,
-            end_col := $end_col
-          ),
-          $language,
-          '{}'::JSON
+          NULL,
+          'IMPORTS',
+          NULL,
+          json_object(
+            'import_path', $import_path,
+            'imported_symbol', $imported_symbol,
+            'import_range', struct_pack(
+              start_line := $start_line,
+              start_col := $start_col,
+              end_line := $end_line,
+              end_col := $end_col
+            ),
+            'language', $language
+          )
         )
       `,
       {

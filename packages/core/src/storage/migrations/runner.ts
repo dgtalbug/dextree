@@ -18,7 +18,19 @@ import { SCHEMA_VERSION } from "../../types.js";
 interface Migration {
   version: number;
   description: string;
+  /**
+   * SQL body executed in a single `connection.run(sql)` call. Empty when the
+   * migration needs branching logic (e.g. conditional table existence checks);
+   * in that case `apply` is provided instead.
+   */
   sql: string;
+  /**
+   * Optional TypeScript-driven migration. Used when the migration needs to
+   * dispatch multiple statements conditionally (e.g. migration 003, which
+   * has to skip sidecar copy on fresh DBs that never had call_site/import_ref).
+   * If present, the runner calls `apply` instead of `connection.run(sql)`.
+   */
+  apply?: (connection: DuckDBConnection) => Promise<void>;
 }
 
 const MIGRATION_001: Migration = {
@@ -90,8 +102,116 @@ const MIGRATION_002: Migration = {
   `,
 };
 
-// Migration 003 lands in US3 (T027). The runner already consumes the full list.
-const MIGRATIONS: readonly Migration[] = [MIGRATION_001, MIGRATION_002];
+// Migration 003 runs in two steps because the data-copy phase depends on the
+// sidecar tables existing. Fresh DBs (created post-v3 via schema.ts) never have
+// these tables, so the runner skips the copy step when they're absent — but
+// still registers v3 and ensures the sidecars are dropped if a stale install
+// somehow created them.
+async function runMigration003(connection: DuckDBConnection): Promise<void> {
+  // Relax edge.target_id from NOT NULL to nullable. Pass-1 IMPORTS edges and
+  // naive CALLS edges may not have a resolved target yet. Check the column's
+  // current nullability via information_schema BEFORE running ALTER — running it
+  // unconditionally would either throw on fresh DBs (column already nullable)
+  // or poison the migration's transaction.
+  const targetIdIsNotNull = await columnIsNotNull(connection, "edge", "target_id");
+  if (targetIdIsNotNull) {
+    await connection.run("ALTER TABLE edge ALTER COLUMN target_id DROP NOT NULL");
+  }
+
+  const callSiteExists = await tableExists(connection, "call_site");
+  const importRefExists = await tableExists(connection, "import_ref");
+
+  if (callSiteExists) {
+    await connection.run(`
+      INSERT INTO edge (id, source_id, target_id, kind, weight, metadata)
+      SELECT
+        cs.id,
+        cs.caller_symbol_id,
+        cs.callee_symbol_id,
+        'CALLS',
+        NULL,
+        json_object(
+          'call_site_range', cs.range,
+          'language', cs.language,
+          'kind', 'naive'
+        )
+      FROM call_site cs
+      WHERE cs.caller_symbol_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM edge e WHERE e.id = cs.id
+        )
+    `);
+    await connection.run("DROP TABLE call_site");
+  }
+
+  if (importRefExists) {
+    await connection.run(`
+      INSERT INTO edge (id, source_id, target_id, kind, weight, metadata)
+      SELECT
+        ir.id,
+        ir.file_id,
+        dst.id,
+        'IMPORTS',
+        NULL,
+        json_object(
+          'import_path', ir.import_path,
+          'imported_symbol', ir.imported_symbol,
+          'import_range', ir.range,
+          'language', ir.language
+        )
+      FROM import_ref ir
+      LEFT JOIN file dst ON dst.relative_path = ir.import_path
+      WHERE NOT EXISTS (
+          SELECT 1 FROM edge e WHERE e.id = ir.id
+        )
+    `);
+    await connection.run("DROP TABLE import_ref");
+  }
+
+  await connection.run(`
+    INSERT INTO _schema_version (version, description)
+    SELECT 3, 'unify call_site and import_ref into edge'
+    WHERE NOT EXISTS (SELECT 1 FROM _schema_version WHERE version = 3)
+  `);
+}
+
+async function tableExists(connection: DuckDBConnection, tableName: string): Promise<boolean> {
+  const reader = await connection.run(
+    `SELECT 1 AS present FROM information_schema.tables
+     WHERE table_schema = 'main' AND table_name = '${tableName}'`,
+  );
+  const rows = await reader.getRowObjectsJS();
+  return rows.length > 0;
+}
+
+async function columnIsNotNull(
+  connection: DuckDBConnection,
+  tableName: string,
+  columnName: string,
+): Promise<boolean> {
+  const reader = await connection.run(
+    `SELECT is_nullable FROM information_schema.columns
+     WHERE table_schema = 'main' AND table_name = '${tableName}' AND column_name = '${columnName}'`,
+  );
+  const rows = await reader.getRowObjectsJS();
+  if (rows.length === 0) {
+    return false;
+  }
+  const row = rows[0] as { is_nullable: string };
+  // information_schema returns 'YES' or 'NO'
+  return row.is_nullable === "NO";
+}
+
+const MIGRATION_003: Migration = {
+  version: 3,
+  description: "unify call_site and import_ref into edge",
+  // SQL body is empty because the runner dispatches to `runMigration003` instead.
+  // We keep the Migration entry so version-bookkeeping stays uniform.
+  sql: "",
+  apply: runMigration003,
+};
+
+const MIGRATIONS: readonly Migration[] = [MIGRATION_001, MIGRATION_002, MIGRATION_003];
 
 export interface MigrationResultOk {
   status: "ok";
@@ -172,7 +292,11 @@ export async function applyMigrations(connection: DuckDBConnection): Promise<Mig
     }
     try {
       await connection.run("BEGIN TRANSACTION");
-      await connection.run(migration.sql);
+      if (migration.apply !== undefined) {
+        await migration.apply(connection);
+      } else {
+        await connection.run(migration.sql);
+      }
       await connection.run("COMMIT");
       applied.push(migration.description);
       currentVersion = migration.version;

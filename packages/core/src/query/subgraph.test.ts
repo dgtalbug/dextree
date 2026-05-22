@@ -194,4 +194,47 @@ describe("getWorkspaceSubgraph", () => {
       database.close();
     }
   });
+
+  it("reads CALLS edges from the unified edge table (post-migration-003)", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      // Index two files; this gives us symbols and a DEFINES edge per file.
+      await replaceFileGraph(database.connection, makeExtractedData("alpha"));
+      await replaceFileGraph(database.connection, makeExtractedData("beta"));
+
+      // Write a CALLS edge directly via the unified `edge` table. Post-v3, this
+      // is the supported write path — no more call_site sidecar.
+      await database.connection.run(
+        `
+          INSERT INTO edge (id, source_id, target_id, kind, weight, metadata)
+          VALUES (
+            'call-1',
+            'symbol-alpha',
+            'symbol-beta',
+            'CALLS',
+            NULL,
+            json_object('kind', 'naive')
+          )
+        `,
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+
+      expect(graph.edges).toEqual(
+        expect.arrayContaining([
+          {
+            id: expect.any(String),
+            source: "symbol-alpha",
+            target: "symbol-beta",
+            kind: "CALLS",
+          },
+        ]),
+      );
+    } finally {
+      database.close();
+    }
+  });
 });

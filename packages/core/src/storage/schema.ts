@@ -6,8 +6,6 @@ export const REQUIRED_TABLES = [
   "file",
   "symbol",
   "edge",
-  "call_site",
-  "import_ref",
   "diagnostic",
   "workspace_cache",
   "_schema_version",
@@ -71,41 +69,11 @@ export const SCHEMA_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS edge (
       id VARCHAR PRIMARY KEY,
       source_id VARCHAR NOT NULL,
-      target_id VARCHAR NOT NULL,
+      -- target_id is nullable post-v3: pass-1 IMPORTS edges and pass-1 naive CALLS
+      -- edges may not have a resolved target yet; pass-2 (S8 LSP) fills them in.
+      target_id VARCHAR,
       kind VARCHAR NOT NULL,
       weight FLOAT,
-      metadata JSON DEFAULT '{}'
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS call_site (
-      id VARCHAR PRIMARY KEY,
-      caller_symbol_id VARCHAR,
-      callee_symbol_id VARCHAR,
-      file_id VARCHAR,
-      range STRUCT(
-        start_line UINTEGER,
-        start_col UINTEGER,
-        end_line UINTEGER,
-        end_col UINTEGER
-      ),
-      language VARCHAR,
-      metadata JSON DEFAULT '{}'
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS import_ref (
-      id VARCHAR PRIMARY KEY,
-      file_id VARCHAR,
-      import_path VARCHAR,
-      imported_symbol VARCHAR,
-      range STRUCT(
-        start_line UINTEGER,
-        start_col UINTEGER,
-        end_line UINTEGER,
-        end_col UINTEGER
-      ),
-      language VARCHAR,
       metadata JSON DEFAULT '{}'
     )
   `,

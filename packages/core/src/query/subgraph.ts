@@ -79,17 +79,22 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
+  // Post-v3: IMPORTS edges live in the unified `edge` table. The target file id
+  // is resolved at query time via JOIN on metadata.import_path → file.relative_path
+  // (writers leave target_id NULL because the destination file may not be indexed
+  // yet when the source file is parsed).
   const importRows = await (
     await connection.run(
       `
         SELECT
-          MIN(ir.id) AS id,
+          MIN(e.id) AS id,
           src.id AS source,
           dst.id AS target
-        FROM import_ref ir
-        INNER JOIN file src ON src.id = ir.file_id
-        INNER JOIN file dst ON dst.relative_path = ir.import_path
-        WHERE (src.path = $workspace_root OR src.path LIKE $workspace_prefix)
+        FROM edge e
+        INNER JOIN file src ON src.id = e.source_id
+        INNER JOIN file dst ON dst.relative_path = json_extract_string(e.metadata, '$.import_path')
+        WHERE e.kind = 'IMPORTS'
+          AND (src.path = $workspace_root OR src.path LIKE $workspace_prefix)
           AND (dst.path = $workspace_root OR dst.path LIKE $workspace_prefix)
         GROUP BY src.id, dst.id
         ORDER BY src.id ASC, dst.id ASC
@@ -98,23 +103,26 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
+  // Post-v3: CALLS edges live in the unified `edge` table too. Pass-1 may leave
+  // target_id NULL (unresolved); pass-2 LSP (S8) will fill it in. This query
+  // shows only resolved calls.
   const callRows = await (
     await connection.run(
       `
         SELECT
-          MIN(cs.id) AS id,
-          cs.caller_symbol_id AS source,
-          cs.callee_symbol_id AS target
-        FROM call_site cs
-        INNER JOIN symbol src_symbol ON src_symbol.id = cs.caller_symbol_id
-        INNER JOIN symbol dst_symbol ON dst_symbol.id = cs.callee_symbol_id
+          MIN(e.id) AS id,
+          e.source_id AS source,
+          e.target_id AS target
+        FROM edge e
+        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
+        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
         INNER JOIN file src_file ON src_file.id = src_symbol.file_id
         INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
-        WHERE cs.caller_symbol_id IS NOT NULL
-          AND cs.callee_symbol_id IS NOT NULL
+        WHERE e.kind = 'CALLS'
+          AND e.target_id IS NOT NULL
           AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
           AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
-        GROUP BY cs.caller_symbol_id, cs.callee_symbol_id
+        GROUP BY e.source_id, e.target_id
         ORDER BY source ASC, target ASC
       `,
       params,
