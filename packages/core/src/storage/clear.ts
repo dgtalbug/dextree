@@ -106,8 +106,8 @@ export async function clearWorkspace(
     await connection.run(`DELETE FROM edge WHERE source_id IN ${symbolIdSubquery}`, params);
     await connection.run(`DELETE FROM edge WHERE target_id IN ${symbolIdSubquery}`, params);
 
-    await connection.run(`DELETE FROM call_site WHERE file_id IN ${fileIdSubquery}`, params);
-    await connection.run(`DELETE FROM import_ref WHERE file_id IN ${fileIdSubquery}`, params);
+    // Post-v3: call_site and import_ref sidecar tables were dropped by migration 003.
+    // Their data now lives in `edge` and is cleared by the DELETE FROM edge ... statements above.
     await connection.run(`DELETE FROM diagnostic WHERE file_id IN ${fileIdSubquery}`, params);
     await connection.run(`DELETE FROM symbol WHERE file_id IN ${fileIdSubquery}`, params);
     await connection.run(`DELETE FROM file WHERE path = $workspace_root`, {

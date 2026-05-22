@@ -1,0 +1,10 @@
+# typos config — whitelists false positives that aren't actual misspellings.
+#
+# Spell-check runs against the whole repo per `.github/workflows/_spell-check.yml`
+# using crate-ci/typos. The defaults are aggressive and catch domain-specific
+# acronyms that look like incomplete words.
+
+[default.extend-words]
+# "LOD" = Level of Detail (graphics term; Sigma.js exposes LOD label rendering).
+# Typos flags it as a misspelling of "LOAD" — wrong in our context.
+LOD = "LOD"

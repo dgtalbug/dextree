@@ -450,4 +450,44 @@ describe("activate", () => {
       );
     });
   });
+
+  it("does not propagate SchemaError from initialize during activation", async () => {
+    class FakeSchemaError extends Error {
+      constructor(reason: string) {
+        super(`Dextree schema migration failed: ${reason}`);
+        this.name = "SchemaError";
+      }
+    }
+
+    const mockIndexer = {
+      initialize: vi
+        .fn()
+        .mockRejectedValue(
+          new FakeSchemaError("persisted schema version 99 is newer than supported"),
+        ),
+      indexFile: vi.fn(),
+      validateWorkspaceCache: vi.fn(),
+      getSymbols: vi.fn(),
+      getAllFiles: vi.fn().mockResolvedValue([]),
+      getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      dispose: vi.fn(),
+    };
+
+    createIndexer.mockReturnValue(mockIndexer);
+
+    const extension = await import("./extension.js");
+
+    // Activation must NOT throw even when initialize rejects.
+    await expect(
+      extension.activate({
+        subscriptions: [],
+        storageUri: { fsPath: "/workspace/.storage" },
+        extensionUri: { fsPath: "/workspace/packages/extension" },
+      }),
+    ).resolves.not.toThrow();
+
+    // The output-channel logger is mocked at suite scope; we just verify the
+    // command surface is still registered so the user has a recovery path.
+    expect(registerCommand).toHaveBeenCalledWith("dextree.indexFile", expect.any(Function));
+  });
 });

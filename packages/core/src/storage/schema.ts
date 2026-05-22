@@ -6,10 +6,12 @@ export const REQUIRED_TABLES = [
   "file",
   "symbol",
   "edge",
-  "call_site",
-  "import_ref",
   "diagnostic",
   "workspace_cache",
+  "_schema_version",
+  "annotation",
+  "module",
+  "test",
 ] as const;
 
 export const SCHEMA_STATEMENTS = [
@@ -67,41 +69,11 @@ export const SCHEMA_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS edge (
       id VARCHAR PRIMARY KEY,
       source_id VARCHAR NOT NULL,
-      target_id VARCHAR NOT NULL,
+      -- target_id is nullable post-v3: pass-1 IMPORTS edges and pass-1 naive CALLS
+      -- edges may not have a resolved target yet; pass-2 (S8 LSP) fills them in.
+      target_id VARCHAR,
       kind VARCHAR NOT NULL,
       weight FLOAT,
-      metadata JSON DEFAULT '{}'
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS call_site (
-      id VARCHAR PRIMARY KEY,
-      caller_symbol_id VARCHAR,
-      callee_symbol_id VARCHAR,
-      file_id VARCHAR,
-      range STRUCT(
-        start_line UINTEGER,
-        start_col UINTEGER,
-        end_line UINTEGER,
-        end_col UINTEGER
-      ),
-      language VARCHAR,
-      metadata JSON DEFAULT '{}'
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS import_ref (
-      id VARCHAR PRIMARY KEY,
-      file_id VARCHAR,
-      import_path VARCHAR,
-      imported_symbol VARCHAR,
-      range STRUCT(
-        start_line UINTEGER,
-        start_col UINTEGER,
-        end_line UINTEGER,
-        end_col UINTEGER
-      ),
-      language VARCHAR,
       metadata JSON DEFAULT '{}'
     )
   `,
@@ -124,6 +96,13 @@ export const SCHEMA_STATEMENTS = [
     )
   `,
   `
+    CREATE TABLE IF NOT EXISTS _schema_version (
+      version UINTEGER PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      description VARCHAR NOT NULL
+    )
+  `,
+  `
     CREATE TABLE IF NOT EXISTS workspace_cache (
       id UINTEGER PRIMARY KEY,
       cache_key VARCHAR NOT NULL,
@@ -139,6 +118,53 @@ export const SCHEMA_STATEMENTS = [
       CHECK (id = 1)
     )
   `,
+  `
+    CREATE TABLE IF NOT EXISTS annotation (
+      id VARCHAR PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      args JSON DEFAULT '{}',
+      range STRUCT(
+        start_line UINTEGER,
+        start_col UINTEGER,
+        end_line UINTEGER,
+        end_col UINTEGER
+      ),
+      parent_symbol_id VARCHAR NOT NULL,
+      language VARCHAR NOT NULL,
+      metadata JSON DEFAULT '{}',
+      _schema_version UINTEGER NOT NULL DEFAULT ${SCHEMA_VERSION}
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS module (
+      id VARCHAR PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      fqn VARCHAR NOT NULL,
+      language VARCHAR NOT NULL,
+      package VARCHAR,
+      version VARCHAR,
+      metadata JSON DEFAULT '{}',
+      _schema_version UINTEGER NOT NULL DEFAULT ${SCHEMA_VERSION}
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS test (
+      id VARCHAR PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      framework VARCHAR NOT NULL,
+      file_id VARCHAR NOT NULL,
+      range STRUCT(
+        start_line UINTEGER,
+        start_col UINTEGER,
+        end_line UINTEGER,
+        end_col UINTEGER
+      ) NOT NULL,
+      target_symbol_id VARCHAR,
+      target_confidence FLOAT DEFAULT 0.0,
+      metadata JSON DEFAULT '{}',
+      _schema_version UINTEGER NOT NULL DEFAULT ${SCHEMA_VERSION}
+    )
+  `,
   "CREATE INDEX IF NOT EXISTS idx_file_path ON file(path)",
   "CREATE INDEX IF NOT EXISTS idx_file_relative_path ON file(relative_path)",
   "CREATE INDEX IF NOT EXISTS idx_symbol_fqn ON symbol(fqn)",
@@ -147,6 +173,10 @@ export const SCHEMA_STATEMENTS = [
   "CREATE INDEX IF NOT EXISTS idx_edge_source ON edge(source_id)",
   "CREATE INDEX IF NOT EXISTS idx_edge_target ON edge(target_id)",
   "CREATE INDEX IF NOT EXISTS idx_edge_kind ON edge(kind)",
+  "CREATE INDEX IF NOT EXISTS idx_annotation_parent ON annotation(parent_symbol_id)",
+  "CREATE INDEX IF NOT EXISTS idx_module_fqn ON module(fqn)",
+  "CREATE INDEX IF NOT EXISTS idx_test_file ON test(file_id)",
+  "CREATE INDEX IF NOT EXISTS idx_test_target ON test(target_symbol_id)",
 ] as const;
 
 export async function initializeSchema(connection: DuckDBConnection): Promise<void> {
