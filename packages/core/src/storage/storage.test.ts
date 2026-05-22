@@ -307,6 +307,44 @@ describe("DuckTreeIndexer.initialize with applyMigrations", () => {
     }
   });
 
+  it("migration 004 registers version 4 and creates workspace_cache table", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      // Seed a v3-era DB (migrations 001-003 already applied, 004 not yet).
+      await database.connection.run(
+        "INSERT INTO _schema_version (version, description) VALUES (1, 'initial baseline')",
+      );
+      await database.connection.run(
+        "INSERT INTO _schema_version (version, description) VALUES (2, 'add entity tables')",
+      );
+      await database.connection.run(
+        "INSERT INTO _schema_version (version, description) VALUES (3, 'unify call_site and import_ref into edge')",
+      );
+
+      const { applyMigrations } = await import("./migrations/runner.js");
+      const result = await applyMigrations(database.connection);
+
+      expect(result.status).toBe("ok");
+
+      // Version 4 row must exist in _schema_version.
+      const versionRows = await (
+        await database.connection.run("SELECT version FROM _schema_version WHERE version = 4")
+      ).getRowObjectsJS();
+      expect(versionRows).toHaveLength(1);
+
+      // workspace_cache table must exist.
+      const tablesReader = await database.connection.run(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_name = 'workspace_cache'",
+      );
+      const tableRows = await tablesReader.getRowObjectsJS();
+      expect(tableRows).toHaveLength(1);
+    } finally {
+      database.close();
+    }
+  });
+
   it("throws SchemaError when the persisted version is newer than supported", async () => {
     const { createIndexer, SchemaError } = await import("../index.js");
 

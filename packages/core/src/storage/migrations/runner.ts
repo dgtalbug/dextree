@@ -211,7 +211,36 @@ const MIGRATION_003: Migration = {
   apply: runMigration003,
 };
 
-const MIGRATIONS: readonly Migration[] = [MIGRATION_001, MIGRATION_002, MIGRATION_003];
+const MIGRATION_004: Migration = {
+  version: 4,
+  description: "add workspace_cache table",
+  sql: `
+    CREATE TABLE IF NOT EXISTS workspace_cache (
+      id UINTEGER PRIMARY KEY,
+      cache_key VARCHAR NOT NULL,
+      workspace_root VARCHAR NOT NULL,
+      repo_root VARCHAR,
+      repo_remote VARCHAR,
+      schema_version UINTEGER NOT NULL,
+      last_successful_index_at TIMESTAMPTZ,
+      indexed_file_count UINTEGER NOT NULL DEFAULT 0,
+      graph_node_count UINTEGER NOT NULL DEFAULT 0,
+      graph_edge_count UINTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CHECK (id = 1)
+    );
+    INSERT INTO _schema_version (version, description)
+    SELECT 4, 'add workspace_cache table'
+    WHERE NOT EXISTS (SELECT 1 FROM _schema_version WHERE version = 4);
+  `,
+};
+
+const MIGRATIONS: readonly Migration[] = [
+  MIGRATION_001,
+  MIGRATION_002,
+  MIGRATION_003,
+  MIGRATION_004,
+];
 
 export interface MigrationResultOk {
   status: "ok";

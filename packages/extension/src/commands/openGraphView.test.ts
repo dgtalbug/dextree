@@ -237,4 +237,42 @@ describe("registerOpenGraphViewCommand", () => {
 
     expect(getWorkspaceSubgraph).not.toHaveBeenCalled();
   });
+
+  it("keeps the graph in fallback state when the workspace cache is invalid", async () => {
+    const getWorkspaceSubgraph = vi.fn().mockResolvedValue({
+      nodes: [],
+      edges: [],
+    });
+
+    const getIndexer = vi.fn().mockResolvedValue({
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "invalid",
+        reason: "identity-mismatch",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: null,
+      }),
+      getWorkspaceSubgraph,
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+    });
+
+    const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
+    registerOpenGraphViewCommand(
+      {
+        subscriptions: [],
+        extensionUri: { fsPath: "/extension" },
+      } as never,
+      getIndexer as never,
+    );
+
+    const registeredHandler = registerCommand.mock.calls[0]?.[1];
+    await registeredHandler?.();
+
+    // Graph view renders empty/not-indexed state — subgraph fetch skipped.
+    expect(getWorkspaceSubgraph).not.toHaveBeenCalled();
+  });
 });
