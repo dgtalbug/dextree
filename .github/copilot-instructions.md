@@ -198,15 +198,15 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `007-persistent-workspace-cache`
+**Branch**: `feature/slice-11-persistent-workspace-cache`
 
-- Spec: [`specs/007-persistent-workspace-cache/spec.md`](../specs/007-persistent-workspace-cache/spec.md)
-- Plan: [`specs/007-persistent-workspace-cache/plan.md`](../specs/007-persistent-workspace-cache/plan.md)
-- Research: [`specs/007-persistent-workspace-cache/research.md`](../specs/007-persistent-workspace-cache/research.md)
-- Data model: [`specs/007-persistent-workspace-cache/data-model.md`](../specs/007-persistent-workspace-cache/data-model.md)
-- Contracts: [`specs/007-persistent-workspace-cache/contracts/cache-metadata.ts`](../specs/007-persistent-workspace-cache/contracts/cache-metadata.ts)
-- Quickstart: [`specs/007-persistent-workspace-cache/quickstart.md`](../specs/007-persistent-workspace-cache/quickstart.md)
+- Spec: [`specs/011-persistent-workspace-cache/spec.md`](../specs/011-persistent-workspace-cache/spec.md)
+- Plan: [`specs/011-persistent-workspace-cache/plan.md`](../specs/011-persistent-workspace-cache/plan.md)
+- Research: [`specs/011-persistent-workspace-cache/research.md`](../specs/011-persistent-workspace-cache/research.md)
+- Data model: [`specs/011-persistent-workspace-cache/data-model.md`](../specs/011-persistent-workspace-cache/data-model.md)
+- Contracts: [`specs/011-persistent-workspace-cache/contracts/cache-metadata.ts`](../specs/011-persistent-workspace-cache/contracts/cache-metadata.ts)
+- Quickstart: [`specs/011-persistent-workspace-cache/quickstart.md`](../specs/011-persistent-workspace-cache/quickstart.md)
 
-Review focus for this slice: `packages/core` + `packages/extension` — persisted DuckDB cache identity, startup validation, and safe reopen behavior for the tree and graph surfaces.
+Review focus for this slice: `packages/core` (migration 004, `SCHEMA_VERSION` bump) + `packages/extension` (integration test for full reopen flow). Most S5 implementation was already shipped in spec 010; this slice closes the migration gap and adds end-to-end test coverage.
 
 <!-- SPECKIT END -->
