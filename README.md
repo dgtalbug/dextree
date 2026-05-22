@@ -4,7 +4,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status: Pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)]()
 
-**[→ View the full landing page](https://dgtalbug.github.io/dextree/)**
 
 > Index your codebase into a navigable semantic graph — inside VS Code.
 
