@@ -25,6 +25,8 @@ export interface GraphMessage {
   type: "graph";
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** Sorted, deduplicated set of edge kinds present in this workspace graph (US3). */
+  presentEdgeKinds?: readonly string[];
 }
 
 export type IndexingPhase = "starting" | "progress" | "finished";

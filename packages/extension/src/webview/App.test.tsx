@@ -185,4 +185,46 @@ describe("App", () => {
       command: "clear-workspace",
     });
   });
+
+  describe("legend rendering (US3 FR-010)", () => {
+    it("shows DEFINES and IMPORTS as fallback when presentEdgeKinds is empty", () => {
+      render(<App vscodeApi={vscodeApi} />);
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { ...mockGraphMessage, presentEdgeKinds: [] },
+          }),
+        );
+      });
+      expect(screen.getByText("DEFINES")).toBeTruthy();
+      expect(screen.getByText("IMPORTS")).toBeTruthy();
+    });
+
+    it("renders exactly the provided edge kinds when presentEdgeKinds is non-empty", () => {
+      render(<App vscodeApi={vscodeApi} />);
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { ...mockGraphMessage, presentEdgeKinds: ["DEFINES", "CALLS"] },
+          }),
+        );
+      });
+      expect(screen.getByText("DEFINES")).toBeTruthy();
+      expect(screen.getByText("CALLS")).toBeTruthy();
+    });
+
+    it("renders a custom pill with dxt-legend-pill-custom class for CUSTOM_* kinds", () => {
+      render(<App vscodeApi={vscodeApi} />);
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { ...mockGraphMessage, presentEdgeKinds: ["CUSTOM_FOO"] },
+          }),
+        );
+      });
+      expect(screen.getByText("CUSTOM_FOO")).toBeTruthy();
+      const pill = document.querySelector(".dxt-legend-pill-custom");
+      expect(pill).toBeTruthy();
+    });
+  });
 });

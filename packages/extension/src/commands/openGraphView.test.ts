@@ -133,6 +133,7 @@ describe("registerOpenGraphViewCommand", () => {
         nodes: [],
         edges: [],
       }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
     });
     registerOpenGraphViewCommand(context as never, getIndexer as never);
 
@@ -182,6 +183,7 @@ describe("registerOpenGraphViewCommand", () => {
         },
       }),
       getWorkspaceSubgraph,
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
@@ -218,6 +220,7 @@ describe("registerOpenGraphViewCommand", () => {
         metadata: null,
       }),
       getWorkspaceSubgraph,
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");

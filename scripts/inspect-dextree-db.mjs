@@ -16,10 +16,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const STORAGE_ROOT = join(
-  homedir(),
-  "Library/Application Support/Code/User/workspaceStorage",
-);
+const STORAGE_ROOT = join(homedir(), "Library/Application Support/Code/User/workspaceStorage");
 
 const args = process.argv.slice(2);
 const justLatest = args.includes("--latest");

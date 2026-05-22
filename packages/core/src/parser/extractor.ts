@@ -3,7 +3,7 @@ import { access, readFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
-import type { Node } from "web-tree-sitter";
+import type { Node, Tree } from "web-tree-sitter";
 
 import type {
   ExtractedImportRef,
@@ -232,14 +232,26 @@ function buildVariableSymbols(node: Node, relativePath: string, fileId: string):
   return symbols;
 }
 
-export async function extractTypeScriptSource(
+/**
+ * Tree-based variant: walks an already-parsed tree-sitter tree and produces the
+ * same ExtractedIndexData shape as `extractTypeScriptSource`, without re-parsing.
+ * Callers that share a tree across multiple extractors (slice 010 registry path)
+ * use this directly; callers that just want "parse + walk" use
+ * `extractTypeScriptSource`, which delegates here after parsing.
+ *
+ * Tree disposal is the caller's responsibility — this function does NOT call
+ * `tree.delete()`, so the same tree can be handed to other extractors.
+ *
+ * `fileId` is required so multiple extractors operating on the same file agree
+ * on which file id to use for foreign-key targets.
+ */
+export async function extractTypeScriptFromTree(
   absolutePath: string,
   workspaceRoot: string,
   source: string,
-  wasmDir: string,
+  tree: Tree,
+  fileId: string,
 ): Promise<ExtractedIndexData> {
-  const tree = await parseTypeScriptSource(source, wasmDir);
-  const fileId = uuidv4();
   const relativePath = toPosixRelativePath(workspaceRoot, absolutePath);
   const symbols: StoredSymbol[] = [];
   const imports = await extractImportRefs(
@@ -272,8 +284,6 @@ export async function extractTypeScriptSource(
     }
   }
 
-  tree.delete();
-
   return {
     file: {
       id: fileId,
@@ -286,6 +296,21 @@ export async function extractTypeScriptSource(
     symbols,
     imports,
   };
+}
+
+export async function extractTypeScriptSource(
+  absolutePath: string,
+  workspaceRoot: string,
+  source: string,
+  wasmDir: string,
+): Promise<ExtractedIndexData> {
+  const tree = await parseTypeScriptSource(source, wasmDir);
+  const fileId = uuidv4();
+  try {
+    return await extractTypeScriptFromTree(absolutePath, workspaceRoot, source, tree, fileId);
+  } finally {
+    tree.delete();
+  }
 }
 
 export async function extractPlainFile(

@@ -1,8 +1,14 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { detectLanguage, extractPlainFile, extractTypeScriptFile } from "./parser/extractor.js";
+import { v4 as uuidv4 } from "uuid";
+
+import { buildBaselineFileRecord, createDefaultExtractorRegistry } from "./extractors/index.js";
+import type { ExtractorRegistry } from "./extractors/types.js";
+import { detectLanguage } from "./parser/extractor.js";
+import { parseTypeScriptSource } from "./parser/parser.js";
 import { getAllFilesQuery } from "./query/files.js";
+import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 import { getWorkspaceSubgraph } from "./query/subgraph.js";
 import { getSymbolsForFile } from "./query/symbols.js";
 import { clearAll, clearWorkspace } from "./storage/clear.js";
@@ -49,6 +55,15 @@ export type {
 
 export { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
 export { recomputeGraphHealth } from "./quality/index.js";
+export { createDefaultExtractorRegistry, createExtractorRegistry } from "./extractors/index.js";
+export type {
+  EdgeRow,
+  Extractor,
+  ExtractInput,
+  ExtractionResult,
+  ExtractorRegistry,
+} from "./extractors/types.js";
+export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 
 /**
  * Thrown by `DuckTreeIndexer.initialize` when the persisted schema cannot be
@@ -64,9 +79,17 @@ export class SchemaError extends Error {
   }
 }
 
+const TS_LIKE_LANGUAGES = new Set([
+  "typescript",
+  "javascript",
+  "typescriptreact",
+  "javascriptreact",
+]);
+
 class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;
   private initializationPromise: Promise<void> | null = null;
+  private readonly registry: ExtractorRegistry = createDefaultExtractorRegistry();
 
   constructor(
     private readonly dbPath: string,
@@ -104,38 +127,73 @@ class DuckTreeIndexer implements Indexer {
 
     const database = this.requireDatabaseHandle();
 
-    const TS_LIKE = new Set(["typescript", "javascript", "typescriptreact", "javascriptreact"]);
     const language = detectLanguage(absolutePath);
-    const extracted = TS_LIKE.has(language)
-      ? await extractTypeScriptFile(absolutePath, workspaceRoot, this.wasmDir)
-      : await extractPlainFile(absolutePath, workspaceRoot);
+    const source = await readFile(absolutePath, "utf8");
+    const fileId = uuidv4();
+    const tree = TS_LIKE_LANGUAGES.has(language)
+      ? await parseTypeScriptSource(source, this.wasmDir)
+      : null;
 
-    await replaceFileGraph(database.connection, extracted);
-
-    const files = await getAllFilesQuery(database.connection);
-    const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
-
-    await writeWorkspaceCacheSnapshot(database.connection, {
-      identity: cacheIdentity ?? {
-        cacheKey: workspaceRoot,
+    try {
+      const result = await this.registry.run({
+        absolutePath,
         workspaceRoot,
-        repoRoot: null,
-        repoRemote: null,
-      },
-      schemaVersion: SCHEMA_VERSION,
-      indexedFileCount: files.length,
-      graphNodeCount: graph.nodes.length,
-      graphEdgeCount: graph.edges.length,
-    });
+        language,
+        source,
+        tree,
+        fileId,
+      });
 
-    const symbols = await getSymbolsForFile(database.connection, extracted.file.relativePath);
+      // Registry contract invariant 6: if no extractor populated `file`, build
+      // a minimal `ExtractedFileRecord` from the input so the file row still
+      // gets written (e.g. .md / plaintext / new languages without a baseline).
+      const file =
+        result.file ?? buildBaselineFileRecord(absolutePath, workspaceRoot, source, fileId);
+      if (file === null) {
+        // Unreachable — buildBaselineFileRecord never returns null. Kept for
+        // type narrowing.
+        throw new Error("Unable to build file record");
+      }
 
-    return {
-      relativePath: extracted.file.relativePath,
-      symbolCount: symbols.length,
-      symbols,
-      elapsedMs: Date.now() - startedAt,
-    };
+      const extracted = {
+        file,
+        symbols: [...result.symbols],
+        imports: [...result.imports],
+      };
+
+      // Extractor-emitted edges other than the baseline's DEFINES / IMPORTS
+      // (which `replaceFileGraph` writes itself) flow through `extraEdges`.
+      const extraEdges = [...result.edges];
+
+      await replaceFileGraph(database.connection, extracted, extraEdges);
+
+      const files = await getAllFilesQuery(database.connection);
+      const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
+
+      await writeWorkspaceCacheSnapshot(database.connection, {
+        identity: cacheIdentity ?? {
+          cacheKey: workspaceRoot,
+          workspaceRoot,
+          repoRoot: null,
+          repoRemote: null,
+        },
+        schemaVersion: SCHEMA_VERSION,
+        indexedFileCount: files.length,
+        graphNodeCount: graph.nodes.length,
+        graphEdgeCount: graph.edges.length,
+      });
+
+      const symbols = await getSymbolsForFile(database.connection, extracted.file.relativePath);
+
+      return {
+        relativePath: extracted.file.relativePath,
+        symbolCount: symbols.length,
+        symbols,
+        elapsedMs: Date.now() - startedAt,
+      };
+    } finally {
+      tree?.delete();
+    }
   }
 
   async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {
@@ -160,6 +218,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return getWorkspaceSubgraph(database.connection, workspaceRoot);
+  }
+
+  async getPresentEdgeKinds(workspaceRoot: string): Promise<readonly string[]> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return getPresentEdgeKinds(database.connection, workspaceRoot);
   }
 
   async clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary> {
