@@ -129,6 +129,7 @@ export interface Indexer {
   getSymbols(relativePath: string): Promise<StoredSymbol[]>;
   getAllFiles(): Promise<StoredFile[]>;
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph>;
+  getPresentEdgeKinds(workspaceRoot: string): Promise<readonly string[]>;
   clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary>;
   clearAll(): Promise<ClearAllSummary>;
   dispose(): Promise<void>;

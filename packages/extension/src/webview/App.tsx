@@ -15,10 +15,11 @@ interface AppState {
   nodes: GraphNode[];
   edges: GraphEdge[];
   indexing: IndexingMessage | null;
+  presentEdgeKinds: readonly string[];
 }
 
 type AppAction =
-  | { type: "graph"; nodes: GraphNode[]; edges: GraphEdge[] }
+  | { type: "graph"; nodes: GraphNode[]; edges: GraphEdge[]; presentEdgeKinds: readonly string[] }
   | { type: "indexing"; message: IndexingMessage };
 
 function reducer(state: AppState, action: AppAction): AppState {
@@ -28,6 +29,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         hasReceivedGraph: true,
         nodes: action.nodes,
         edges: action.edges,
+        presentEdgeKinds: action.presentEdgeKinds,
         indexing: state.indexing?.phase === "finished" ? null : state.indexing,
       };
     case "indexing":
@@ -62,6 +64,7 @@ export function App({ vscodeApi }: AppProps) {
     hasReceivedGraph: false,
     nodes: [],
     edges: [],
+    presentEdgeKinds: [],
     indexing: null,
   });
 
@@ -74,7 +77,12 @@ export function App({ vscodeApi }: AppProps) {
       const msg: unknown = event.data;
       if (!isHostToWebviewMessage(msg)) return;
       if (msg.type === "graph") {
-        dispatch({ type: "graph", nodes: msg.nodes, edges: msg.edges });
+        dispatch({
+          type: "graph",
+          nodes: msg.nodes,
+          edges: msg.edges,
+          presentEdgeKinds: msg.presentEdgeKinds ?? [],
+        });
         return;
       }
 
@@ -193,18 +201,17 @@ export function App({ vscodeApi }: AppProps) {
 
         <section className="dxt-graph-legend" aria-label="Edge legend">
           <div className="dxt-legend-title">Relations</div>
-          <div className="dxt-legend-row">
-            <span className="dxt-legend-pill dxt-legend-pill-defines" />
-            <span className="dxt-legend-label">DEFINES</span>
-          </div>
-          <div className="dxt-legend-row">
-            <span className="dxt-legend-pill dxt-legend-pill-imports" />
-            <span className="dxt-legend-label">IMPORTS</span>
-          </div>
-          <div className="dxt-legend-row">
-            <span className="dxt-legend-pill dxt-legend-pill-calls" />
-            <span className="dxt-legend-label">CALLS</span>
-          </div>
+          {(state.presentEdgeKinds.length > 0
+            ? state.presentEdgeKinds
+            : ["DEFINES", "IMPORTS"]
+          ).map((kind) => (
+            <div className="dxt-legend-row" key={kind}>
+              <span
+                className={`dxt-legend-pill dxt-legend-pill-${kind.startsWith("CUSTOM_") ? "custom" : kind.toLowerCase()}`}
+              />
+              <span className="dxt-legend-label">{kind}</span>
+            </div>
+          ))}
         </section>
 
         {lastIndexedFiles.length > 0 ? (

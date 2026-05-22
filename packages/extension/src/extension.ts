@@ -115,7 +115,8 @@ export async function activate(context: ActivationContext): Promise<void> {
 
     const indexer = await getIndexer();
     const graph = await indexer.getWorkspaceSubgraph(workspaceRoot);
-    WebviewPanelManager.pushGraph(graph);
+    const presentEdgeKinds = await indexer.getPresentEdgeKinds(workspaceRoot);
+    WebviewPanelManager.pushGraph({ ...graph, presentEdgeKinds });
   };
 
   const refreshGraphIfOpen = (): void => {

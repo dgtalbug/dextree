@@ -229,6 +229,18 @@ describe("GraphView", () => {
     expect(definesColor).not.toBe(callsColor);
   });
 
+  it("renders CUSTOM_X edges with a neutral fallback color without throwing (US3 FR-011)", () => {
+    const customEdge = { id: "edge-custom", source: "file-1", target: "symbol-1", kind: "CUSTOM_X" as never };
+    expect(() => {
+      render(<GraphView nodes={baseNodes} edges={[customEdge]} onNavigate={vi.fn()} />);
+    }).not.toThrow();
+
+    const graph = sigmaConstructor.mock.calls[0]?.[0];
+    const customColor = graph.getEdgeAttribute("edge-custom", "color");
+    expect(typeof customColor).toBe("string");
+    expect(customColor.length).toBeGreaterThan(0);
+  });
+
   it("selects a node on single click without navigating immediately", () => {
     const onNavigate = vi.fn();
     render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);

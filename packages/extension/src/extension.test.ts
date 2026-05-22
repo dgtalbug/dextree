@@ -144,6 +144,7 @@ describe("activate", () => {
       getSymbols: vi.fn(),
       getAllFiles: vi.fn(),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
       dispose: vi.fn(),
     });
 
@@ -210,6 +211,7 @@ describe("activate", () => {
         ],
         edges: [],
       }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
       dispose: vi.fn(),
     };
 
@@ -251,6 +253,7 @@ describe("activate", () => {
           },
         ],
         edges: [],
+        presentEdgeKinds: ["DEFINES"],
       });
     });
   });
@@ -294,6 +297,7 @@ describe("activate", () => {
         ],
         edges: [],
       }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
       clearWorkspace: vi
         .fn()
         .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
@@ -349,6 +353,7 @@ describe("activate", () => {
           },
         ],
         edges: [],
+        presentEdgeKinds: ["DEFINES"],
       });
       expect(pushIndexing).toHaveBeenCalledWith({
         phase: "finished",
@@ -389,6 +394,7 @@ describe("activate", () => {
           { id: "file-1", relativePath: "src/greet.ts", language: "typescript" },
         ]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
       dispose: vi.fn(),
     };
 
@@ -431,6 +437,7 @@ describe("activate", () => {
       getSymbols: vi.fn(),
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
       dispose: vi.fn(),
     };
 
@@ -470,6 +477,7 @@ describe("activate", () => {
       getSymbols: vi.fn(),
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
       dispose: vi.fn(),
     };
 

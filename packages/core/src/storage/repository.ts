@@ -1,6 +1,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { v4 as uuidv4 } from "uuid";
 
+import type { EdgeRow } from "../extractors/types.js";
 import type { ExtractedImportRef, ExtractedIndexData, StoredSymbol } from "../types.js";
 import { runInTransaction } from "./db.js";
 
@@ -230,26 +231,70 @@ async function insertImportRefs(
   }
 }
 
+async function insertExtraEdges(
+  connection: DuckDBConnection,
+  edges: readonly EdgeRow[],
+): Promise<void> {
+  // Generic insert path for extractor-emitted edges (e.g. naive `CALLS` rows
+  // from `NaiveCallExtractor`). Metadata is serialized as JSON via `json` cast.
+  for (const edge of edges) {
+    await connection.run(
+      `
+        INSERT INTO edge (id, source_id, target_id, kind, weight, metadata)
+        VALUES ($id, $source_id, $target_id, $kind, $weight, $metadata::JSON)
+      `,
+      {
+        id: edge.id,
+        source_id: edge.sourceId,
+        target_id: edge.targetId,
+        kind: edge.kind,
+        weight: edge.weight ?? null,
+        metadata: JSON.stringify(edge.metadata ?? {}),
+      },
+    );
+  }
+}
+
+function remapExtraEdges(
+  edges: readonly EdgeRow[],
+  staleFileId: string,
+  resolvedFileId: string,
+): EdgeRow[] {
+  // When the indexer re-uses an existing file id, source/target references the
+  // extractor minted against the would-be-fresh file id must be retargeted.
+  if (staleFileId === resolvedFileId) {
+    return edges as EdgeRow[];
+  }
+  return edges.map((edge) => ({
+    ...edge,
+    sourceId: edge.sourceId === staleFileId ? resolvedFileId : edge.sourceId,
+    targetId: edge.targetId === staleFileId ? resolvedFileId : edge.targetId,
+  }));
+}
+
 export async function replaceFileGraph(
   connection: DuckDBConnection,
   input: ExtractedIndexData,
+  extraEdges: readonly EdgeRow[] = [],
 ): Promise<void> {
   await runInTransaction(connection, async () => {
     const existingFileId = await findExistingFileId(connection, input.file.path);
+    const resolvedFileId = existingFileId ?? input.file.id;
     const normalizedInput: ExtractedIndexData = {
       file: {
         ...input.file,
-        id: existingFileId ?? input.file.id,
+        id: resolvedFileId,
       },
       symbols: input.symbols.map((symbol) => ({
         ...symbol,
-        fileId: existingFileId ?? input.file.id,
+        fileId: resolvedFileId,
       })),
       imports: input.imports.map((importRef) => ({
         ...importRef,
-        fileId: existingFileId ?? input.file.id,
+        fileId: resolvedFileId,
       })),
     };
+    const normalizedExtraEdges = remapExtraEdges(extraEdges, input.file.id, resolvedFileId);
 
     if (existingFileId !== null) {
       await deleteExistingRows(connection, existingFileId);
@@ -264,5 +309,6 @@ export async function replaceFileGraph(
 
     await insertImportRefs(connection, normalizedInput);
     await insertDefinesEdges(connection, normalizedInput);
+    await insertExtraEdges(connection, normalizedExtraEdges);
   });
 }

@@ -39,8 +39,9 @@ export function registerOpenGraphViewCommand(
       }
 
       const graph = await indexer.getWorkspaceSubgraph(workspaceRoot);
+      const presentEdgeKinds = await indexer.getPresentEdgeKinds(workspaceRoot);
 
-      WebviewPanelManager.pushGraph(graph);
+      WebviewPanelManager.pushGraph({ ...graph, presentEdgeKinds });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await vscode.window.showErrorMessage(`Dextree: Failed to load graph — ${message}`);

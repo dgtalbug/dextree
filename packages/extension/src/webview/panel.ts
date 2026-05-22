@@ -145,6 +145,7 @@ export const WebviewPanelManager = {
       type: "graph",
       nodes: graph.nodes,
       edges: graph.edges,
+      ...(graph.presentEdgeKinds !== undefined && { presentEdgeKinds: graph.presentEdgeKinds }),
     };
     postCachedState();
   },
