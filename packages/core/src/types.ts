@@ -126,6 +126,54 @@ export interface ClearAllSummary {
   clearedTables: number;
 }
 
+/** A single file entry in the session summary top-files table. */
+export interface TopFile {
+  /** Relative path from workspace root (e.g. "src/index.ts") */
+  path: string;
+  /** Number of symbols defined in this file */
+  symbolCount: number;
+}
+
+/** An edge-kind bucket in the session summary edge table. */
+export interface EdgeKindCount {
+  /** Edge kind label (e.g. "CALLS", "IMPORTS", "DEFINES") */
+  kind: string;
+  /** Number of edges of this kind in the graph */
+  count: number;
+}
+
+/**
+ * Transient in-memory snapshot of the workspace graph state.
+ * Produced by `querySessionSummary` in `packages/core`.
+ * Never persisted to DuckDB.
+ */
+export interface SessionSummary {
+  /** Basename of the workspace root folder */
+  workspaceName: string;
+  /** Timestamp at which the summary was generated */
+  generatedAt: Date;
+  /** Total number of indexed files */
+  fileCount: number;
+  /** Total number of indexed symbols across all files */
+  symbolCount: number;
+  /** Top files by symbol count, capped at 10 rows, descending */
+  topFiles: TopFile[];
+  /** Edge kinds present in the graph with counts, descending by count */
+  edgeKindCounts: EdgeKindCount[];
+}
+
+/**
+ * Thrown by `querySessionSummary` when the graph contains no indexed files.
+ * The export command catches this and shows "Index your workspace first"
+ * without writing any file (FR-005).
+ */
+export class EmptyGraphError extends Error {
+  constructor() {
+    super("No files have been indexed in this workspace.");
+    this.name = "EmptyGraphError";
+  }
+}
+
 export interface Indexer {
   initialize(): Promise<void>;
   indexFile(
@@ -138,6 +186,7 @@ export interface Indexer {
   getAllFiles(): Promise<StoredFile[]>;
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph>;
   getPresentEdgeKinds(workspaceRoot: string): Promise<readonly string[]>;
+  getSessionSummary(workspaceRoot: string): Promise<SessionSummary>;
   clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary>;
   clearFile(filePath: string): Promise<ClearFileSummary>;
   clearAll(): Promise<ClearAllSummary>;

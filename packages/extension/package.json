@@ -115,6 +115,10 @@
         "title": "Dextree: Cancel Workspace Indexing",
         "icon": "$(stop-circle)",
         "enablement": "dextree.isIndexing"
+      },
+      {
+        "command": "dextree.exportSessionSummary",
+        "title": "Dextree: Export Session Summary"
       }
     ],
     "menus": {

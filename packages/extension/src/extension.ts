@@ -7,6 +7,7 @@ import {
   createClearAllIndexCommand,
   createClearWorkspaceIndexCommand,
 } from "./commands/clearIndex.js";
+import { createExportSessionSummaryCommand } from "./commands/exportSessionSummary.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import {
   createIndexWorkspaceCommand,
@@ -216,6 +217,10 @@ export async function activate(context: ActivationContext): Promise<void> {
         getIndexer,
         onCleared: refreshViewsAfterIndex,
       }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.exportSessionSummary",
+      createExportSessionSummaryCommand({ getIndexer }),
     ),
   );
 
