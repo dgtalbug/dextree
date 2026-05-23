@@ -221,7 +221,7 @@ function edgeSize(kind: GraphEdge["kind"]): number {
       return 1.8;
     case "IMPORTS":
     default:
-      return 0.8; // file→file: thin/faint (dotted visual)
+      return 1.4; // file→file: visible arc connecting file nodes
   }
 }
 
@@ -367,11 +367,11 @@ function buildGraph(
 
     try {
       const rawColor = edgeColor(edge.kind, colors);
-      // IMPORTS (file→file): mix at 22% against background → faint/ghost appearance.
-      // This avoids Sigma 3's premultiplied-alpha WebGL blending quirks.
+      // IMPORTS (file→file): mix at 72% against background — visible file-to-file arcs
+      // without competing with DEFINES/CALLS edges in the foreground.
       const color =
         edge.kind === "IMPORTS"
-          ? mixWithBackground(rawColor, colors.backgroundColor, 0.22)
+          ? mixWithBackground(rawColor, colors.backgroundColor, 0.72)
           : rawColor;
       const size = edgeSize(edge.kind);
       graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
@@ -979,7 +979,7 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
     const kind = attributes.edgeKind as GraphEdge["kind"];
     const rawColor = edgeColor(kind, colors);
     const color =
-      kind === "IMPORTS" ? mixWithBackground(rawColor, colors.backgroundColor, 0.22) : rawColor;
+      kind === "IMPORTS" ? mixWithBackground(rawColor, colors.backgroundColor, 0.72) : rawColor;
     graph.mergeEdgeAttributes(edge, {
       color,
       baseColor: rawColor,
@@ -1161,11 +1161,13 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       if (graph.order > 0) {
         try {
           forceAtlas2.assign(graph, {
-            iterations: 50,
+            iterations: 120,
             settings: {
-              gravity: 1,
-              scalingRatio: 10,
-              slowDown: 1.5,
+              gravity: 3.5,
+              scalingRatio: 4,
+              slowDown: 2,
+              barnesHutOptimize: true,
+              barnesHutTheta: 0.5,
             },
           });
           stabilizeFileAnchors(graph);

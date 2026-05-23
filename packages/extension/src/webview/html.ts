@@ -108,9 +108,9 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
 
      .dxt-graph-stage::before {
        background-image:
-         radial-gradient(circle, color-mix(in srgb, var(--vscode-foreground) 28%, transparent) 0.9px, transparent 0.9px);
-       background-size: 18px 18px;
-       opacity: 0.22;
+         radial-gradient(circle, color-mix(in srgb, var(--vscode-foreground) 28%, transparent) 0.55px, transparent 0.55px);
+       background-size: 14px 14px;
+       opacity: 0.18;
      }
 
      /* ::after vignette removed — keeps dot grid visible at the canvas edges */
