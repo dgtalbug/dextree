@@ -28,6 +28,7 @@ function makeMockIndexer() {
     indexFile: mockIndexFile,
     clearFile: mockClearFile,
     getAllFiles: mockGetAllFiles,
+    finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
     getSymbols: vi.fn(),
     initialize: vi.fn(),
     validateWorkspaceCache: vi.fn(),
@@ -38,6 +39,7 @@ function makeMockIndexer() {
     clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
     dispose: vi.fn(),
     getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+    getSessionSummary: vi.fn().mockResolvedValue({}),
   };
 }
 

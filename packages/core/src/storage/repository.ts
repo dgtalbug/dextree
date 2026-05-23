@@ -418,3 +418,100 @@ export async function replaceFileGraph(
     await resolveCallEdgeSymbols(connection, resolvedFileId);
   });
 }
+
+/**
+ * Workspace-wide cross-file edge resolution pass.
+ *
+ * Called once after all files in a workspace have been indexed. The per-file
+ * `resolveCallEdgeSymbols` pass already resolved same-file targets; this pass
+ * resolves edges whose target still lives in a *different* file that was
+ * indexed later in the batch.
+ *
+ * For each relational kind (CALLS, INHERITS, INSTANTIATES) that still has
+ * `target_id = NULL`, we look up the target symbol by name across all symbols
+ * in the workspace. On name collision we prefer symbols in the same file as
+ * the source (already done in per-file pass) and fall back to workspace-wide
+ * first-match. This is a pass-1 heuristic; pass-2 (LSP) will refine it.
+ *
+ * The `workspaceRoot` parameter is used only to scope the UPDATE to the
+ * workspace's own symbols (not symbols from other indexed workspaces).
+ */
+export async function resolveWorkspaceCrossFileEdges(
+  connection: DuckDBConnection,
+  workspaceRoot: string,
+): Promise<void> {
+  const prefix = workspaceRoot.endsWith("/") ? workspaceRoot : `${workspaceRoot}/`;
+  const params = { workspace_root: workspaceRoot, workspace_prefix: `${prefix}%` };
+
+  // Resolve CALLS: callee_name → any matching function/method/class in workspace
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = (
+        SELECT s.id FROM symbol s
+        INNER JOIN file f ON f.id = s.file_id
+        WHERE s.name = json_extract_string(edge.metadata, '$.callee_name')
+          AND s.kind IN ('function', 'method', 'class')
+          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
+        ORDER BY s.id
+        LIMIT 1
+      )
+      WHERE kind = 'CALLS'
+        AND target_id IS NULL
+        AND source_id IN (
+          SELECT s2.id FROM symbol s2
+          INNER JOIN file f2 ON f2.id = s2.file_id
+          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
+        )
+    `,
+    params,
+  );
+
+  // Resolve INHERITS: parent_name → any matching class in workspace
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = (
+        SELECT s.id FROM symbol s
+        INNER JOIN file f ON f.id = s.file_id
+        WHERE s.name = json_extract_string(edge.metadata, '$.parent_name')
+          AND s.kind = 'class'
+          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
+        ORDER BY s.id
+        LIMIT 1
+      )
+      WHERE kind = 'INHERITS'
+        AND target_id IS NULL
+        AND source_id IN (
+          SELECT s2.id FROM symbol s2
+          INNER JOIN file f2 ON f2.id = s2.file_id
+          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
+        )
+    `,
+    params,
+  );
+
+  // Resolve INSTANTIATES: class_name → any matching class in workspace
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = (
+        SELECT s.id FROM symbol s
+        INNER JOIN file f ON f.id = s.file_id
+        WHERE s.name = json_extract_string(edge.metadata, '$.class_name')
+          AND s.kind = 'class'
+          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
+        ORDER BY s.id
+        LIMIT 1
+      )
+      WHERE kind = 'INSTANTIATES'
+        AND target_id IS NULL
+        AND source_id IN (
+          SELECT s2.id FROM symbol s2
+          INNER JOIN file f2 ON f2.id = s2.file_id
+          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
+        )
+    `,
+    params,
+  );
+}

@@ -160,6 +160,13 @@ export function createIndexWorkspaceCommand(
         status: cancelled ? "cancelled" : "completed",
       });
 
+      // Cross-file edge resolution: resolve CALLS / INHERITS / INSTANTIATES
+      // targets that remained NULL because the target file was indexed later.
+      // Run even on partial index (cancelled/failed) to resolve what's available.
+      if (indexed > 0) {
+        await indexer.finalizeWorkspace(root.uri.fsPath);
+      }
+
       // Show a summary notification for failures or cancellations
       if (cancelled || failed > 0) {
         let summary: string;
