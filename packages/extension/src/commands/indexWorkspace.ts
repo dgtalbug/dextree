@@ -30,11 +30,16 @@ export interface IndexWorkspaceProgressUpdate {
   status: IndexWorkspaceProgressStatus;
 }
 
-const SUPPORTED_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,py,md}";
-const EXCLUDE_GLOB = "{**/node_modules/**,**/dist/**,**/.git/**,**/out/**,**/build/**}";
+export const SUPPORTED_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,py,md}";
+export const EXCLUDE_GLOB = "{**/node_modules/**,**/dist/**,**/.git/**,**/out/**,**/build/**}";
 
 let isIndexing = false;
 let cancellationRequested = false;
+
+/** Returns true while a full workspace index is in progress. */
+export function isWorkspaceIndexing(): boolean {
+  return isIndexing;
+}
 
 /** Request cancellation of the currently running workspace index. No-op if not indexing. */
 export function requestWorkspaceIndexingCancel(): void {

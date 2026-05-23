@@ -11,7 +11,7 @@ import { getAllFilesQuery } from "./query/files.js";
 import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 import { getWorkspaceSubgraph } from "./query/subgraph.js";
 import { getSymbolsForFile } from "./query/symbols.js";
-import { clearAll, clearWorkspace } from "./storage/clear.js";
+import { clearAll, clearFile, clearWorkspace } from "./storage/clear.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
 import { replaceFileGraph } from "./storage/repository.js";
 import { applyMigrations } from "./storage/migrations/runner.js";
@@ -20,6 +20,7 @@ import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./storage/w
 import {
   SCHEMA_VERSION,
   type ClearAllSummary,
+  type ClearFileSummary,
   type ClearWorkspaceSummary,
   type IndexResult,
   type Indexer,
@@ -30,6 +31,7 @@ import {
 
 export type {
   ClearAllSummary,
+  ClearFileSummary,
   ClearWorkspaceSummary,
   ExtractedFileRecord,
   ExtractedIndexData,
@@ -230,6 +232,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return clearWorkspace(database.connection, workspaceRoot);
+  }
+
+  async clearFile(filePath: string): Promise<ClearFileSummary> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return clearFile(database.connection, filePath);
   }
 
   async clearAll(): Promise<ClearAllSummary> {

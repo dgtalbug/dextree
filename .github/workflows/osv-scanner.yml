@@ -1,0 +1,35 @@
+name: OSV-Scanner
+
+# Vulnerability scanner backed by Google's OSV.dev database. Runs:
+#   - on push to main (catches direct introductions)
+#   - weekly schedule (catches newly-disclosed CVEs in already-installed deps)
+# Findings are uploaded as SARIF to GitHub's code-scanning tab.
+#
+# Intentionally NOT on every PR — dependency-review-action already gates PRs.
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # Monday 08:00 UTC. Offset from CodeQL (06:00) and Scorecard (07:00).
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  scan:
+    name: scan
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    permissions:
+      # Reusable workflow declares these itself, but GitHub requires the
+      # caller to grant them here too — they are intersected, not inherited.
+      actions: read
+      contents: read
+      security-events: write
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./

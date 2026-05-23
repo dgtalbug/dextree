@@ -1,8 +1,14 @@
 # Copilot Instructions — Dextree
 
-You work alongside Claude on Dextree, a VS Code extension that indexes a codebase
-into a semantic graph and exposes that graph through multiple surfaces: the VS Code
-webview, exporters, MCP, CLI, web component, and Alfred's opt-in LLM reports.
+You're one of the agents working on Dextree, a VS Code extension that indexes a
+codebase into a semantic graph and exposes that graph through multiple surfaces:
+the VS Code webview, exporters, MCP, CLI, web component, and Alfred's opt-in LLM
+reports.
+
+Dextree is built **spec-first**. Every slice starts as a spec in
+`specs/NNN-<slice>/`, gets a plan and task breakdown, and only then turns into
+code. Any agent — Claude, Copilot, or a human — can pick up a spec and implement
+it. The spec is the contract; the agent is interchangeable.
 
 ## Source of truth
 
@@ -11,34 +17,42 @@ Read in this order when work needs repo context:
 1. `.dextree/rules.md` — binding rules and locked libraries
 2. `.dextree/design.md` — product and architecture
 3. `.dextree/memory/decisions.md` — why key decisions were made
-4. Relevant spec in `.specify/` — slice-specific scope
+4. Relevant slice spec under `specs/NNN-<slice>/` — slice-specific scope
 
 If these conflict, `.dextree/rules.md` wins.
 
-## Your lane
+## File-domain lanes
 
-You own:
+Lanes are defined by **what file is being changed**, not by which agent is
+changing it. The rules apply to any agent. This file is named for Copilot only
+because Copilot reads `.github/copilot-instructions.md` by default — Claude
+reads the same lane definitions from `CLAUDE.md`.
 
-- Code review for pull requests Claude opens
+You commonly operate in the **documentation lane**:
+
 - User-facing docs: `README.md`, `CHANGELOG.md`, `packages/*/README.md`
 - Release notes and other user-facing release communication
 - Extension marketplace metadata in `packages/extension/package.json`
   (`displayName`, `description`, `keywords`, `categories`)
-- `.github/copilot-instructions.md`
+- Code review for pull requests opened by other agents or humans
+- This file (`.github/copilot-instructions.md`)
 
-You do NOT own:
+You may also operate in the **implementation lane** when explicitly dispatched
+to a slice (e.g. "Copilot, implement spec 042"). In that case follow the same
+phase discipline any implementer follows: read the spec, draft a plan if one
+isn't present, write code + tests, self-review the diff, open a draft PR.
 
-- Implementation in `packages/*/src/`
-- Tests in `packages/*/test/` or package-local `*.test.*` files
-- Inline JSDoc in implementation files
-- `.dextree/` project docs
-- `.specify/` specs and templates
-- SpecKit-managed `.github/prompts/`
-- Existing `.github/agents/` entries that belong to SpecKit
-- `CLAUDE.md` or `.claude/`
+You do NOT edit:
 
-If a request belongs to Claude's lane, leave a review comment or handoff note
-instead of editing implementation files.
+- `CLAUDE.md` or `.claude/` — Claude's agent-guidance lane
+- `.dextree/design.md`, `.dextree/rules.md`, `.dextree/memory/decisions.md` —
+  anchored architectural docs, only changed via a spec change
+- `.specify/` — toolchain internals
+- `specs/` (existing slice folders) — only the spec toolchain creates these
+- `.github/prompts/` and toolchain-managed entries in `.github/agents/`
+
+If a request would require touching another lane, leave a review comment or a
+handoff note instead of editing across boundaries.
 
 ## Project constraints to preserve
 
@@ -56,7 +70,8 @@ instead of editing implementation files.
 
 ## Review checklist
 
-Use this when reviewing Claude's PRs.
+Use this when reviewing PRs that implement a slice — whether authored by
+another agent or by a human.
 
 ### Scope and correctness
 
@@ -198,15 +213,15 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `feature/slice-11-persistent-workspace-cache`
+**Branch**: `feature/slice-13-auto-sync-watcher`
 
-- Spec: [`specs/011-persistent-workspace-cache/spec.md`](../specs/011-persistent-workspace-cache/spec.md)
-- Plan: [`specs/011-persistent-workspace-cache/plan.md`](../specs/011-persistent-workspace-cache/plan.md)
-- Research: [`specs/011-persistent-workspace-cache/research.md`](../specs/011-persistent-workspace-cache/research.md)
-- Data model: [`specs/011-persistent-workspace-cache/data-model.md`](../specs/011-persistent-workspace-cache/data-model.md)
-- Contracts: [`specs/011-persistent-workspace-cache/contracts/cache-metadata.ts`](../specs/011-persistent-workspace-cache/contracts/cache-metadata.ts)
-- Quickstart: [`specs/011-persistent-workspace-cache/quickstart.md`](../specs/011-persistent-workspace-cache/quickstart.md)
+- Spec: [`specs/013-auto-sync-watcher/spec.md`](../specs/013-auto-sync-watcher/spec.md)
+- Plan: [`specs/013-auto-sync-watcher/plan.md`](../specs/013-auto-sync-watcher/plan.md)
+- Research: [`specs/013-auto-sync-watcher/research.md`](../specs/013-auto-sync-watcher/research.md)
+- Data model: [`specs/013-auto-sync-watcher/data-model.md`](../specs/013-auto-sync-watcher/data-model.md)
+- Contracts: [`specs/013-auto-sync-watcher/contracts/workspace-watcher.ts`](../specs/013-auto-sync-watcher/contracts/workspace-watcher.ts)
+- Quickstart: [`specs/013-auto-sync-watcher/quickstart.md`](../specs/013-auto-sync-watcher/quickstart.md)
 
-Review focus for this slice: `packages/core` (migration 004, `SCHEMA_VERSION` bump) + `packages/extension` (integration test for full reopen flow). Most S5 implementation was already shipped in spec 010; this slice closes the migration gap and adds end-to-end test coverage.
+Review focus for this slice: `packages/core` (add `clearFile` to `clear.ts` + re-export) + `packages/extension` (new `watcher/workspaceWatcher.ts`, registration in `extension.ts`, `dextree.watcher.verbose` setting).
 
 <!-- SPECKIT END -->

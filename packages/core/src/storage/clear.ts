@@ -8,6 +8,12 @@ export interface ClearWorkspaceResult {
   deletedEdges: number;
 }
 
+export interface ClearFileResult {
+  deletedFiles: number; // 0 | 1
+  deletedSymbols: number;
+  deletedEdges: number;
+}
+
 export interface ClearAllResult {
   clearedTables: number;
 }
@@ -127,6 +133,61 @@ export async function clearWorkspace(
   }
 
   return { deletedFiles, deletedSymbols, deletedEdges };
+}
+
+export async function clearFile(
+  connection: DuckDBConnection,
+  filePath: string,
+): Promise<ClearFileResult> {
+  const fileRows = await (
+    await connection.run(`SELECT id FROM file WHERE path = $path`, { path: filePath })
+  ).getRowObjectsJS();
+
+  if (fileRows.length === 0) {
+    return { deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 };
+  }
+
+  const fileId = String(fileRows[0]!.id);
+  const params = { file_id: fileId };
+
+  const symbolCountRows = await (
+    await connection.run(`SELECT COUNT(*) AS count FROM symbol WHERE file_id = $file_id`, params)
+  ).getRowObjectsJS();
+  const deletedSymbols = Number(symbolCountRows[0]?.count ?? 0);
+
+  // Count edges by source_id only — mirrors clearWorkspace convention.
+  // Two separate statements because DuckDB named-param binding fails when the
+  // params dict has extra unused keys; each statement gets only the keys it uses.
+  const edgeFromFileRows = await (
+    await connection.run(`SELECT COUNT(*) AS count FROM edge WHERE source_id = $file_id`, params)
+  ).getRowObjectsJS();
+  const edgeFromSymbolRows = await (
+    await connection.run(
+      `SELECT COUNT(*) AS count FROM edge WHERE source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)`,
+      params,
+    )
+  ).getRowObjectsJS();
+  const deletedEdges =
+    Number(edgeFromFileRows[0]?.count ?? 0) + Number(edgeFromSymbolRows[0]?.count ?? 0);
+
+  await connection.run("BEGIN TRANSACTION");
+
+  try {
+    const symbolSubquery = `(SELECT id FROM symbol WHERE file_id = $file_id)`;
+    await connection.run(`DELETE FROM edge WHERE source_id = $file_id`, params);
+    await connection.run(`DELETE FROM edge WHERE target_id = $file_id`, params);
+    await connection.run(`DELETE FROM edge WHERE source_id IN ${symbolSubquery}`, params);
+    await connection.run(`DELETE FROM edge WHERE target_id IN ${symbolSubquery}`, params);
+    await connection.run(`DELETE FROM diagnostic WHERE file_id = $file_id`, params);
+    await connection.run(`DELETE FROM symbol WHERE file_id = $file_id`, params);
+    await connection.run(`DELETE FROM file WHERE id = $file_id`, params);
+    await connection.run("COMMIT");
+  } catch (error) {
+    await connection.run("ROLLBACK");
+    throw error;
+  }
+
+  return { deletedFiles: 1, deletedSymbols, deletedEdges };
 }
 
 export async function clearAll(connection: DuckDBConnection): Promise<ClearAllResult> {

@@ -7,8 +7,10 @@ export async function getAllFilesQuery(connection: DuckDBConnection): Promise<St
     await connection.run(`
       SELECT
         id,
+        path,
         relative_path AS relativePath,
-        language
+        language,
+        hash
       FROM file
       ORDER BY relative_path ASC
     `)
@@ -16,7 +18,9 @@ export async function getAllFilesQuery(connection: DuckDBConnection): Promise<St
 
   return rows.map((row) => ({
     id: String(row.id),
+    path: String(row.path),
     relativePath: String(row.relativePath),
     language: String(row.language),
+    hash: String(row.hash),
   }));
 }

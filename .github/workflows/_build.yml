@@ -8,6 +8,8 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -15,7 +17,12 @@ jobs:
           egress-policy: audit
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Setup workspace
         uses: ./.github/actions/setup
       - name: Turbo build
+        # Runs in parallel with `test` and `package`. The turbo remote cache
+        # (configured in setup composite) shares outputs across the three jobs
+        # — whichever finishes first warms the cache for the others.
         run: pnpm build

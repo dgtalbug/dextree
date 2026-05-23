@@ -12,13 +12,41 @@ A VS Code extension that indexes codebases into a semantic graph (DuckDB + DuckP
 
 ---
 
+## How Dextree is built
+
+Dextree is built **spec-first**. Every change starts as a spec in `specs/NNN-<slice>/`, gets a plan and task breakdown, and only then turns into code. Any agent (Claude, Copilot, or a human) can pick up a spec and implement it. The spec is the contract; the agent is interchangeable.
+
+**The spec → plan → tasks → implementation flow:**
+
+1. A slice spec is authored under `specs/NNN-<slice>/spec.md` (managed via the SpecKit toolchain in `.specify/`)
+2. A plan is generated next to it (`plan.md`) — design, contracts, data model
+3. A tasks file (`tasks.md`) breaks the plan into ordered, dependency-aware work items
+4. An implementation PR delivers the slice, links back to the spec, and follows the file-domain lanes below
+
+You are reading `CLAUDE.md` because you're an agent operating in this repo. The rules apply to any agent — the file is named for Claude only because Claude Code reads this filename by default. Copilot reads the same rules from `.github/copilot-instructions.md`.
+
+---
+
 ## Where everything lives
 
 ```
-.dextree/              ← ALL project documentation (read before coding)
+specs/                 ← spec-driven slice definitions (one folder per slice)
+  NNN-<short>/
+    spec.md            ← what + why for this slice
+    plan.md            ← how (design, contracts, data model)
+    tasks.md           ← ordered work items
+    contracts/         ← type or interface contracts pinned by the spec
+    research.md        ← prior-art or decision rationale (optional)
+    quickstart.md      ← how to validate the slice (optional)
+
+.specify/              ← SpecKit toolchain — DO NOT MODIFY by hand
+  templates/           ← spec/plan/tasks templates the toolchain renders
+  scripts/             ← spec-flow helpers
+
+.dextree/              ← project documentation (read before coding)
   design.md            ← architecture, schema, VS Code data sources, slice plan
-  rules.md             ← 37 binding rules — highest priority constraint document
-  build.md             ← agentic build operations manual (Mode A/B, sub-agents)
+  rules.md             ← binding rules — highest priority constraint document
+  build.md             ← build operations manual
   kickstart.md         ← setup guide and onboarding
   memory/
     decisions.md       ← decision log — read before making architectural choices
@@ -26,18 +54,15 @@ A VS Code extension that indexes codebases into a semantic graph (DuckDB + DuckP
     _README.md         ← Alfred prompt template format spec
     *.md               ← built-in Alfred prompt templates
 
-.specify/              ← SpecKit owns this — DO NOT MODIFY
-  templates/           ← spec templates; use SpecKit workflow to create new specs
-
 .github/
-  agents/              ← agent definitions (SpecKit + Dextree agents coexist here)
-  prompts/             ← prompts (SpecKit-managed)
-  copilot-instructions.md  ← Copilot's lane definition
-  workflows/           ← CI, Claude handoff, Copilot handoff, release
+  agents/              ← agent role definitions (toolchain-managed)
+  prompts/             ← toolchain prompts (SpecKit-managed)
+  copilot-instructions.md  ← agent guidance for Copilot
+  workflows/           ← CI, release, security, lifecycle workflows
 
 .claude/
   settings.json        ← Claude Code project config
-  agents/              ← Dextree custom sub-agents (planner, implementer, etc.)
+  agents/              ← repo-local Claude sub-agents (planner, implementer, etc.)
 
 packages/              ← ALL CODE lives here
   core/                ← pure logic, no VS Code deps
@@ -55,39 +80,49 @@ packages/              ← ALL CODE lives here
 1. `.dextree/rules.md` — what's binding
 2. `.dextree/design.md` — what we're building
 3. `.dextree/memory/decisions.md` — why key decisions were made
-4. The spec in `.specify/` — what this slice does
+4. The slice spec under `specs/NNN-<slice>/` — what this slice does
 
 ---
 
-## Your lane (Claude)
+## File-domain lanes
 
-**You own:**
+Lanes are defined by **what file is being changed**, not by which agent is changing it. Any agent (Claude, Copilot, human) follows the same lane boundaries.
+
+**Implementation lane** — Claude commonly operates here, Copilot may also.
 
 - `packages/*/src/` — implementation code
 - `packages/*/test/` — tests
 - Inline JSDoc comments
 
-**You do NOT touch (Copilot's lane):**
+**Documentation lane** — Copilot commonly operates here, Claude may also when asked.
 
 - `README.md`
 - `CHANGELOG.md`
 - `packages/*/README.md`
-- `.github/copilot-instructions.md`
+- Release notes
 - Extension marketplace metadata (`displayName`, `description`, `keywords`, `categories` in `packages/extension/package.json`)
-- Anything in `.dextree/alfred/` unless the spec explicitly says to add a prompt
 
-**You do NOT touch (SpecKit's lane):**
+**Agent-guidance lane** — each agent owns its own instructions file.
 
-- `.specify/` — entirely SpecKit-managed
-- `.github/prompts/` — SpecKit-managed
-- Existing entries in `.github/agents/` that belong to SpecKit
+- `CLAUDE.md` (this file) — read by Claude
+- `.github/copilot-instructions.md` — read by Copilot
+- Do not edit the other agent's instructions file unless explicitly asked
 
-**You do NOT modify architectural documents without a spec:**
+**Spec lane** — never edit by hand, always via the spec toolchain.
+
+- `specs/` — slice specs live here
+- `.specify/` — toolchain internals
+- `.github/prompts/` — toolchain prompts
+- Existing entries in `.github/agents/` that the toolchain manages
+
+**Anchored documents** — never modify without a spec change first.
 
 - `.dextree/design.md`
 - `.dextree/rules.md`
 - `.dextree/memory/decisions.md`
-  If you think a document needs updating, flag it in the PR description.
+- Anything in `.dextree/alfred/` unless the slice spec explicitly says to touch a prompt
+
+If you think one of these needs updating, flag it in the PR description and open a follow-up spec instead.
 
 ---
 
@@ -124,12 +159,12 @@ packages/              ← ALL CODE lives here
 
 ---
 
-## Sub-agent usage (Mode A — local Claude Code)
+## Implementing a slice (Claude Code, local)
 
-Custom Dextree sub-agents are in `.claude/agents/`. Use them in this order:
+When running in Claude Code with the repo-local sub-agents available, use them in this order to keep slice implementation predictable:
 
 ```
-dextree-planner       → produce implementation plan, wait for approval
+dextree-planner       → produce implementation plan from the spec, wait for approval
 dextree-implementer   → write code from approved plan
 dextree-tester        → add tests (cannot touch implementation files)
 dextree-self-reviewer → review own diff, block push if FAIL
@@ -137,6 +172,8 @@ dextree-pusher        → branch, commit, gh pr create --draft
 ```
 
 Never skip self-review before pushing.
+
+If you're not Claude Code, follow the same shape conceptually: plan first, implement against the plan, write tests, self-review the diff, then open a draft PR. The point isn't the named sub-agents — it's the phase discipline.
 
 ---
 

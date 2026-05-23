@@ -1,6 +1,6 @@
 # Dextree Roadmap
 
-This is the draft working roadmap for building Dextree through small SpecKit-driven
+This is the draft working roadmap for building Dextree through small spec-driven
 vertical slices.
 
 The goal is to avoid writing every spec up front. Keep the long-range roadmap at a
@@ -12,7 +12,7 @@ Use three planning levels:
 
 1. **Roadmap level**: keep the whole product sequence visible from S0 to later
    surfaces.
-2. **Active spec level**: write a full SpecKit spec only for the next slice, or at
+2. **Active spec level**: write a full slice spec only for the next slice, or at
    most the next one or two slices.
 3. **Implementation level**: generate plan and tasks only after the active spec is
    approved.
@@ -31,7 +31,7 @@ That keeps the repo adaptive while still preserving direction.
 
 ## Operating Limits
 
-To keep the roadmap useful for agentic execution instead of turning into a wish list,
+To keep the roadmap useful for spec-driven execution instead of turning into a wish list,
 apply these limits:
 
 - Max **one slice in implementation** at a time.
@@ -45,15 +45,15 @@ apply these limits:
 
 Use these states consistently when updating this roadmap, issues, and PRs:
 
-| State               | Meaning                                                             |
-| ------------------- | ------------------------------------------------------------------- |
-| `roadmap`           | Mentioned here only. No detailed spec work yet.                     |
-| `next-up`           | Candidate for the next spec. Still not detailed.                    |
-| `in-spec`           | Being written or clarified in SpecKit. No implementation yet.       |
-| `ready-for-plan`    | Spec is approved and can move to `speckit.plan`.                    |
-| `in-implementation` | Code and tests are being written.                                   |
-| `in-review`         | Draft PR is open and validation is running or Copilot is reviewing. |
-| `done`              | Merged, validated, and reflected back into the roadmap.             |
+| State               | Meaning                                                    |
+| ------------------- | ---------------------------------------------------------- |
+| `roadmap`           | Mentioned here only. No detailed spec work yet.            |
+| `next-up`           | Candidate for the next spec. Still not detailed.           |
+| `in-spec`           | Spec is being written or clarified. No implementation yet. |
+| `ready-for-plan`    | Spec is approved; plan and tasks can be generated next.    |
+| `in-implementation` | Code and tests are being written.                          |
+| `in-review`         | Draft PR is open and validation or review is running.      |
+| `done`              | Merged, validated, and reflected back into the roadmap.    |
 
 ## Promotion Gates
 
@@ -98,7 +98,7 @@ For each candidate, answer:
 
 ### 2. Write the slice spec
 
-Use `speckit.specify` to create one feature spec for that slice.
+Create one feature spec for that slice under `specs/NNN-<short>/spec.md`.
 
 A good Dextree slice spec should name:
 
@@ -113,7 +113,7 @@ Do not spec a large phase as one feature. Spec the smallest valuable proof point
 
 ### 3. Clarify before design
 
-Use `speckit.clarify` when any of these are still fuzzy:
+Clarify before moving to design when any of these are still fuzzy:
 
 - package ownership
 - pass 1 vs pass 2 behavior
@@ -124,7 +124,7 @@ If the slice still has unresolved ambiguity after clarification, do not code it 
 
 ### 4. Generate the implementation plan
 
-Use `speckit.plan` once the spec is stable.
+Produce `specs/NNN-<short>/plan.md` once the spec is stable.
 
 The plan should confirm:
 
@@ -135,7 +135,7 @@ The plan should confirm:
 
 ### 5. Generate executable tasks
 
-Use `speckit.tasks` to break the slice into independent story-scoped tasks.
+Produce `specs/NNN-<short>/tasks.md` to break the slice into independent story-scoped tasks.
 
 Task quality bar:
 
@@ -144,14 +144,15 @@ Task quality bar:
 - tests before implementation where applicable
 - no vague "wire everything" tasks
 
-### 6. Implement through the agent workflow
+### 6. Implement the slice
 
-Recommended flow:
+Recommended flow — any agent (Claude, Copilot, or a human) can drive this:
 
-1. Claude implements the approved plan.
-2. Claude adds tests and runs local validation.
-3. Claude opens a draft PR.
-4. Copilot reviews correctness, risks, docs, and release-note impact.
+1. Implement against the approved plan.
+2. Add tests and run local validation (`pnpm check`).
+3. Open a draft PR linking the slice spec.
+4. A reviewer (the docs-lane agent by default) reviews correctness, risks,
+   docs, and release-note impact.
 5. Only then move to the next slice.
 
 ### 7. Re-plan after each slice

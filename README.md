@@ -3,6 +3,7 @@
 [![Build](https://github.com/dgtalbug/dextree/actions/workflows/ci.yml/badge.svg)](https://github.com/dgtalbug/dextree/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status: Pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)]()
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dgtalbug/dextree/badge)](https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree)
 
 > Index your codebase into a navigable semantic graph — inside VS Code.
 

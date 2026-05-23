@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createIndexer = vi.fn();
+const createWorkspaceWatcher = vi.fn(() => ({
+  drainQueue: vi.fn().mockResolvedValue(undefined),
+  dispose: vi.fn(),
+}));
 const createOutputChannel = vi.fn(() => ({
   appendLine: vi.fn(),
   dispose: vi.fn(),
@@ -61,6 +65,10 @@ vi.mock("./webview/panel.js", () => ({
 
 vi.mock("./cache/resolveCacheIdentity.js", () => ({
   resolveCacheIdentity,
+}));
+
+vi.mock("./watcher/workspaceWatcher.js", () => ({
+  createWorkspaceWatcher,
 }));
 
 vi.mock("vscode", () => ({
