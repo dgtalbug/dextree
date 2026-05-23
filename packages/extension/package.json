@@ -148,6 +148,16 @@
         "view": "dextree.symbolsView",
         "contents": "No symbols indexed yet.\n\n[$(sync) Index Workspace](command:dextree.indexWorkspace)\n\nOr run [Dextree: Index File](command:dextree.indexFile) on a single open file, or open the graph later from the Command Palette with [Dextree: Open Graph View](command:dextree.openGraphView)."
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Dextree",
+      "properties": {
+        "dextree.watcher.verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log skipped (unchanged) file events to the Dextree output channel."
+        }
+      }
+    }
   }
 }

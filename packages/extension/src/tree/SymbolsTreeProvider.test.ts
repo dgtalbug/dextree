@@ -127,7 +127,7 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
   it("keeps the action nodes visible when cache reuse is not allowed even if indexed files exist", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([
-      { id: "f1", relativePath: "src/greet.ts", language: "typescript" },
+      { id: "f1", relativePath: "src/greet.ts", language: "typescript", path: "/workspace/src/greet.ts", hash: "abc123" },
     ]);
     const provider = makeProvider(indexer, false);
     const children = await provider.getChildren(undefined);
@@ -138,8 +138,8 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
   it("groups files under a shared directory into a TreeDirNode", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([
-      { id: "f1", relativePath: "src/greet.ts", language: "typescript" },
-      { id: "f2", relativePath: "src/utils.ts", language: "typescript" },
+      { id: "f1", relativePath: "src/greet.ts", language: "typescript", path: "/workspace/src/greet.ts", hash: "abc123" },
+      { id: "f2", relativePath: "src/utils.ts", language: "typescript", path: "/workspace/src/utils.ts", hash: "abc123" },
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
@@ -152,7 +152,7 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
   it("root-level files (no directory) appear as TreeFileNodes directly", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([
-      { id: "f1", relativePath: "index.ts", language: "typescript" },
+      { id: "f1", relativePath: "index.ts", language: "typescript", path: "/workspace/index.ts", hash: "abc123" },
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
@@ -164,8 +164,8 @@ describe("SymbolsTreeProvider — root children (US1)", () => {
   it("multiple directories produce one TreeDirNode per directory", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([
-      { id: "f1", relativePath: "src/greet.ts", language: "typescript" },
-      { id: "f2", relativePath: "test/greet.test.ts", language: "typescript" },
+      { id: "f1", relativePath: "src/greet.ts", language: "typescript", path: "/workspace/src/greet.ts", hash: "abc123" },
+      { id: "f2", relativePath: "test/greet.test.ts", language: "typescript", path: "/workspace/test/greet.test.ts", hash: "abc123" },
     ]);
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(undefined);
@@ -206,6 +206,8 @@ describe("SymbolsTreeProvider — dir children", () => {
       id: "f1",
       relativePath: "src/greet.ts",
       language: "typescript",
+      path: "/workspace/src/greet.ts",
+      hash: "abc123",
     });
     const dirNode = new TreeDirNode("src", [fileNode]);
     const provider = makeProvider();
@@ -217,7 +219,7 @@ describe("SymbolsTreeProvider — dir children", () => {
   it("nests directories recursively", async () => {
     const indexer = makeIndexer();
     indexer.getAllFiles.mockResolvedValue([
-      { id: "f1", relativePath: "src/parser/greet.ts", language: "typescript" },
+      { id: "f1", relativePath: "src/parser/greet.ts", language: "typescript", path: "/workspace/src/parser/greet.ts", hash: "abc123" },
     ]);
     const provider = makeProvider(indexer);
     const root = await provider.getChildren(undefined);
@@ -263,6 +265,8 @@ describe("SymbolsTreeProvider — file children (US1)", () => {
       id: "f1",
       relativePath: "src/greet.ts",
       language: "typescript",
+      path: "/workspace/src/greet.ts",
+      hash: "abc123",
     });
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(fileNode);
@@ -278,6 +282,8 @@ describe("SymbolsTreeProvider — file children (US1)", () => {
       id: "f1",
       relativePath: "src/empty.ts",
       language: "typescript",
+      path: "/workspace/src/empty.ts",
+      hash: "abc123",
     });
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(fileNode);
@@ -292,6 +298,8 @@ describe("SymbolsTreeProvider — file children (US1)", () => {
       id: "f1",
       relativePath: "src/err.ts",
       language: "typescript",
+      path: "/workspace/src/err.ts",
+      hash: "abc123",
     });
     const provider = new SymbolsTreeProvider(
       () => indexer as never,
@@ -313,6 +321,8 @@ describe("SymbolsTreeProvider — file children (US1)", () => {
       id: "f1",
       relativePath: "src/x.ts",
       language: "typescript",
+      path: "/workspace/src/x.ts",
+      hash: "abc123",
     });
     const provider = new SymbolsTreeProvider(
       () => indexer as never,
@@ -373,6 +383,8 @@ describe("SymbolsTreeProvider — symbol kind Codicons (US1 / FR-010)", () => {
       id: "f1",
       relativePath: "src/x.ts",
       language: "typescript",
+      path: "/workspace/src/x.ts",
+      hash: "abc123",
     });
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(fileNode);
@@ -403,6 +415,8 @@ describe("SymbolsTreeProvider — navigation command (US2)", () => {
       id: "f1",
       relativePath: "src/greet.ts",
       language: "typescript",
+      path: "/workspace/src/greet.ts",
+      hash: "abc123",
     });
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(fileNode);
@@ -432,6 +446,8 @@ describe("SymbolsTreeProvider — navigation command (US2)", () => {
       id: "f1",
       relativePath: "src/x.ts",
       language: "typescript",
+      path: "/workspace/src/x.ts",
+      hash: "abc123",
     });
     const provider = makeProvider(indexer);
     const children = await provider.getChildren(fileNode);

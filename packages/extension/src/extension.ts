@@ -10,16 +10,19 @@ import {
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import {
   createIndexWorkspaceCommand,
+  isWorkspaceIndexing,
   requestWorkspaceIndexingCancel,
   type IndexWorkspaceProgressUpdate,
 } from "./commands/indexWorkspace.js";
 import { registerOpenGraphViewCommand } from "./commands/openGraphView.js";
 import { createLogger, type Logger } from "./logger.js";
 import { SymbolsTreeProvider } from "./tree/SymbolsTreeProvider.js";
+import { createWorkspaceWatcher } from "./watcher/workspaceWatcher.js";
 import { WebviewPanelManager } from "./webview/panel.js";
 
 let activeIndexer: Indexer | null = null;
 let activeLogger: Logger | null = null;
+let watcher: (vscode.Disposable & { drainQueue(): Promise<void> }) | null = null;
 
 interface ActivationContext {
   subscriptions: { dispose(): void }[];
@@ -190,6 +193,7 @@ export async function activate(context: ActivationContext): Promise<void> {
         },
         onIndexingFinished: (update) => {
           pushIndexing("finished", update);
+          void watcher?.drainQueue();
         },
         onIndexed: refreshViewsAfterIndex,
       }),
@@ -221,6 +225,19 @@ export async function activate(context: ActivationContext): Promise<void> {
 
   context.subscriptions.push(treeView);
 
+  // Register file system watcher if a workspace root is available.
+  const watcherRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (watcherRoot !== undefined) {
+    watcher = createWorkspaceWatcher({
+      workspaceRoot: watcherRoot,
+      getIndexer,
+      onIndexed: refreshViewsAfterIndex,
+      isWorkspaceIndexing,
+      logger,
+    });
+    context.subscriptions.push(watcher);
+  }
+
   void (async () => {
     await refreshWorkspaceCacheStatus();
     symbolsProvider.refresh();
@@ -238,4 +255,6 @@ export async function deactivate(): Promise<void> {
     activeLogger.dispose();
     activeLogger = null;
   }
+
+  watcher = null;
 }

@@ -97,8 +97,10 @@ export interface FileRecord {
 
 export interface StoredFile {
   id: string;
+  path: string;
   relativePath: string;
   language: string;
+  hash: string;
 }
 
 export interface IndexResult {
@@ -110,6 +112,12 @@ export interface IndexResult {
 
 export interface ClearWorkspaceSummary {
   deletedFiles: number;
+  deletedSymbols: number;
+  deletedEdges: number;
+}
+
+export interface ClearFileSummary {
+  deletedFiles: number; // 0 | 1
   deletedSymbols: number;
   deletedEdges: number;
 }
@@ -131,6 +139,7 @@ export interface Indexer {
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph>;
   getPresentEdgeKinds(workspaceRoot: string): Promise<readonly string[]>;
   clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary>;
+  clearFile(filePath: string): Promise<ClearFileSummary>;
   clearAll(): Promise<ClearAllSummary>;
   dispose(): Promise<void>;
 }
