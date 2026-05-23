@@ -4,11 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createWorkspaceIgnore } from "@dextree/core";
 import * as vscode from "vscode";
 
-import {
-  EXCLUDE_GLOB,
-  SUPPORTED_GLOB,
-} from "../commands/indexWorkspace.js";
-import type { Logger } from "../logger.js";
+import { SUPPORTED_GLOB } from "../commands/indexWorkspace.js";
 import type { WorkspaceWatcherDependencies, WatcherEvent } from "./types.js";
 
 export type { WorkspaceWatcherDependencies, WatcherEvent } from "./types.js";
@@ -21,9 +17,7 @@ function hashContent(content: string): string {
 }
 
 function isVerbose(): boolean {
-  return (
-    vscode.workspace.getConfiguration("dextree").get<boolean>("watcher.verbose") ?? false
-  );
+  return vscode.workspace.getConfiguration("dextree").get<boolean>("watcher.verbose") ?? false;
 }
 
 export function createWorkspaceWatcher(
