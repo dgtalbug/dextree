@@ -154,8 +154,11 @@ export function App({ vscodeApi }: AppProps) {
   const edgeCount = displayEdges.length;
   const fileCount = displayNodes.filter((n) => n.type === "file").length;
   const symbolCount = displayNodes.filter((n) => n.type === "symbol").length;
-  // During active indexing, show the live file-processed count in the Files pill.
+  // During active indexing, show live progress in Files; use "—" for counts not yet known.
   const displayFileCount = isIndexingActive && state.indexing ? state.indexing.current : fileCount;
+  const displayNodeCount: number | "—" = isIndexingActive ? "—" : nodeCount;
+  const displayEdgeCount: number | "—" = isIndexingActive ? "—" : edgeCount;
+  const displaySymbolCount: number | "—" = isIndexingActive ? "—" : symbolCount;
 
   function formatFileLabel(name: string): string {
     const parts = name.split(/[/\\]/);
@@ -192,11 +195,11 @@ export function App({ vscodeApi }: AppProps) {
         <section className="dxt-graph-stats" aria-label="Graph statistics">
           <div className="dxt-stats-grid">
             <div className="dxt-stat-cell">
-              <span className="dxt-stat-value">{nodeCount}</span>
+              <span className="dxt-stat-value">{displayNodeCount}</span>
               <span className="dxt-stat-label">Nodes</span>
             </div>
             <div className="dxt-stat-cell">
-              <span className="dxt-stat-value">{edgeCount}</span>
+              <span className="dxt-stat-value">{displayEdgeCount}</span>
               <span className="dxt-stat-label">Edges</span>
             </div>
             <div className="dxt-stat-cell">
@@ -204,7 +207,7 @@ export function App({ vscodeApi }: AppProps) {
               <span className="dxt-stat-label">Files</span>
             </div>
             <div className="dxt-stat-cell">
-              <span className="dxt-stat-value">{symbolCount}</span>
+              <span className="dxt-stat-value">{displaySymbolCount}</span>
               <span className="dxt-stat-label">Symbols</span>
             </div>
             {indexedCount > 0 || failedCount > 0 ? (
