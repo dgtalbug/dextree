@@ -1,113 +1,159 @@
-# Dextree
+<!-- markdownlint-disable MD033 MD040 -->
 
-[![Build](https://github.com/dgtalbug/dextree/actions/workflows/ci.yml/badge.svg)](https://github.com/dgtalbug/dextree/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Status: Pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)]()
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dgtalbug/dextree/badge)](https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree)
+<h1 align="center">Dextree</h1>
 
-> Index your codebase into a navigable semantic graph — inside VS Code.
+<p align="center">
+  <strong>See what your code actually does — and what your next commit could break.</strong>
+</p>
 
-Dextree turns your repository into an interactive knowledge graph. Every symbol, call, import, and dependency is indexed into an embedded graph database (DuckDB + DuckPGQ) and made explorable through a WebGL-rendered visualization directly inside VS Code. Unlike competitors that live outside the editor, Dextree fuses the graph with everything VS Code already knows — LSP type information, live diagnostics, git history, and test linkage — to give you signals no headless tool can produce.
+<p align="center">
+  <em>An interactive semantic graph of your codebase. Live in VS Code. Powered by Tree-sitter + DuckDB.</em>
+</p>
 
-Click any symbol to explore its callers and dependents. Run a blast radius analysis on any git diff or PR to see exactly what a commit could break and which core files are in the impact zone. Export the graph to Mermaid, Obsidian Canvas, PNG, PDF, or SVG. Ask Alfred — Dextree's opt-in LLM layer — to generate architecture overviews, onboarding docs, or PR risk reports from the graph data.
+<!--
+  HERO IMAGE — when docs/hero.gif (or docs/hero.png) lands, uncomment the
+  block below. A static screenshot of the graph view beats no image; aim for
+  720p, ~3-8 seconds if animated.
 
----
+  <p align="center">
+    <img src="docs/hero.gif" alt="Dextree graph view inside VS Code" width="720"/>
+  </p>
+-->
 
-## Features
-
-- **Interactive graph view** — WebGL-rendered symbol graph (Sigma.js) inside VS Code. Click any node to jump to definition, expand its neighborhood, or filter by type, language, or quality flag.
-- **Two-pass indexing** — Tree-sitter for instant structural extraction (pass 1), LSP-driven semantic enrichment running lazily in the background (pass 2). Graph is usable in under a second.
-- **⚡ Blast radius analysis** — point at any branch, commit, or PR number and get a live visualization of what changed, how far the impact propagates through the graph, and which core files are in the blast radius — with a scored risk verdict.
-- **Quality signals** — dead code detection, circular imports, complexity metrics, god classes, and security smell flags — all computed as graph properties, not from a separate linter.
-- **VS Code data fusion** — the graph is enriched with diagnostics (`vscode.languages.getDiagnostics`), git blame and recency (`vscode.git`), and test linkage (`vscode.tests`). Queries like "most-edited unused public function with type errors and no tests" are a single DuckPGQ statement.
-- **Export everywhere** — Mermaid diagrams, Obsidian Canvas JSON, PNG (retina), PDF (vector + narrative), SVG, SCIP (Sourcegraph-compatible).
-- **Alfred (opt-in LLM)** — editable markdown prompt templates drive narrative reports: architecture overviews, onboarding guides, PR summaries, dead code reports, blast radius narratives. BYOK, local models supported. Privacy-first — nothing leaves your machine by default.
-- **MCP server** — expose the indexed graph to Claude Code, Cursor, and other MCP-compatible agents.
-- **Vite-embeddable component** — drop the graph into your project docs site.
-
----
-
-## Status
-
-**Pre-alpha — v0.1 in active development.**
-
-The extension is not yet available on the VS Code Marketplace. The monorepo scaffold is being established (Slice S0). Follow the progress in [Issues](https://github.com/dgtalbug/dextree/issues).
-
-| Version | Status         | What ships                                             |
-| ------- | -------------- | ------------------------------------------------------ |
-| v0.1    | 🔨 In progress | Graph view, Tree-sitter indexing, Mermaid export       |
-| v0.2    | Planned        | LSP enrichment, diagnostics, git overlay, blast radius |
-| v0.3    | Planned        | Canvas, PNG, PDF, SVG, MCP server                      |
-| v0.4    | Planned        | Alfred LLM reports                                     |
+<p align="center">
+  <a href="https://github.com/dgtalbug/dextree/actions/workflows/ci.yml"><img src="https://github.com/dgtalbug/dextree/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/dgtalbug/dextree/actions/workflows/codeql.yml"><img src="https://github.com/dgtalbug/dextree/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"/></a>
+  <a href="https://github.com/dgtalbug/dextree/actions/workflows/osv-scanner.yml"><img src="https://github.com/dgtalbug/dextree/actions/workflows/osv-scanner.yml/badge.svg" alt="OSV-Scanner"/></a>
+  <a href="https://codecov.io/gh/dgtalbug/dextree"><img src="https://codecov.io/gh/dgtalbug/dextree/branch/main/graph/badge.svg" alt="Coverage"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
+  <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: Pre-alpha"/>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree"><img src="https://api.securityscorecards.dev/projects/github.com/dgtalbug/dextree/badge" alt="OpenSSF Scorecard"/></a>
+</p>
 
 ---
 
-## Installation
+## What it does
 
-> Not yet available. Instructions will be updated when v0.1 ships to the VS Code Marketplace.
+> Three things every codebase tool _should_ do — but doesn't.
 
-When released:
+<table>
+<tr>
+<td width="33%" valign="top">
 
-1. Open VS Code
-2. Press `Ctrl+P` / `Cmd+P` → `ext install dextree`
-3. Open a workspace and run `Dextree: Index Workspace`
+### Blast radius
+
+Point at any branch, commit, or PR. Get a live visualization of _exactly_ what the change could break — with a risk score and the core files in the impact zone.
+
+</td>
+<td width="33%" valign="top">
+
+### VS Code fusion
+
+The graph is enriched with **live diagnostics**, **git blame**, and **test discovery** — signals headless competitors literally can't access. Ask "most-edited unused public function with type errors and no tests" as one query.
+
+</td>
+<td width="33%" valign="top">
+
+### Goes where you work
+
+Mermaid · Obsidian Canvas · PNG · PDF · SVG · SCIP · MCP server for Claude / Cursor / Copilot · Vite component for your docs site.
+
+</td>
+</tr>
+</table>
 
 ---
 
-## Usage
+## Status — pre-alpha
 
-> Screenshots and GIFs will be added when the UI is functional (v0.1).
+Dextree isn't on the Marketplace yet. **v0.1 is in active development.** [Watch this repo](https://github.com/dgtalbug/dextree/subscription) to get the release notification.
 
-**Commands available (v0.1):**
+| Version | Status         | Ships                                                 |
+| ------- | -------------- | ----------------------------------------------------- |
+| v0.1    | 🔨 in progress | Graph view, Tree-sitter indexing, Mermaid export      |
+| v0.2    | next           | LSP enrichment, diagnostics overlay, **blast radius** |
+| v0.3    | planned        | Canvas / PNG / PDF / SVG export, MCP server           |
+| v0.4    | planned        | Alfred — opt-in LLM narrative reports                 |
 
-| Command                       | Description                                         |
-| ----------------------------- | --------------------------------------------------- |
-| `Dextree: Index Workspace`    | Index the current workspace                         |
-| `Dextree: Open Graph View`    | Open the interactive graph webview                  |
-| `Dextree: Export as Mermaid`  | Export the current graph view as a `.mmd` file      |
-| `Dextree: Show Blast Radius`  | Analyze impact of current branch vs `main` _(v0.2)_ |
-| `Dextree: Run Alfred Prompt…` | Run a prompt template against the graph _(v0.4)_    |
+Active slices are tagged [`status:in-progress`](https://github.com/dgtalbug/dextree/issues?q=is%3Aissue+label%3Astatus%3Ain-progress). Open issues ready for pickup are tagged [`status:specced`](https://github.com/dgtalbug/dextree/issues?q=is%3Aissue+label%3Astatus%3Aspecced).
+
+---
+
+## Why a code graph at all?
+
+Most code intelligence tools answer "what does this symbol do?" Dextree answers a different question: **"what depends on it, and what would break if I change it?"**
+
+That sounds obvious. It isn't — because the answer requires:
+
+1. A **structural graph** of every file in the repo (Tree-sitter pass)
+2. A **semantic graph** with type-accurate edges (LSP pass)
+3. **Live context** from your editor: diagnostics, blame, test discovery
+4. A **query engine** fast enough to answer in milliseconds
+
+Everyone has one or two. Dextree has all four, fused into one DuckDB file. No server, no daemon, no `tsserver` of doom — just an embedded graph that knows your code the way you do.
+
+The full architectural pitch is in [.dextree/design.md](.dextree/design.md).
+
+---
+
+## Quickstart — when v0.1 ships
+
+```bash
+# In VS Code
+Cmd+P → ext install dextree
+
+# In your project
+Cmd+Shift+P → Dextree: Index Workspace
+```
+
+That's it. Open the graph view, click any node, follow the call edges.
+
+> Want it sooner? See [Development](#development) — clone, build, and you have it locally today.
+
+---
+
+## Commands
+
+| Command                       | What it does                                              |
+| ----------------------------- | --------------------------------------------------------- |
+| `Dextree: Index Workspace`    | Index the current workspace into the embedded graph       |
+| `Dextree: Open Graph View`    | Open the interactive WebGL graph webview                  |
+| `Dextree: Export as Mermaid`  | Export the current view as a `.mmd` file                  |
+| `Dextree: Show Blast Radius`  | Analyze impact of current branch vs `main` _(v0.2)_       |
+| `Dextree: Run Alfred Prompt…` | Run a markdown prompt template against the graph _(v0.4)_ |
 
 ---
 
 ## Configuration
 
-Key settings (full list in the [design doc](.dextree/design.md) §9.2):
+<details>
+<summary>Settings reference</summary>
 
 ```jsonc
 {
-  // Indexing
   "dextree.indexing.languages": ["typescript", "javascript", "python"],
   "dextree.indexing.autoIndex": true,
 
-  // Blast radius
   "dextree.blastRadius.coreFanInThreshold": 10,
   "dextree.blastRadius.coreFilePatterns": ["**/auth/**", "**/core/index.*"],
   "dextree.blastRadius.maxHops": 5,
 
-  // Alfred (opt-in LLM — disabled by default)
-  "dextree.alfred.enabled": false,
+  "dextree.alfred.enabled": false, // opt-in LLM, off by default
   "dextree.alfred.provider": "anthropic", // anthropic | openai | ollama
   "dextree.alfred.model": "claude-sonnet-4-6",
   // API key stored in VS Code SecretStorage — never in settings
 }
 ```
 
+Full settings reference: [.dextree/design.md §9.2](.dextree/design.md)
+
+</details>
+
 ---
 
 ## Development
 
-This project is built fully agentically — Claude Code Workspace handles implementation, GitHub Copilot handles review and docs, GitHub Actions handles CI and release. See [.dextree/build.md](.dextree/build.md) for the full operations manual.
-
-For the incremental slice order and the spec-to-code workflow, see [ROADMAP.md](ROADMAP.md).
-
-### Prerequisites
-
-- Node.js >= 22.0.0
-- pnpm 11.1.2
-- VS Code >= 1.85
-
-### Setup
+Dextree is built **spec-first**. Every change starts as a spec in `specs/NNN-<slice>/`, gets a plan + task breakdown, and only then turns into code. Any agent — Claude, Copilot, or a human — can pick up a spec and implement it. The spec is the contract; the agent is interchangeable. See [.dextree/build.md](.dextree/build.md) for the operations manual.
 
 ```bash
 git clone https://github.com/dgtalbug/dextree
@@ -116,17 +162,16 @@ pnpm install
 pnpm build
 ```
 
-### Scripts
+| Script           | What it does              |
+| ---------------- | ------------------------- |
+| `pnpm dev`       | watch mode (all packages) |
+| `pnpm build`     | build all packages        |
+| `pnpm test`      | vitest, all packages      |
+| `pnpm typecheck` | tsc, all packages         |
+| `pnpm lint`      | ESLint, all packages      |
 
-```bash
-pnpm dev          # watch mode (all packages)
-pnpm build        # build all packages
-pnpm test         # run all tests (vitest)
-pnpm typecheck    # TypeScript check (all packages)
-pnpm lint         # ESLint (all packages)
-```
-
-### Project structure
+<details>
+<summary>Project structure</summary>
 
 ```
 packages/
@@ -137,46 +182,40 @@ packages/
   mcp/         — MCP server
   cli/         — dextree CLI
   web/         — Vite-embeddable component
+specs/         — slice specs (one folder per slice: spec.md, plan.md, tasks.md)
 .dextree/      — design doc, rules, build playbook, alfred prompts
-.specify/      — specs (managed by SpecKit)
-.claude/       — Claude Code sub-agent definitions
+.specify/      — spec toolchain internals
+.claude/       — repo-local Claude sub-agent definitions
+.github/copilot-instructions.md  — Copilot agent guidance
 ```
 
-Full architecture: [.dextree/design.md](.dextree/design.md)
+</details>
 
 ### Contributing a slice
 
 1. Read [.dextree/build.md](.dextree/build.md)
-2. Find an open issue tagged `type:slice` and `status:specced`
-3. Comment `@claude implement this` to trigger the agent, or clone and run locally
+2. Find an open issue tagged [`type:slice`](https://github.com/dgtalbug/dextree/issues?q=label%3Atype%3Aslice) and [`status:specced`](https://github.com/dgtalbug/dextree/issues?q=label%3Astatus%3Aspecced) — each links to a spec under [`specs/`](specs/)
+3. Pick it up locally (fork → branch → PR), or comment `@claude implement this` / `@copilot implement this` to dispatch an agent
 
 ---
 
 ## Architecture
 
-Dextree uses a two-pass indexing model over a single DuckDB graph:
+Two-pass indexing over one DuckDB graph:
 
-- **Pass 1** — Tree-sitter WASM parses all files structurally (<1 second for most projects). Graph is immediately usable.
-- **Pass 2** — LSP-driven semantic enrichment runs lazily in the background. Type-accurate call edges, resolved references, and framework annotations upgrade the pass-1 graph in place.
+- **Pass 1** — Tree-sitter WASM parses every file structurally. Graph is usable in under a second.
+- **Pass 2** — LSP semantic enrichment runs lazily in the background. Type-accurate call edges, resolved references, framework annotations upgrade the pass-1 graph in place.
 
-Storage: **DuckDB + DuckPGQ** (ISO SQL:2023 graph queries) + **`vss`** (HNSW vector index, opt-in) + **`fts`** (full-text symbol search). One embedded file, no external services.
+Storage: **DuckDB + DuckPGQ** (ISO SQL:2023 graph queries) + **`vss`** (HNSW vector index, opt-in) + **`fts`** (symbol search). One embedded file. No server. No daemon.
 
-The real architectural moat is VS Code data fusion: the graph is enriched with live diagnostics, git blame, and test discovery that headless tools can't access. See [.dextree/design.md §6](.dextree/design.md#6-vs-code-data-sources-beyond-tree-sitter--the-moat).
+The moat is editor fusion — live diagnostics, blame, test discovery — that headless tools simply can't see. Full pitch in [.dextree/design.md §6](.dextree/design.md).
 
 ---
 
 ## License
 
-MIT © 2026 @dgtalbug
+MIT © 2026 [@dgtalbug](https://github.com/dgtalbug)
 
----
+## Built on
 
-## Acknowledgements
-
-Built on the shoulders of:
-
-- [Sigma.js](https://www.sigmajs.org/) + [graphology](https://graphology.github.io/) — graph rendering
-- [DuckDB](https://duckdb.org/) + [DuckPGQ](https://duckpgq.org/) — embedded graph database
-- [web-tree-sitter](https://github.com/tree-sitter/tree-sitter) — WASM parsing
-- [Framer Motion](https://www.framer.com/motion/) — animation
-- [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) — MCP
+[Sigma.js](https://www.sigmajs.org/) · [graphology](https://graphology.github.io/) · [DuckDB](https://duckdb.org/) · [DuckPGQ](https://duckpgq.org/) · [web-tree-sitter](https://github.com/tree-sitter/tree-sitter) · [Framer Motion](https://www.framer.com/motion/) · [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk)
