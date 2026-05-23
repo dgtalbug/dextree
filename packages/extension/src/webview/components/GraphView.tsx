@@ -7,7 +7,8 @@ import Sigma from "sigma";
 
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 
-const FADE_ALPHA = 0.16;
+// Keep faded nodes/edges very dim so only the hovered/selected cluster is prominent
+const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 
@@ -251,22 +252,27 @@ function initialPosition(
 
 const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
 const SYMBOL_SIZE_RANGE = { min: 5, max: 15, base: 7 } as const;
-const IMPORTS_EDGE_ALPHA = 0.28; // file→file: faint/dotted visual
 
-function toImportsColor(color: string): string {
-  const hexMatch = color.match(/^#([0-9a-f]{6})$/i);
-  if (hexMatch !== null) {
-    const hex = hexMatch[1] as string;
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${IMPORTS_EDGE_ALPHA})`;
-  }
-  const rgbaMatch = color.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
-  if (rgbaMatch !== null) {
-    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${IMPORTS_EDGE_ALPHA})`;
-  }
-  return color;
+/**
+ * Mix an edge color at `ratio` opacity against a background color to produce
+ * a faint-but-solid hex color that looks "dotted/ghost" without relying on
+ * WebGL per-pixel alpha blending (which Sigma 3 uses premultiplied mode for,
+ * making naive rgba() colors appear brighter rather than transparent).
+ */
+function mixWithBackground(color: string, bgColor: string, ratio: number): string {
+  const parseHexColor = (c: string): [number, number, number] | null => {
+    const m = c.match(/^#([0-9a-f]{6})$/i);
+    if (m === null) return null;
+    const h = m[1] as string;
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  };
+  const src = parseHexColor(color);
+  const bg = parseHexColor(bgColor);
+  if (src === null || bg === null) return color;
+  const r = Math.round(src[0] * ratio + bg[0] * (1 - ratio));
+  const g = Math.round(src[1] * ratio + bg[1] * (1 - ratio));
+  const b = Math.round(src[2] * ratio + bg[2] * (1 - ratio));
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
 function computeSizeBounds(nodes: GraphNode[]): { min: number; max: number } {
@@ -356,7 +362,12 @@ function buildGraph(
 
     try {
       const rawColor = edgeColor(edge.kind, colors);
-      const color = edge.kind === "IMPORTS" ? toImportsColor(rawColor) : rawColor;
+      // IMPORTS (file→file): mix at 22% against background → faint/ghost appearance.
+      // This avoids Sigma 3's premultiplied-alpha WebGL blending quirks.
+      const color =
+        edge.kind === "IMPORTS"
+          ? mixWithBackground(rawColor, colors.backgroundColor, 0.22)
+          : rawColor;
       const size = edgeSize(edge.kind);
       graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
         edgeKind: edge.kind,
@@ -744,7 +755,8 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
   graph.forEachEdge((edge, attributes) => {
     const kind = attributes.edgeKind as GraphEdge["kind"];
     const rawColor = edgeColor(kind, colors);
-    const color = kind === "IMPORTS" ? toImportsColor(rawColor) : rawColor;
+    const color =
+      kind === "IMPORTS" ? mixWithBackground(rawColor, colors.backgroundColor, 0.22) : rawColor;
     graph.mergeEdgeAttributes(edge, {
       color,
       baseColor: rawColor,
@@ -994,44 +1006,33 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       resizeObserver.observe(container);
 
       sigma.on("clickNode", (event) => {
-        const now = Date.now();
-        const last = lastClickRef.current;
-        const DOUBLE_CLICK_MS = 350;
-
-        if (last !== null && last.node === event.node && now - last.time <= DOUBLE_CLICK_MS) {
-          // Double-click on same node detected — navigate and cancel single-click selection
-          lastClickRef.current = null;
-          if (clickTimeoutRef.current !== null) {
-            window.clearTimeout(clickTimeoutRef.current);
-            clickTimeoutRef.current = null;
-          }
-          navigateToNode(event.node);
-          return;
-        }
-
-        // First click — record for potential double-click, and queue selection
-        lastClickRef.current = { node: event.node, time: now };
+        // Queue single-click selection; doubleClickNode cancels this if a double-click fires.
         if (clickTimeoutRef.current !== null) {
           window.clearTimeout(clickTimeoutRef.current);
         }
+        lastClickRef.current = { node: event.node, time: Date.now() };
         clickTimeoutRef.current = window.setTimeout(() => {
           clickTimeoutRef.current = null;
+          lastClickRef.current = null;
           selectNode(event.node);
         }, SINGLE_CLICK_DELAY_MS);
       });
 
-      // Suppress Sigma's built-in double-click zoom on nodes.
-      // The "doubleClickNode" event in Sigma 3 can miss if WebGL picking fails
-      // on the 2nd rapid click, so navigation is handled via clickNode above.
-      // We still need to prevent zoom via the stage-level doubleClick event
-      // when a node was recently double-clicked.
+      // doubleClickNode is the reliable Sigma 3 event for actual double-clicks.
+      // We prevent the built-in zoom and navigate to the node instead.
       sigma.on("doubleClickNode", (event) => {
+        // Cancel the pending single-click selection
         if (clickTimeoutRef.current !== null) {
           window.clearTimeout(clickTimeoutRef.current);
           clickTimeoutRef.current = null;
         }
+        lastClickRef.current = null;
+
+        // Prevent Sigma's built-in double-click zoom
         const preventable = event as unknown as { preventSigmaDefault?: () => void };
         preventable.preventSigmaDefault?.();
+
+        navigateToNode(event.node);
       });
 
       sigma.on("clickStage", () => {
