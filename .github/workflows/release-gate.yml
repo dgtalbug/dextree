@@ -1,0 +1,67 @@
+name: Release Gate
+
+# Sequential quality gate for every commit that lands on main.
+# Runs static-checks → test → package in strict order; writes a
+# human-readable pass/fail summary table to the run page.
+#
+# Required status check: Add "Release Gate / summary" in
+# GitHub → Settings → Branches → main → Branch protection rules.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    uses: ./.github/workflows/_static-checks.yml
+
+  test:
+    needs: static-checks
+    uses: ./.github/workflows/_test.yml
+    secrets: inherit
+
+  package:
+    needs: test
+    uses: ./.github/workflows/_package.yml
+
+  summary:
+    name: summary
+    needs: [static-checks, test, package]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write release gate report
+        run: |
+          SC="${{ needs.static-checks.result }}"
+          TEST="${{ needs.test.result }}"
+          PKG="${{ needs.package.result }}"
+
+          gate() {
+            [ "$1" = "success" ] && echo "✅ PASS" || echo "❌ FAIL"
+          }
+
+          overall="✅ Ready to release"
+          if [ "$SC" != "success" ] || [ "$TEST" != "success" ] || [ "$PKG" != "success" ]; then
+            overall="❌ Gate failed — see failed jobs above"
+          fi
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## 🚦 Release Gate Report
+
+          | Gate | Result |
+          |------|--------|
+          | static-checks | $(gate "$SC") |
+          | test + coverage | $(gate "$TEST") |
+          | .vsix package | $(gate "$PKG") |
+
+          **Overall**: $overall
+          EOF
