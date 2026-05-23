@@ -411,7 +411,7 @@ describe("GraphView", () => {
 
     // edge-calls (symbol-1 -> symbol-2) does not touch file-1, so it should fade
     const fadedEdge = settings.edgeReducer("edge-calls", { color: "rgb(255, 170, 90)" });
-    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.16\)/);
+    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.06\)/);
 
     const leaveNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "leaveNode")?.[1];
     leaveNodeHandler?.({});
@@ -447,6 +447,6 @@ describe("GraphView", () => {
     });
 
     expect(Number(selectedEdge.size)).toBeGreaterThan(1.8);
-    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.16\)/);
+    expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.06\)/);
   });
 });

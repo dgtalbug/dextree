@@ -9,6 +9,7 @@ import { detectLanguage } from "./parser/extractor.js";
 import { parseTypeScriptSource } from "./parser/parser.js";
 import { getAllFilesQuery } from "./query/files.js";
 import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
+import { querySessionSummary } from "./query/sessionSummary.js";
 import { getWorkspaceSubgraph } from "./query/subgraph.js";
 import { getSymbolsForFile } from "./query/symbols.js";
 import { clearAll, clearFile, clearWorkspace } from "./storage/clear.js";
@@ -24,15 +25,18 @@ import {
   type ClearWorkspaceSummary,
   type IndexResult,
   type Indexer,
+  type SessionSummary,
   type StoredFile,
   type StoredSymbol,
   type WorkspaceCacheIdentity,
 } from "./types.js";
 
+export { EmptyGraphError } from "./types.js";
 export type {
   ClearAllSummary,
   ClearFileSummary,
   ClearWorkspaceSummary,
+  EdgeKindCount,
   ExtractedFileRecord,
   ExtractedIndexData,
   FileRecord,
@@ -42,10 +46,12 @@ export type {
   GraphNodeType,
   IndexResult,
   Indexer,
+  SessionSummary,
   StoredFile,
   StoredSymbol,
   SymbolKind,
   SymbolRange,
+  TopFile,
   WorkspaceCacheIdentity,
   WorkspaceCacheInvalidReason,
   WorkspaceCacheLoadResult,
@@ -226,6 +232,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return getPresentEdgeKinds(database.connection, workspaceRoot);
+  }
+
+  async getSessionSummary(workspaceRoot: string): Promise<SessionSummary> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return querySessionSummary(database.connection, workspaceRoot);
   }
 
   async clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary> {

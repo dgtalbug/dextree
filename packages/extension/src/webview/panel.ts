@@ -182,6 +182,7 @@ async function navigateToSymbol(filePath: string, line: number): Promise<void> {
     await vscode.window.showTextDocument(doc, {
       selection: new vscode.Selection(position, position),
       preserveFocus: false,
+      viewColumn: vscode.ViewColumn.Beside,
     });
   } catch {
     await vscode.window.showErrorMessage(`Dextree: Could not open file ${filePath}`);

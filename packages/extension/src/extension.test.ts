@@ -13,7 +13,10 @@ const registerCommand = vi.fn((_command, handler) => ({
   dispose: vi.fn(),
   handler,
 }));
-const createTreeView = vi.fn(() => ({ dispose: vi.fn() }));
+const createTreeView = vi.fn(() => ({
+  dispose: vi.fn(),
+  onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
+}));
 const createDirectory = vi.fn();
 const findFiles = vi.fn();
 const getWorkspaceFolder = vi.fn();
@@ -125,6 +128,7 @@ describe("activate", () => {
     pushIndexing.mockReset();
     isPanelOpen.mockReset();
     resolveCacheIdentity.mockReset();
+    createTreeView.mockClear();
     withProgress.mockClear();
     isPanelOpen.mockReturnValue(false);
     resolveCacheIdentity.mockResolvedValue({

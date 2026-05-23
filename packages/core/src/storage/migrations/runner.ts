@@ -113,9 +113,18 @@ async function runMigration003(connection: DuckDBConnection): Promise<void> {
   // current nullability via information_schema BEFORE running ALTER — running it
   // unconditionally would either throw on fresh DBs (column already nullable)
   // or poison the migration's transaction.
+  //
+  // DuckDB refuses to ALTER a column while indexes reference that table, so we
+  // drop the three edge indexes first and recreate them after the ALTER.
   const targetIdIsNotNull = await columnIsNotNull(connection, "edge", "target_id");
   if (targetIdIsNotNull) {
+    await connection.run("DROP INDEX IF EXISTS idx_edge_source");
+    await connection.run("DROP INDEX IF EXISTS idx_edge_target");
+    await connection.run("DROP INDEX IF EXISTS idx_edge_kind");
     await connection.run("ALTER TABLE edge ALTER COLUMN target_id DROP NOT NULL");
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_edge_source ON edge(source_id)");
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_edge_target ON edge(target_id)");
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_edge_kind ON edge(kind)");
   }
 
   const callSiteExists = await tableExists(connection, "call_site");
