@@ -5,7 +5,7 @@ export class Animal {
 }
 
 export class Dog extends Animal {
-  speak(): string {
+  override speak(): string {
     return "woof";
   }
 }

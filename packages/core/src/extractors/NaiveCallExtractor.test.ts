@@ -24,6 +24,7 @@ async function makeInput(fixture: string): Promise<{ input: ExtractInput; cleanu
       source,
       tree,
       fileId: "test-file-id",
+      knownSymbols: [],
     },
     cleanup: () => tree.delete(),
   };
@@ -167,6 +168,7 @@ describe("NaiveCallExtractor", () => {
       source: "foo();",
       tree: null,
       fileId: "f1",
+      knownSymbols: [],
     });
     expect(result.edges).toEqual([]);
     expect(result.file).toBeNull();
@@ -182,6 +184,7 @@ describe("NaiveCallExtractor", () => {
       source: "foo()",
       tree: null,
       fileId: "f1",
+      knownSymbols: [],
     });
     expect(result.edges).toEqual([]);
   });

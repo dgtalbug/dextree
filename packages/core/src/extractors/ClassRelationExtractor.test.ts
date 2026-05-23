@@ -24,6 +24,7 @@ async function makeInput(fixture: string): Promise<{ input: ExtractInput; cleanu
       source,
       tree,
       fileId: "test-file-id",
+      knownSymbols: [],
     },
     cleanup: () => tree.delete(),
   };

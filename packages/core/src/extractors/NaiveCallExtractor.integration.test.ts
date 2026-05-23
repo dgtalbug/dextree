@@ -116,6 +116,7 @@ describe("NaiveCallExtractor integration (indexFile pipeline)", () => {
         source,
         tree,
         fileId: "test-file-id",
+        knownSymbols: [],
       };
 
       const result = await registry.run(input);
@@ -142,6 +143,7 @@ describe("NaiveCallExtractor integration (indexFile pipeline)", () => {
         source,
         tree,
         fileId: "f-smoke",
+        knownSymbols: [],
       });
 
       const callsEdges = result.edges.filter((e) => e.kind === "CALLS");
