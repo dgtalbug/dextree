@@ -2,6 +2,12 @@ name: Auto-merge Dependabot
 
 # Auto-merges Dependabot PRs that bump patch versions and pass all CI gates.
 # Major and minor bumps stay manual (per spec 005 Phase 3 FR-025).
+#
+# pull_request_target runs with write tokens even on fork PRs. We deliberately
+# do NOT check out the PR head — this workflow only reads dependabot metadata
+# via the API and calls `gh pr merge --auto` against the PR URL. No untrusted
+# PR code is executed. The `if: github.actor == 'dependabot[bot]'` guard makes
+# the workflow a no-op for every non-Dependabot PR.
 
 on:
   pull_request_target:

@@ -33,17 +33,16 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Setup workspace
-        uses: ./.github/actions/setup
       - name: Initialize CodeQL
         uses: github/codeql-action/init@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
         with:
           languages: ${{ matrix.language }}
+          # javascript-typescript extractor scans sources directly — no build
+          # required. build-mode: none skips trace setup and shaves ~30s.
+          build-mode: none
           # Use the security-extended query suite; default queries are
           # too narrow for an extension that bundles third-party WASM.
           queries: security-extended
-      - name: Build (for CodeQL trace)
-        run: pnpm build
       - name: Run CodeQL analysis
         uses: github/codeql-action/analyze@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
         with:

@@ -1,5 +1,10 @@
 name: PR title
 
+# pull_request_target runs with write tokens even on fork PRs. We deliberately
+# do NOT check out the PR head — this workflow only reads the PR title from
+# event metadata and never executes untrusted PR code. Permissions are
+# scoped read-only on pull-requests.
+
 on:
   pull_request_target:
     types:
