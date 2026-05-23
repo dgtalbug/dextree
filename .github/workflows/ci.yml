@@ -3,7 +3,7 @@ name: CI
 # Orchestrator. Calls each gate as a reusable workflow so the Checks tab
 # shows one expandable `CI` row with one pill per gate. Gate implementations
 # live in their own `_*.yml` files so each can also be invoked independently
-# (e.g. from `release.yml`) or manually.
+# (e.g. _link-check.yml is also called by link-check.yml on a weekly cron).
 #
 # To temporarily disable a gate, add `if: false` to its job below.
 
@@ -25,16 +25,19 @@ jobs:
   static-checks:
     uses: ./.github/workflows/_static-checks.yml
 
+  # build, test, and package all run in parallel. Each invokes `pnpm build`
+  # via turbo, which shares outputs across jobs through the turbo remote cache
+  # (see .github/actions/setup). Whichever job's build finishes first warms
+  # the cache for the others — a cold cache pays one real build, every
+  # subsequent run is a near-noop.
   build:
     uses: ./.github/workflows/_build.yml
 
   test:
-    needs: build
     uses: ./.github/workflows/_test.yml
     secrets: inherit
 
   package:
-    needs: build
     uses: ./.github/workflows/_package.yml
 
   dependency-review:

@@ -22,12 +22,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup
       - name: Turbo build
+        # Runs in parallel with `test` and `package`. The turbo remote cache
+        # (configured in setup composite) shares outputs across the three jobs
+        # — whichever finishes first warms the cache for the others.
         run: pnpm build
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dextree-build-dist
-          path: packages/*/dist
-          if-no-files-found: error
-          retention-days: 1
-          include-hidden-files: false
