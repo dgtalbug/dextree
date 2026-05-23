@@ -103,7 +103,8 @@ interface SigmaNodeDisplayData {
 
 type SigmaWithExtras = Sigma & {
   getNodeDisplayData?: (node: string) => SigmaNodeDisplayData | undefined;
-  graphToViewport?: (nodeId: string) => { x: number; y: number } | undefined;
+  // NOTE: graphToViewport is NOT re-declared here — Sigma already exposes
+  // graphToViewport(coords: {x,y}) on its prototype; do not shadow it.
   getCamera?: () => {
     animate?: (
       state: { x: number; y: number; ratio: number },
@@ -782,25 +783,24 @@ function drawClusterHulls(
 ): void {
   const ctx = canvas.getContext("2d");
   if (ctx === null) return;
-  const sigmaPlus = sigma as SigmaWithExtras;
-  if (typeof sigmaPlus.graphToViewport !== "function") return;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Group symbol nodes by filePath, collect viewport coordinates
+  // Group symbol nodes by filePath, collect viewport coordinates.
+  // sigma.graphToViewport takes graph-space {x,y} coords — NOT a node ID.
   const fileGroups = new Map<string, Array<{ x: number; y: number }>>();
   const fileColors = new Map<string, string>();
 
-  graph.forEachNode((nodeId, attrs) => {
+  graph.forEachNode((_nodeId, attrs) => {
     const a = attrs as GraphNodeAttributes;
     if (a.nodeKind === "file") {
       fileColors.set(String(a.filePath), String(a.baseColor ?? a.color));
       return;
     }
-    const vp = (sigmaPlus.graphToViewport as (id: string) => { x: number; y: number } | undefined)(
-      nodeId,
-    );
-    if (vp === undefined) return;
+    const gx = Number(a.x);
+    const gy = Number(a.y);
+    if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
+    const vp = sigma.graphToViewport({ x: gx, y: gy });
     const fp = String(a.filePath);
     let group = fileGroups.get(fp);
     if (group === undefined) {
@@ -1294,30 +1294,33 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       sigma.on("leaveNode", leaveNodeListener);
 
       sigma.on("afterRender", () => {
-        if (sigma === null) return;
-        const cc = clusterCanvasRef.current;
-        if (cc !== null) {
-          const hoveredFilePath =
-            hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
-              ? String(
-                  (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
-                    .filePath,
-                )
-              : null;
-          const selectedFilePath =
-            selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
-              ? String(
-                  (
-                    graph.getNodeAttributes(
-                      selectionRef.current.selectedNodeId,
-                    ) as GraphNodeAttributes
-                  ).filePath,
-                )
-              : null;
-          drawClusterHulls(graph, sigma, cc, hoveredFilePath, selectedFilePath);
-        }
-        if (minimapCanvasRef.current !== null && graph.order > 20) {
-          drawMinimap(graph, sigma, minimapCanvasRef.current, container);
+        try {
+          const cc = clusterCanvasRef.current;
+          if (cc !== null) {
+            const hoveredFilePath =
+              hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
+                ? String(
+                    (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
+                      .filePath,
+                  )
+                : null;
+            const selectedFilePath =
+              selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
+                ? String(
+                    (
+                      graph.getNodeAttributes(
+                        selectionRef.current.selectedNodeId,
+                      ) as GraphNodeAttributes
+                    ).filePath,
+                  )
+                : null;
+            drawClusterHulls(graph, sigma, cc, hoveredFilePath, selectedFilePath);
+          }
+          if (minimapCanvasRef.current !== null && graph.order > 20) {
+            drawMinimap(graph, sigma, minimapCanvasRef.current, container);
+          }
+        } catch (err) {
+          console.error("Dextree cluster/minimap draw failed", err);
         }
       });
 
