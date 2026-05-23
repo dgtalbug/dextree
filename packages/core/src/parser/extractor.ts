@@ -140,28 +140,63 @@ function expandedCandidates(basePath: string): string[] {
 /** Per-workspace-root cache of tsconfig `compilerOptions.paths` alias mappings. */
 const pathAliasCache = new Map<string, Map<string, string[]>>();
 
+/** Candidate tsconfig filenames to probe, in preference order. */
+const TSCONFIG_CANDIDATES = ["tsconfig.json", "tsconfig.base.json", "tsconfig.webview.json"];
+
+type TsConfigShape = {
+  compilerOptions?: { paths?: Record<string, string[]>; baseUrl?: string };
+  extends?: string;
+};
+
+async function parseTsConfigFile(filePath: string): Promise<TsConfigShape | null> {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    // Strip single-line comments before parsing (tsconfig allows them).
+    const stripped = raw.replace(/\/\/[^\n]*/g, "");
+    return JSON.parse(stripped) as TsConfigShape;
+  } catch {
+    return null;
+  }
+}
+
 async function loadPathAliases(workspaceRoot: string): Promise<Map<string, string[]>> {
   if (pathAliasCache.has(workspaceRoot)) {
     return pathAliasCache.get(workspaceRoot)!;
   }
   const result = new Map<string, string[]>();
-  try {
-    const tsconfigPath = join(workspaceRoot, "tsconfig.json");
-    const raw = await readFile(tsconfigPath, "utf8");
-    // Strip single-line comments before parsing (tsconfig allows them).
-    const stripped = raw.replace(/\/\/[^\n]*/g, "");
-    const parsed = JSON.parse(stripped) as {
-      compilerOptions?: { paths?: Record<string, string[]> };
-    };
+
+  for (const candidate of TSCONFIG_CANDIDATES) {
+    const tsconfigPath = join(workspaceRoot, candidate);
+    const parsed = await parseTsConfigFile(tsconfigPath);
+    if (parsed === null) continue;
+
+    // Follow `extends` chain (one level) to pick up base configs.
+    if (typeof parsed.extends === "string") {
+      const parentPath = resolve(dirname(tsconfigPath), parsed.extends);
+      const parentCandidates = [parentPath, `${parentPath}.json`];
+      for (const p of parentCandidates) {
+        const parent = await parseTsConfigFile(p);
+        if (parent?.compilerOptions?.paths) {
+          for (const [alias, targets] of Object.entries(parent.compilerOptions.paths)) {
+            if (Array.isArray(targets) && !result.has(alias)) {
+              result.set(alias, targets as string[]);
+            }
+          }
+        }
+      }
+    }
+
     const paths = parsed?.compilerOptions?.paths;
     if (paths !== null && typeof paths === "object") {
       for (const [alias, targets] of Object.entries(paths)) {
         if (Array.isArray(targets)) result.set(alias, targets as string[]);
       }
     }
-  } catch {
-    // tsconfig absent or malformed — fall through with empty map.
+
+    // Stop at the first tsconfig that exists (even if it has no paths).
+    break;
   }
+
   pathAliasCache.set(workspaceRoot, result);
   return result;
 }
