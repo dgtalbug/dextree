@@ -875,6 +875,56 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
      .dxt-minimap-toggle:hover {
        opacity: 1;
      }
+
+     .dxt-edge-filter-bar {
+       position: absolute;
+       top: 14px;
+       right: 14px;
+       display: flex;
+       flex-direction: column;
+       gap: 4px;
+       z-index: 11;
+       align-items: flex-end;
+     }
+
+     .dxt-edge-filter-pill {
+       display: flex;
+       align-items: center;
+       gap: 5px;
+       padding: 3px 9px 3px 6px;
+       border-radius: 99px;
+       border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.3));
+       background: var(--vscode-editor-background, #1e1e1e);
+       color: var(--vscode-foreground);
+       font-size: 11px;
+       line-height: 1.4;
+       cursor: pointer;
+       opacity: 0.85;
+       white-space: nowrap;
+     }
+
+     .dxt-edge-filter-pill:hover {
+       opacity: 1;
+       border-color: var(--vscode-focusBorder, rgba(128,128,128,0.6));
+     }
+
+     .dxt-edge-filter-pill--disabled {
+       opacity: 0.35;
+     }
+
+     .dxt-edge-filter-dot {
+       width: 8px;
+       height: 8px;
+       border-radius: 50%;
+       background: var(--pill-color, var(--vscode-foreground));
+       flex-shrink: 0;
+     }
+
+     .dxt-edge-filter-pill[data-kind="DEFINES"]      { --pill-color: var(--vscode-charts-blue,   #3794ff); }
+     .dxt-edge-filter-pill[data-kind="IMPORTS"]      { --pill-color: var(--vscode-charts-green,  #4ec9b0); }
+     .dxt-edge-filter-pill[data-kind="CALLS"]        { --pill-color: var(--vscode-charts-orange, #ce9178); }
+     .dxt-edge-filter-pill[data-kind="INHERITS"]     { --pill-color: var(--vscode-charts-purple, #c586c0); }
+     .dxt-edge-filter-pill[data-kind="INSTANTIATES"] { --pill-color: var(--vscode-charts-red,    #f44747); }
    </style>
 </head>
 <body>

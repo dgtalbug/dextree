@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, SymbolKind } from "@dextree/core";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { motion } from "framer-motion";
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import Sigma from "sigma";
 
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
@@ -257,18 +257,58 @@ function symbolColor(node: GraphNode, colors: ThemeColors): string {
   return colors.symbolKindColors.default;
 }
 
-function initialPosition(
-  index: number,
-  totalNodes: number,
-  nodeType: GraphNode["type"],
-): { x: number; y: number } {
-  const angle = (index / Math.max(totalNodes, 1)) * Math.PI * 2;
-  const radius = nodeType === "file" ? 1.15 : 0.68;
+function buildInitialPositions(nodes: GraphNode[]): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const fileNodes = nodes.filter((n) => n.type === "file");
+  const symbolNodes = nodes.filter((n) => n.type !== "file");
 
-  return {
-    x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius,
-  };
+  // Files evenly spaced around a large outer ring so FA2 starts with them spread apart.
+  const FILE_RADIUS = 1.8;
+  const filePosByPath = new Map<string, { x: number; y: number }>();
+  for (const [fi, file] of fileNodes.entries()) {
+    const angle = (fi / Math.max(fileNodes.length, 1)) * Math.PI * 2;
+    const pos = { x: Math.cos(angle) * FILE_RADIUS, y: Math.sin(angle) * FILE_RADIUS };
+    positions.set(file.id, pos);
+    filePosByPath.set(file.filePath, pos);
+  }
+
+  // Group symbols by their source file so we can fan them around the file's seed position.
+  const symsByFile = new Map<string, GraphNode[]>();
+  for (const sym of symbolNodes) {
+    const arr = symsByFile.get(sym.filePath);
+    if (arr === undefined) {
+      symsByFile.set(sym.filePath, [sym]);
+    } else {
+      arr.push(sym);
+    }
+  }
+
+  // Symbols radiate outward from their parent file in a tight arc.  FA2 then pulls the
+  // whole cluster together, keeping related symbols visually near their file node.
+  const SYM_RING = 0.55;
+  const symIndexInFile = new Map<string, number>();
+  let orphanIndex = 0;
+  for (const sym of symbolNodes) {
+    const filePos = filePosByPath.get(sym.filePath);
+    const bucket = symsByFile.get(sym.filePath)!;
+    const si = symIndexInFile.get(sym.filePath) ?? 0;
+    symIndexInFile.set(sym.filePath, si + 1);
+
+    if (filePos !== undefined) {
+      const angle = (si / Math.max(bucket.length, 1)) * Math.PI * 2;
+      positions.set(sym.id, {
+        x: filePos.x + Math.cos(angle) * SYM_RING,
+        y: filePos.y + Math.sin(angle) * SYM_RING,
+      });
+    } else {
+      // Orphaned symbol (no matching file node) — place in inner ring.
+      const angle = (orphanIndex / Math.max(symbolNodes.length, 1)) * Math.PI * 2;
+      positions.set(sym.id, { x: Math.cos(angle) * 0.8, y: Math.sin(angle) * 0.8 });
+      orphanIndex++;
+    }
+  }
+
+  return positions;
 }
 
 const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
@@ -344,18 +384,20 @@ function buildGraph(
   colors: ThemeColors,
 ): MultiDirectedGraph {
   const graph = new MultiDirectedGraph();
-  const totalNodes = Math.max(nodes.length, 1);
   const seenNodeIds = new Set<string>();
   const seenEdgeIds = new Set<string>();
   const importanceBounds = computeSizeBounds(nodes);
   let generatedEdgeIndex = 0;
 
-  for (const [index, node] of nodes.entries()) {
+  // Pre-compute clustered initial positions (symbols near their parent file).
+  const initialPositions = buildInitialPositions(nodes);
+
+  for (const node of nodes) {
     if (node.id.trim() === "" || seenNodeIds.has(node.id)) {
       continue;
     }
 
-    const position = initialPosition(index, totalNodes, node.type);
+    const position = initialPositions.get(node.id) ?? { x: 0, y: 0 };
     const color = symbolColor(node, colors);
     const size = sizeForNode(node, importanceBounds);
     seenNodeIds.add(node.id);
@@ -646,6 +688,52 @@ function StaticGraphFallback({
           </ul>
         </div>
       </div>
+    </div>
+  );
+}
+
+const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
+  DEFINES: "Defines",
+  IMPORTS: "Imports",
+  CALLS: "Calls",
+  INHERITS: "Inherits",
+  INSTANTIATES: "New",
+};
+
+const ALL_EDGE_KINDS: GraphEdge["kind"][] = [
+  "DEFINES",
+  "IMPORTS",
+  "CALLS",
+  "INHERITS",
+  "INSTANTIATES",
+];
+
+function EdgeFilterBar({
+  hiddenKinds,
+  onToggle,
+}: {
+  hiddenKinds: Set<GraphEdge["kind"]>;
+  onToggle: (kind: GraphEdge["kind"]) => void;
+}) {
+  return (
+    <div className="dxt-edge-filter-bar" role="toolbar" aria-label="Edge type filters">
+      {ALL_EDGE_KINDS.map((kind) => {
+        const active = !hiddenKinds.has(kind);
+        return (
+          <button
+            key={kind}
+            type="button"
+            className={`dxt-edge-filter-pill${active ? "" : " dxt-edge-filter-pill--disabled"}`}
+            data-kind={kind}
+            onClick={() => onToggle(kind)}
+            aria-pressed={active}
+            title={`${active ? "Hide" : "Show"} ${EDGE_KIND_LABELS[kind]} edges`}
+          >
+            <span className="dxt-edge-filter-dot" aria-hidden="true" />
+            {EDGE_KIND_LABELS[kind]}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1055,6 +1143,20 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
+  const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(new Set());
+  const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
+
+  const toggleEdgeKind = useCallback((kind: GraphEdge["kind"]) => {
+    setHiddenEdgeKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) {
+        next.delete(kind);
+      } else {
+        next.add(kind);
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setSelectedNodeId(null);
@@ -1183,13 +1285,14 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       if (graph.order > 0) {
         try {
           forceAtlas2.assign(graph, {
-            iterations: 120,
+            iterations: 200,
             settings: {
-              gravity: 3.5,
-              scalingRatio: 4,
-              slowDown: 2,
+              gravity: 1.8,
+              scalingRatio: 6,
+              slowDown: 3,
               barnesHutOptimize: true,
               barnesHutTheta: 0.5,
+              linLogMode: true,
             },
           });
           stabilizeFileAnchors(graph);
@@ -1238,6 +1341,13 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
         edgeReducer: (edge, data) => {
           const hover = hoverRef.current;
           const selection = selectionRef.current;
+          const edgeAttrs = data as GraphEdgeAttributes;
+
+          // Hide edges whose kind is toggled off by the filter bar.
+          if (hiddenEdgeKindsRef.current.has(edgeAttrs.edgeKind)) {
+            return { ...data, hidden: true };
+          }
+
           const activeFocus = hover ?? selection;
 
           if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
@@ -1401,6 +1511,15 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     setOverlaySegments(createOverlaySegments(graph, sigma, selectionRef.current));
   }, [selectedNodeId]);
 
+  // Sync hidden-edge-kinds ref so the edgeReducer (created once in the Sigma effect) can
+  // read the current filter without being recreated.  Then refresh Sigma to re-run reducers.
+  useEffect(() => {
+    hiddenEdgeKindsRef.current = hiddenEdgeKinds;
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [hiddenEdgeKinds]);
   if (fallbackGraph !== null) {
     return <StaticGraphFallback fallbackGraph={fallbackGraph} onNavigate={onNavigate} />;
   }
@@ -1569,6 +1688,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
           </div>
         )}
 
+        <EdgeFilterBar hiddenKinds={hiddenEdgeKinds} onToggle={toggleEdgeKind} />
         <canvas
           className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}
           ref={minimapCanvasRef}
