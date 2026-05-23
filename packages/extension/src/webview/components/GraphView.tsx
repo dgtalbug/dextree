@@ -22,6 +22,8 @@ interface ThemeColors {
   definesEdgeColor: string;
   importsEdgeColor: string;
   callsEdgeColor: string;
+  inheritsEdgeColor: string;
+  instantiatesEdgeColor: string;
 }
 
 interface GraphViewProps {
@@ -178,6 +180,8 @@ function readThemeColors(): ThemeColors {
     definesEdgeColor: styles.getPropertyValue("--vscode-charts-blue").trim() || foreground,
     importsEdgeColor: styles.getPropertyValue("--vscode-charts-green").trim() || foreground,
     callsEdgeColor: styles.getPropertyValue("--vscode-charts-orange").trim() || foreground,
+    inheritsEdgeColor: styles.getPropertyValue("--vscode-charts-purple").trim() || foreground,
+    instantiatesEdgeColor: styles.getPropertyValue("--vscode-charts-red").trim() || foreground,
   };
 }
 
@@ -208,6 +212,10 @@ function edgeColor(kind: GraphEdge["kind"], colors: ThemeColors): string {
       return colors.importsEdgeColor;
     case "CALLS":
       return colors.callsEdgeColor;
+    case "INHERITS":
+      return colors.inheritsEdgeColor;
+    case "INSTANTIATES":
+      return colors.instantiatesEdgeColor;
     default:
       return colors.definesEdgeColor;
   }
@@ -219,6 +227,10 @@ function edgeSize(kind: GraphEdge["kind"]): number {
       return 2.2; // file→symbol: solid bold
     case "CALLS":
       return 1.8;
+    case "INHERITS":
+      return 2.0; // class hierarchy: prominent
+    case "INSTANTIATES":
+      return 1.6;
     case "IMPORTS":
     default:
       return 1.4; // file→file: visible arc connecting file nodes

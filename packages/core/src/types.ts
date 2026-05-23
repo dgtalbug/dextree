@@ -44,7 +44,7 @@ export type SymbolKind = "function" | "class" | "interface" | "type" | "enum" | 
 
 export type GraphNodeType = "file" | "symbol";
 
-export type GraphEdgeKind = "DEFINES" | "IMPORTS" | "CALLS";
+export type GraphEdgeKind = "DEFINES" | "IMPORTS" | "CALLS" | "INHERITS" | "INSTANTIATES";
 
 export interface SymbolRange {
   startLine: number;

@@ -273,26 +273,28 @@ function remapExtraEdges(
 }
 
 /**
- * SQL post-pass that resolves CALLS edge source_id and target_id after the
- * symbols and edges for `fileId` have been inserted.
+ * SQL post-pass that resolves source_id and target_id for extractor-emitted
+ * relational edges (CALLS, INHERITS, INSTANTIATES) after the symbols and edges
+ * for `fileId` have been inserted.
  *
- * Why this is needed: `NaiveCallExtractor` cannot know the symbol UUIDs that
- * `BaselineTsJsExtractor` will mint (both use random uuidv4). Instead, the
- * call extractor writes a stable `source_fqn` (e.g. `"src/foo.ts:myFn"`) and
- * `callee_name` into edge metadata, then this step resolves them against the
- * just-written `symbol` rows using an indexed FQN/name lookup.
+ * Why this is needed: NaiveCallExtractor and ClassRelationExtractor cannot know
+ * the symbol UUIDs minted by BaselineTsJsExtractor (both use random uuidv4).
+ * Instead they write a stable `source_fqn` (e.g. `"src/foo.ts:MyClass"`) and a
+ * target-name key (`callee_name` / `parent_name` / `class_name`) into edge
+ * metadata. This step resolves them against the just-written `symbol` rows.
  *
- * Step 1 — source_id: edges where source_id equals the file UUID placeholder
- * are updated to the matching symbol's id via symbol.fqn = source_fqn.
- * If no FQN match is found (module-scope call), the edge keeps file-level
- * source_id — COALESCE prevents a NULL write.
+ * Step 1 — source_id: all three kinds have `source_fqn` in metadata. Edges
+ * whose source_id still equals the file UUID placeholder are updated to the
+ * matching symbol's id. Falls back to file-level id (via COALESCE) when the
+ * call/instantiation is at module scope.
  *
- * Step 2 — target_id: edges whose source was just resolved (source in this
- * file's symbols) get their target resolved by callee_name + kind filter
- * (function, method, class). Cross-file callees remain null for pass-2.
+ * Step 2 — target_id: the per-kind metadata key names the target symbol. Same-
+ * file targets are resolved immediately; cross-file targets remain null (pass-2).
  */
 async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: string): Promise<void> {
-  // Step 1: source_id → actual symbol id, keyed by source_fqn
+  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES')`;
+
+  // Step 1: source_id → actual symbol id, keyed by source_fqn (all kinds share this)
   await connection.run(
     `
       UPDATE edge
@@ -305,13 +307,13 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
         ),
         source_id
       )
-      WHERE kind = 'CALLS'
+      WHERE kind IN ${RELATIONAL_KINDS}
         AND source_id = $file_id
     `,
     { file_id: fileId },
   );
 
-  // Step 2: target_id → same-file symbol id, keyed by callee_name
+  // Step 2a (CALLS): target_id → same-file symbol by callee_name
   await connection.run(
     `
       UPDATE edge
@@ -326,6 +328,48 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
         target_id
       )
       WHERE kind = 'CALLS'
+        AND target_id IS NULL
+        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
+    `,
+    { file_id: fileId },
+  );
+
+  // Step 2b (INHERITS): target_id → same-file class by parent_name
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = COALESCE(
+        (
+          SELECT s.id FROM symbol s
+          WHERE s.file_id = $file_id
+            AND s.name = json_extract_string(edge.metadata, '$.parent_name')
+            AND s.kind = 'class'
+          LIMIT 1
+        ),
+        target_id
+      )
+      WHERE kind = 'INHERITS'
+        AND target_id IS NULL
+        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
+    `,
+    { file_id: fileId },
+  );
+
+  // Step 2c (INSTANTIATES): target_id → same-file class by class_name
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = COALESCE(
+        (
+          SELECT s.id FROM symbol s
+          WHERE s.file_id = $file_id
+            AND s.name = json_extract_string(edge.metadata, '$.class_name')
+            AND s.kind = 'class'
+          LIMIT 1
+        ),
+        target_id
+      )
+      WHERE kind = 'INSTANTIATES'
         AND target_id IS NULL
         AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
     `,
