@@ -210,12 +210,12 @@ function edgeColor(kind: GraphEdge["kind"], colors: ThemeColors): string {
 function edgeSize(kind: GraphEdge["kind"]): number {
   switch (kind) {
     case "IMPORTS":
-      return 2.7;
+      return 2.8;
     case "CALLS":
       return 1.8;
     case "DEFINES":
     default:
-      return 2.2;
+      return 0.9;
   }
 }
 
@@ -251,6 +251,23 @@ function initialPosition(
 
 const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
 const SYMBOL_SIZE_RANGE = { min: 5, max: 15, base: 7 } as const;
+const DEFINES_EDGE_ALPHA = 0.32;
+
+function toDefinesColor(color: string): string {
+  const hexMatch = color.match(/^#([0-9a-f]{6})$/i);
+  if (hexMatch !== null) {
+    const hex = hexMatch[1] as string;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${DEFINES_EDGE_ALPHA})`;
+  }
+  const rgbaMatch = color.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+  if (rgbaMatch !== null) {
+    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${DEFINES_EDGE_ALPHA})`;
+  }
+  return color;
+}
 
 function computeSizeBounds(nodes: GraphNode[]): { min: number; max: number } {
   let min = Number.POSITIVE_INFINITY;
@@ -338,12 +355,13 @@ function buildGraph(
     seenEdgeIds.add(edgeId);
 
     try {
-      const color = edgeColor(edge.kind, colors);
+      const rawColor = edgeColor(edge.kind, colors);
+      const color = edge.kind === "DEFINES" ? toDefinesColor(rawColor) : rawColor;
       const size = edgeSize(edge.kind);
       graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
         edgeKind: edge.kind,
         color,
-        baseColor: color,
+        baseColor: rawColor,
         size,
         baseSize: size,
       } satisfies GraphEdgeAttributes);
@@ -762,6 +780,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
   const graphRef = useRef<MultiDirectedGraph | null>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const hoverRef = useRef<HoverNeighborhood | null>(null);
+  const hoverSelectionRef = useRef<SelectionTraversal | null>(null);
   const selectionRef = useRef<SelectionTraversal | null>(null);
   const clickTimeoutRef = useRef<number | null>(null);
   const reducedMotion = useReducedMotionPreference();
@@ -775,6 +794,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     setSelectedNodeId(null);
     selectionRef.current = null;
     hoverRef.current = null;
+    hoverSelectionRef.current = null;
     setOverlaySegments([]);
   }, [edges, nodes]);
 
@@ -808,15 +828,31 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
 
     const enterNodeListener = (event: { node: string }): void => {
       hoverRef.current = computeHoverNeighborhood(graph, event.node);
+      hoverSelectionRef.current = computeDescendantSelection(graph, event.node);
       if (sigma !== null) {
         refreshSigma(sigma);
+        // Show animated edge overlay on hover when nothing is selected
+        if (selectionRef.current === null) {
+          setOverlaySegments(
+            createOverlaySegments(graphRef.current ?? graph, sigma, hoverSelectionRef.current),
+          );
+        }
       }
     };
 
     const leaveNodeListener = (): void => {
       hoverRef.current = null;
+      hoverSelectionRef.current = null;
       if (sigma !== null) {
         refreshSigma(sigma);
+        // Restore selection overlay or clear
+        if (selectionRef.current === null) {
+          setOverlaySegments([]);
+        } else {
+          setOverlaySegments(
+            createOverlaySegments(graphRef.current ?? graph, sigma, selectionRef.current),
+          );
+        }
       }
     };
 
@@ -887,6 +923,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
         defaultNodeType: "circle",
         defaultEdgeType: "line",
         defaultEdgeColor: colors.definesEdgeColor,
+        enableEdgeEvents: true,
         nodeReducer: (node, data) => {
           const hover = hoverRef.current;
           const selection = selectionRef.current;
@@ -964,6 +1001,10 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
           window.clearTimeout(clickTimeoutRef.current);
           clickTimeoutRef.current = null;
         }
+
+        // Prevent Sigma's built-in double-click zoom from firing alongside navigate
+        const preventable = event as unknown as { preventSigmaDefault?: () => void };
+        preventable.preventSigmaDefault?.();
 
         navigateToNode(event.node);
       });

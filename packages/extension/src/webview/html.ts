@@ -89,15 +89,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        overflow: hidden;
        border: 1px solid var(--vscode-panel-border, transparent);
        border-radius: 8px;
-       background:
-         radial-gradient(circle at 16% 14%, color-mix(in srgb, var(--vscode-symbolIcon-fileForeground) 22%, transparent), transparent 40%),
-         radial-gradient(circle at 84% 22%, color-mix(in srgb, var(--vscode-charts-green) 20%, transparent), transparent 42%),
-         radial-gradient(circle at 52% 88%, color-mix(in srgb, var(--vscode-charts-orange) 16%, transparent), transparent 46%),
-         linear-gradient(
-           180deg,
-           color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-foreground) 12%),
-           color-mix(in srgb, var(--vscode-editor-background) 96%, var(--vscode-foreground) 4%)
-         );
+       background: var(--vscode-editor-background);
      }
 
      .dxt-graph-stage::before,
@@ -110,15 +102,15 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
 
      .dxt-graph-stage::before {
        background-image:
-         radial-gradient(circle, color-mix(in srgb, var(--vscode-foreground) 18%, transparent) 0.75px, transparent 0.75px);
-       background-size: 20px 20px;
-       opacity: 0.2;
+         radial-gradient(circle, color-mix(in srgb, var(--vscode-foreground) 22%, transparent) 0.8px, transparent 0.8px);
+       background-size: 18px 18px;
+       opacity: 0.14;
      }
 
      .dxt-graph-stage::after {
        background:
-         radial-gradient(circle at center, transparent 42%, color-mix(in srgb, var(--vscode-editor-background) 76%, transparent) 100%);
-       opacity: 0.9;
+         radial-gradient(circle at center, transparent 55%, color-mix(in srgb, var(--vscode-editor-background) 65%, transparent) 100%);
+       opacity: 0.7;
      }
 
      .dxt-graph-scaffold {
@@ -291,7 +283,26 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
          );
      }
 
-     .dxt-index-rail-header,
+     .dxt-graph-pulse {
+       display: block;
+       width: 100%;
+       height: 72px;
+       margin-bottom: 4px;
+     }
+
+     .dxt-pulse-edge {
+       stroke: color-mix(in srgb, var(--vscode-charts-blue) 60%, var(--vscode-foreground) 40%);
+       stroke-width: 0.9;
+       fill: none;
+       opacity: 0.55;
+     }
+
+     .dxt-pulse-node {
+       fill: var(--vscode-charts-blue);
+       opacity: 0.75;
+     }
+
+          .dxt-index-rail-header,
      .dxt-index-meta {
        display: flex;
        align-items: center;
@@ -710,6 +721,16 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
 
      .dxt-panel-button-danger:hover:not(:disabled) {
        background: color-mix(in srgb, var(--vscode-inputValidation-errorBorder, #f44) 28%, var(--vscode-editor-background) 72%);
+     }
+
+     .dxt-panel-button-active {
+       background: color-mix(in srgb, var(--vscode-charts-blue) 22%, var(--vscode-editor-background) 78%);
+       border-color: color-mix(in srgb, var(--vscode-charts-blue) 45%, transparent);
+       color: var(--vscode-charts-blue, var(--vscode-foreground));
+     }
+
+     .dxt-panel-button-active:hover:not(:disabled) {
+       background: color-mix(in srgb, var(--vscode-charts-blue) 32%, var(--vscode-editor-background) 68%);
      }
 
      @media (max-width: 720px) {

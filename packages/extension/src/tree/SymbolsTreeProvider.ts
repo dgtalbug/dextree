@@ -72,7 +72,10 @@ export class TreeFileNode {
   readonly kind = "file" as const;
   readonly treeItem: vscode.TreeItem;
 
-  constructor(readonly file: StoredFile) {
+  constructor(
+    readonly file: StoredFile,
+    workspaceUri?: vscode.Uri,
+  ) {
     const item = new vscode.TreeItem(
       basename(file.relativePath),
       vscode.TreeItemCollapsibleState.Collapsed,
@@ -80,6 +83,16 @@ export class TreeFileNode {
     item.description = file.relativePath;
     item.tooltip = file.relativePath;
     item.contextValue = "dextreeFile";
+
+    if (workspaceUri !== undefined) {
+      const fileUri = vscode.Uri.joinPath(workspaceUri, file.relativePath);
+      item.command = {
+        command: "vscode.open",
+        title: "Open File",
+        arguments: [fileUri],
+      };
+    }
+
     this.treeItem = item;
   }
 }
@@ -118,7 +131,7 @@ export type TreeNode = TreeActionNode | TreeDirNode | TreeFileNode | TreeSymbolN
  * Recursively groups files into a directory tree.
  * Each path segment becomes a TreeDirNode; leaf files become TreeFileNodes.
  */
-function buildDirTree(files: StoredFile[], prefix: string): TreeNode[] {
+function buildDirTree(files: StoredFile[], prefix: string, workspaceUri?: vscode.Uri): TreeNode[] {
   const dirMap = new Map<string, StoredFile[]>();
   const rootFiles: StoredFile[] = [];
 
@@ -141,16 +154,19 @@ function buildDirTree(files: StoredFile[], prefix: string): TreeNode[] {
   const nodes: TreeNode[] = [];
   for (const [segment, segFiles] of dirMap) {
     const childPrefix = prefix ? `${prefix}/${segment}` : segment;
-    nodes.push(new TreeDirNode(segment, buildDirTree(segFiles, childPrefix)));
+    nodes.push(new TreeDirNode(segment, buildDirTree(segFiles, childPrefix, workspaceUri)));
   }
   for (const file of rootFiles) {
-    nodes.push(new TreeFileNode(file));
+    nodes.push(new TreeFileNode(file, workspaceUri));
   }
   return nodes;
 }
 
-function buildRootTree(files: StoredFile[]): TreeNode[] {
-  return [...ROOT_ACTIONS.map((action) => new TreeActionNode(action)), ...buildDirTree(files, "")];
+function buildRootTree(files: StoredFile[], workspaceUri?: vscode.Uri): TreeNode[] {
+  return [
+    ...ROOT_ACTIONS.map((action) => new TreeActionNode(action)),
+    ...buildDirTree(files, "", workspaceUri),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -186,8 +202,9 @@ export class SymbolsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         return buildRootTree([]);
       }
       try {
+        const workspaceUri = this.getWorkspaceUri();
         const files = await indexer.getAllFiles();
-        return buildRootTree(files);
+        return buildRootTree(files, workspaceUri);
       } catch (error) {
         this.logger.error("Failed to load indexed files", error);
         return buildRootTree([]);
