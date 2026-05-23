@@ -40,7 +40,7 @@
     "lint:fix": "eslint --fix \"packages/**/*.ts\"",
     "package": "pnpm --filter dextree run package",
     "test": "turbo run test",
-    "test:coverage": "turbo run build && vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "turbo run typecheck"
   },
   "pnpm": {

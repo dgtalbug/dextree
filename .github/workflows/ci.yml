@@ -22,27 +22,23 @@ permissions:
   pull-requests: write
 
 jobs:
-  format:
-    uses: ./.github/workflows/_format.yml
-
-  lint:
-    uses: ./.github/workflows/_lint.yml
-
-  typecheck:
-    uses: ./.github/workflows/_typecheck.yml
-
-  test:
-    uses: ./.github/workflows/_test.yml
-    secrets: inherit
+  static-checks:
+    uses: ./.github/workflows/_static-checks.yml
 
   build:
     uses: ./.github/workflows/_build.yml
+
+  test:
+    needs: build
+    uses: ./.github/workflows/_test.yml
+    secrets: inherit
 
   package:
     needs: build
     uses: ./.github/workflows/_package.yml
 
   dependency-review:
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/_dependency-review.yml
 
   spell-check:

@@ -1,0 +1,35 @@
+name: static-checks
+
+# Consolidated job that runs prettier + eslint + tsc in a single runner.
+# Each individual check is cheap (~1s of work) but spawning three separate
+# runners costs ~30s of cold-start + setup each. One job, three steps,
+# one setup cache. Replaces the former _format.yml, _lint.yml, _typecheck.yml
+# reusable workflows.
+
+on:
+  workflow_call:
+
+jobs:
+  static-checks:
+    name: static-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+      - name: Prettier check
+        run: pnpm format:check
+      - name: ESLint
+        run: pnpm lint
+      - name: TypeScript
+        run: pnpm typecheck
