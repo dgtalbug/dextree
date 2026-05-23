@@ -213,15 +213,15 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `feature/slice-13-auto-sync-watcher`
+**Branch**: `014-session-summary-export`
 
-- Spec: [`specs/013-auto-sync-watcher/spec.md`](../specs/013-auto-sync-watcher/spec.md)
-- Plan: [`specs/013-auto-sync-watcher/plan.md`](../specs/013-auto-sync-watcher/plan.md)
-- Research: [`specs/013-auto-sync-watcher/research.md`](../specs/013-auto-sync-watcher/research.md)
-- Data model: [`specs/013-auto-sync-watcher/data-model.md`](../specs/013-auto-sync-watcher/data-model.md)
-- Contracts: [`specs/013-auto-sync-watcher/contracts/workspace-watcher.ts`](../specs/013-auto-sync-watcher/contracts/workspace-watcher.ts)
-- Quickstart: [`specs/013-auto-sync-watcher/quickstart.md`](../specs/013-auto-sync-watcher/quickstart.md)
+- Spec: [`specs/014-session-summary-export/spec.md`](../specs/014-session-summary-export/spec.md)
+- Plan: [`specs/014-session-summary-export/plan.md`](../specs/014-session-summary-export/plan.md)
+- Research: [`specs/014-session-summary-export/research.md`](../specs/014-session-summary-export/research.md)
+- Data model: [`specs/014-session-summary-export/data-model.md`](../specs/014-session-summary-export/data-model.md)
+- Contracts: [`specs/014-session-summary-export/contracts/session-summary.ts`](../specs/014-session-summary-export/contracts/session-summary.ts)
+- Quickstart: [`specs/014-session-summary-export/quickstart.md`](../specs/014-session-summary-export/quickstart.md)
 
-Review focus for this slice: `packages/core` (add `clearFile` to `clear.ts` + re-export) + `packages/extension` (new `watcher/workspaceWatcher.ts`, registration in `extension.ts`, `dextree.watcher.verbose` setting).
+Review focus for this slice: `packages/core` + `packages/extension` — new `querySessionSummary` pure query function, `SessionSummary` type + `Indexer` interface extension, and `exportSessionSummary` command with non-reentrant guard and Markdown renderer.
 
 <!-- SPECKIT END -->
