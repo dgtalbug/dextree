@@ -46,7 +46,10 @@ describe("NaiveCallExtractor", () => {
       const bCall = result.edges.find((e) => e.metadata["callee_name"] === "b");
       expect(bCall).toBeDefined();
       expect(bCall?.kind).toBe("CALLS");
-      expect(bCall?.targetId).not.toBeNull(); // same-file symbol b exists
+      // targetId is null from the extractor; SQL post-pass in replaceFileGraph resolves it
+      expect(bCall?.targetId).toBeNull();
+      // source_fqn identifies the enclosing function for SQL resolution
+      expect(bCall?.metadata["source_fqn"]).toMatch(/a$/); // ends with function name "a"
     } finally {
       cleanup();
     }
@@ -61,11 +64,11 @@ describe("NaiveCallExtractor", () => {
       const fCall = result.edges.find((e) => e.metadata["callee_name"] === "f");
       expect(fCall).toBeDefined();
       expect(fCall?.kind).toBe("CALLS");
-      // Self-call: source and target should both reference function f's scope
-      expect(fCall?.sourceId).toBeDefined();
-      expect(fCall?.targetId).not.toBeNull(); // f is defined in same file
-      // targetId should be the same symbol as sourceId (self-loop)
-      expect(fCall?.sourceId).toBe(fCall?.targetId);
+      // sourceId is the file placeholder; targetId is null — both resolved by SQL post-pass
+      expect(fCall?.sourceId).toBe("test-file-id");
+      expect(fCall?.targetId).toBeNull();
+      // source_fqn should identify the enclosing function "f"
+      expect(fCall?.metadata["source_fqn"]).toMatch(/f$/);
     } finally {
       cleanup();
     }
@@ -128,8 +131,8 @@ describe("NaiveCallExtractor", () => {
       expect(otherCall?.kind).toBe("CALLS");
       // source_id should be a symbol id or file id (not undefined)
       expect(otherCall?.sourceId).toBeDefined();
-      // 'other' is defined in same file — target_id resolves
-      expect(otherCall?.targetId).not.toBeNull();
+      // 'other' is defined in same file — target resolved by SQL post-pass, null from extractor
+      expect(otherCall?.targetId).toBeNull();
     } finally {
       cleanup();
     }
@@ -148,8 +151,8 @@ describe("NaiveCallExtractor", () => {
       expect(barCall).toBeDefined();
       expect(getFooCall?.kind).toBe("CALLS");
       expect(barCall?.kind).toBe("CALLS");
-      // Both are within the same enclosing 'run' function scope
-      expect(getFooCall?.sourceId).toBe(barCall?.sourceId);
+      // Both calls are within the same 'run' function — source_fqn should match
+      expect(getFooCall?.metadata["source_fqn"]).toBe(barCall?.metadata["source_fqn"]);
     } finally {
       cleanup();
     }

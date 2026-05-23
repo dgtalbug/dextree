@@ -800,3 +800,67 @@ baseline wrote. Two approaches:
   `input.knownSymbols` by `startLine` / `startCol` from node position (same heuristic, better IDs).
 - For tsconfig alias expansion: use `JSON.parse` only (no `ts.parseJsonConfigFileContent`
   to avoid pulling TypeScript as a runtime dep). Parse `compilerOptions.paths` key.
+
+---
+
+## Option B Re-scratch (Round 2): SQL-side FQN resolution for CALLS edges
+
+**Date**: Current session
+
+### Problem diagnosis
+
+`NaiveCallExtractor.buildSymbolMap()` generates fresh `uuidv4()` IDs for symbols.
+These IDs do not match the symbol IDs written by `BaselineTsJsExtractor` (also random uuids).
+So CALLS edges land in the `edge` table with `source_id`/`target_id` pointing to IDs that
+do not exist in the `symbol` table.
+
+CALLS
+never appear in the graph.
+
+### Fix: two- extractor metadata + SQL post-passphase
+
+#### Phase 1: NaiveCallExtractor emits FQNs in metadata
+
+- `sourceId` = `input.fileId` (stable placeholder; not phantom UUID)
+- `targetId` = `null` (always; resolved by SQL)
+- Metadata gains: `source_fqn = "${relativePath}:${enclosingFunctionName}"` (or just
+  `relativePath` for module-scope calls)
+- `callee_name` stays (already used for same-file target resolutionpresent)
+
+#### Phase 2: `resolveCallEdgeSymbols` SQL UPDATE in `replaceFileGraph`
+
+Runs inside the same transaction, after symbols + edges are written:
+
+```sql
+ actual symbol
+UPDATE edge
+SET source_id = COALESCE(
+  (SELECT s.id FROM symbol s
+   WHERE s.file_id = $file_id
+     AND s.fqn = json_extract_string(edge.metadata, '$.source_fqn')
+   LIMIT 1),
+  source_id
+)
+WHERE kind = 'CALLS'
+  AND source_id = $file_id;
+
+ same-file symbol by callee_name
+UPDATE edge
+SET target_id = COALESCE(
+  (SELECT s.id FROM symbol s
+   WHERE s.file_id = $file_id
+     AND s.name = json_extract_string(edge.metadata, '$.callee_name')
+     AND s.kind IN ('function', 'method', 'class')
+   LIMIT 1),
+  target_id
+)
+WHERE kind = 'CALLS'
+  AND target_id IS NULL
+  AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id);
+```
+
+#### Files changed
+
+1. `packages/core/src/extractors/NaiveCallExtractor. simplify; add FQN metadatats`
+2. `packages/core/src/storage/repository. add `resolveCallEdgeSymbols`; call after `insertExtraEdges`ts`
+3. `packages/core/src/extractors/NaiveCallExtractor.test. update assertionsts`

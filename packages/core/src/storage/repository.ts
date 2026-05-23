@@ -272,6 +272,67 @@ function remapExtraEdges(
   }));
 }
 
+/**
+ * SQL post-pass that resolves CALLS edge source_id and target_id after the
+ * symbols and edges for `fileId` have been inserted.
+ *
+ * Why this is needed: `NaiveCallExtractor` cannot know the symbol UUIDs that
+ * `BaselineTsJsExtractor` will mint (both use random uuidv4). Instead, the
+ * call extractor writes a stable `source_fqn` (e.g. `"src/foo.ts:myFn"`) and
+ * `callee_name` into edge metadata, then this step resolves them against the
+ * just-written `symbol` rows using an indexed FQN/name lookup.
+ *
+ * Step 1 — source_id: edges where source_id equals the file UUID placeholder
+ * are updated to the matching symbol's id via symbol.fqn = source_fqn.
+ * If no FQN match is found (module-scope call), the edge keeps file-level
+ * source_id — COALESCE prevents a NULL write.
+ *
+ * Step 2 — target_id: edges whose source was just resolved (source in this
+ * file's symbols) get their target resolved by callee_name + kind filter
+ * (function, method, class). Cross-file callees remain null for pass-2.
+ */
+async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: string): Promise<void> {
+  // Step 1: source_id → actual symbol id, keyed by source_fqn
+  await connection.run(
+    `
+      UPDATE edge
+      SET source_id = COALESCE(
+        (
+          SELECT s.id FROM symbol s
+          WHERE s.file_id = $file_id
+            AND s.fqn = json_extract_string(edge.metadata, '$.source_fqn')
+          LIMIT 1
+        ),
+        source_id
+      )
+      WHERE kind = 'CALLS'
+        AND source_id = $file_id
+    `,
+    { file_id: fileId },
+  );
+
+  // Step 2: target_id → same-file symbol id, keyed by callee_name
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = COALESCE(
+        (
+          SELECT s.id FROM symbol s
+          WHERE s.file_id = $file_id
+            AND s.name = json_extract_string(edge.metadata, '$.callee_name')
+            AND s.kind IN ('function', 'method', 'class')
+          LIMIT 1
+        ),
+        target_id
+      )
+      WHERE kind = 'CALLS'
+        AND target_id IS NULL
+        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
+    `,
+    { file_id: fileId },
+  );
+}
+
 export async function replaceFileGraph(
   connection: DuckDBConnection,
   input: ExtractedIndexData,
@@ -310,5 +371,6 @@ export async function replaceFileGraph(
     await insertImportRefs(connection, normalizedInput);
     await insertDefinesEdges(connection, normalizedInput);
     await insertExtraEdges(connection, normalizedExtraEdges);
+    await resolveCallEdgeSymbols(connection, resolvedFileId);
   });
 }

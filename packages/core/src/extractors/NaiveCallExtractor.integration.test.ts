@@ -44,12 +44,22 @@ describe("NaiveCallExtractor integration (indexFile pipeline)", () => {
 
       await indexer.indexFile(targetPath, workspaceRoot);
 
-      // Use getPresentEdgeKinds to verify CALLS edges are in the database.
-      // getWorkspaceSubgraph only returns resolved (symbol↔symbol) CALLS edges;
-      // pass-1 edges use extractor-local UUIDs so they appear in the edge table
-      // but not in the subgraph view until pass-2 reconciles ids.
+      // CALLS edges are written and their source_id/target_id are resolved by
+      // the SQL post-pass (`resolveCallEdgeSymbols`) so they join against `symbol`.
       const kinds = await indexer.getPresentEdgeKinds(workspaceRoot);
       expect(kinds).toContain("CALLS");
+
+      // The resolved CALLS edges should appear in the subgraph (symbol↔symbol join).
+      const graph = await indexer.getWorkspaceSubgraph(workspaceRoot);
+      const callEdges = graph.edges.filter((e) => e.kind === "CALLS");
+      expect(callEdges.length).toBeGreaterThanOrEqual(1);
+
+      // Verify source and target IDs reference actual symbol nodes
+      const nodeIds = new Set(graph.nodes.map((n) => n.id));
+      for (const edge of callEdges) {
+        expect(nodeIds.has(edge.source)).toBe(true);
+        expect(nodeIds.has(edge.target)).toBe(true);
+      }
     } finally {
       await indexer.dispose();
     }
