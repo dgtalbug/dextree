@@ -209,13 +209,13 @@ function edgeColor(kind: GraphEdge["kind"], colors: ThemeColors): string {
 
 function edgeSize(kind: GraphEdge["kind"]): number {
   switch (kind) {
-    case "IMPORTS":
-      return 2.8;
+    case "DEFINES":
+      return 2.2; // file→symbol: solid bold
     case "CALLS":
       return 1.8;
-    case "DEFINES":
+    case "IMPORTS":
     default:
-      return 0.9;
+      return 0.8; // file→file: thin/faint (dotted visual)
   }
 }
 
@@ -251,20 +251,20 @@ function initialPosition(
 
 const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
 const SYMBOL_SIZE_RANGE = { min: 5, max: 15, base: 7 } as const;
-const DEFINES_EDGE_ALPHA = 0.32;
+const IMPORTS_EDGE_ALPHA = 0.28; // file→file: faint/dotted visual
 
-function toDefinesColor(color: string): string {
+function toImportsColor(color: string): string {
   const hexMatch = color.match(/^#([0-9a-f]{6})$/i);
   if (hexMatch !== null) {
     const hex = hexMatch[1] as string;
     const r = parseInt(hex.slice(0, 2), 16);
     const g = parseInt(hex.slice(2, 4), 16);
     const b = parseInt(hex.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${DEFINES_EDGE_ALPHA})`;
+    return `rgba(${r}, ${g}, ${b}, ${IMPORTS_EDGE_ALPHA})`;
   }
   const rgbaMatch = color.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
   if (rgbaMatch !== null) {
-    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${DEFINES_EDGE_ALPHA})`;
+    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${IMPORTS_EDGE_ALPHA})`;
   }
   return color;
 }
@@ -356,7 +356,7 @@ function buildGraph(
 
     try {
       const rawColor = edgeColor(edge.kind, colors);
-      const color = edge.kind === "DEFINES" ? toDefinesColor(rawColor) : rawColor;
+      const color = edge.kind === "IMPORTS" ? toImportsColor(rawColor) : rawColor;
       const size = edgeSize(edge.kind);
       graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
         edgeKind: edge.kind,
@@ -742,10 +742,12 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
   });
 
   graph.forEachEdge((edge, attributes) => {
-    const nextColor = edgeColor(attributes.edgeKind as GraphEdge["kind"], colors);
+    const kind = attributes.edgeKind as GraphEdge["kind"];
+    const rawColor = edgeColor(kind, colors);
+    const color = kind === "IMPORTS" ? toImportsColor(rawColor) : rawColor;
     graph.mergeEdgeAttributes(edge, {
-      color: nextColor,
-      baseColor: nextColor,
+      color,
+      baseColor: rawColor,
     });
   });
 
@@ -783,6 +785,9 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
   const hoverSelectionRef = useRef<SelectionTraversal | null>(null);
   const selectionRef = useRef<SelectionTraversal | null>(null);
   const clickTimeoutRef = useRef<number | null>(null);
+  // Tracks last single-click for manual double-click detection on nodes.
+  // Sigma 3's "doubleClickNode" can miss if WebGL picking fails on rapid 2nd click.
+  const lastClickRef = useRef<{ node: string; time: number } | null>(null);
   const reducedMotion = useReducedMotionPreference();
 
   const [error, setError] = useState<string | null>(null);
@@ -795,6 +800,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     selectionRef.current = null;
     hoverRef.current = null;
     hoverSelectionRef.current = null;
+    lastClickRef.current = null;
     setOverlaySegments([]);
   }, [edges, nodes]);
 
@@ -924,6 +930,8 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
         defaultEdgeType: "line",
         defaultEdgeColor: colors.definesEdgeColor,
         enableEdgeEvents: true,
+        // Prevent built-in double-click zoom — navigation is handled manually via clickNode.
+        doubleClickZoomingRatio: 1,
         nodeReducer: (node, data) => {
           const hover = hoverRef.current;
           const selection = selectionRef.current;
@@ -986,27 +994,44 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       resizeObserver.observe(container);
 
       sigma.on("clickNode", (event) => {
+        const now = Date.now();
+        const last = lastClickRef.current;
+        const DOUBLE_CLICK_MS = 350;
+
+        if (last !== null && last.node === event.node && now - last.time <= DOUBLE_CLICK_MS) {
+          // Double-click on same node detected — navigate and cancel single-click selection
+          lastClickRef.current = null;
+          if (clickTimeoutRef.current !== null) {
+            window.clearTimeout(clickTimeoutRef.current);
+            clickTimeoutRef.current = null;
+          }
+          navigateToNode(event.node);
+          return;
+        }
+
+        // First click — record for potential double-click, and queue selection
+        lastClickRef.current = { node: event.node, time: now };
         if (clickTimeoutRef.current !== null) {
           window.clearTimeout(clickTimeoutRef.current);
         }
-
         clickTimeoutRef.current = window.setTimeout(() => {
           clickTimeoutRef.current = null;
           selectNode(event.node);
         }, SINGLE_CLICK_DELAY_MS);
       });
 
+      // Suppress Sigma's built-in double-click zoom on nodes.
+      // The "doubleClickNode" event in Sigma 3 can miss if WebGL picking fails
+      // on the 2nd rapid click, so navigation is handled via clickNode above.
+      // We still need to prevent zoom via the stage-level doubleClick event
+      // when a node was recently double-clicked.
       sigma.on("doubleClickNode", (event) => {
         if (clickTimeoutRef.current !== null) {
           window.clearTimeout(clickTimeoutRef.current);
           clickTimeoutRef.current = null;
         }
-
-        // Prevent Sigma's built-in double-click zoom from firing alongside navigate
         const preventable = event as unknown as { preventSigmaDefault?: () => void };
         preventable.preventSigmaDefault?.();
-
-        navigateToNode(event.node);
       });
 
       sigma.on("clickStage", () => {
