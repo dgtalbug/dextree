@@ -825,6 +825,18 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
 
     const colors = readThemeColors();
     const graph = buildGraph(nodes, edges, colors);
+
+    // Degree-based size boost: hub nodes (high connectivity) render larger so
+    // important call-sites and widely-imported files stand out visually.
+    graph.forEachNode((nodeId) => {
+      const degree = graph.degree(nodeId);
+      if (degree > 1) {
+        const boost = Math.min((degree - 1) * 0.35, 4);
+        const s = Number(graph.getNodeAttribute(nodeId, "baseSize")) + boost;
+        graph.mergeNodeAttributes(nodeId, { size: s, baseSize: s });
+      }
+    });
+
     graphRef.current = graph;
 
     const buildFallbackGraph = () => snapshotGraph(graph);
@@ -937,7 +949,10 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
         allowInvalidContainer: true,
         renderLabels: true,
         renderEdgeLabels: false,
-        labelRenderedSizeThreshold: 0,
+        // Labels are hidden for tiny/distant nodes and revealed as the user zooms in.
+        // File nodes (size 14-32) remain labelled at all zoom levels; small symbol
+        // nodes (size 5-15) only show labels once they appear ≥ 4 screen-pixels wide.
+        labelRenderedSizeThreshold: 4,
         defaultNodeType: "circle",
         defaultEdgeType: "line",
         defaultEdgeColor: colors.definesEdgeColor,
@@ -1127,7 +1142,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
           {overlaySegments.map((segment) => (
             <motion.line
               key={segment.id}
-              className="dxt-selection-path"
+              className={`dxt-selection-path${segment.kind === "IMPORTS" ? " dxt-selection-path--imports" : ""}`}
               x1={segment.x1}
               y1={segment.y1}
               x2={segment.x2}

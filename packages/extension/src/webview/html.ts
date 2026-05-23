@@ -84,12 +84,18 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        transform: scale(0.995);
      }
 
+     @keyframes dxt-graph-enter {
+       from { opacity: 0; transform: scale(0.97); }
+       to   { opacity: 1; transform: scale(1); }
+     }
+
      .dxt-graph-stage {
        position: relative;
        overflow: hidden;
        border: 1px solid var(--vscode-panel-border, transparent);
        border-radius: 8px;
        background: var(--vscode-editor-background);
+       animation: dxt-graph-enter 0.35s ease-out both;
      }
 
      .dxt-graph-stage::before,
@@ -102,15 +108,14 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
 
      .dxt-graph-stage::before {
        background-image:
-         radial-gradient(circle, color-mix(in srgb, var(--vscode-foreground) 22%, transparent) 0.8px, transparent 0.8px);
+         radial-gradient(circle, color-mix(in srgb, var(--vscode-foreground) 28%, transparent) 0.9px, transparent 0.9px);
        background-size: 18px 18px;
-       opacity: 0.14;
+       opacity: 0.22;
      }
 
+     /* ::after vignette removed — keeps dot grid visible at the canvas edges */
      .dxt-graph-stage::after {
-       background:
-         radial-gradient(circle at center, transparent 55%, color-mix(in srgb, var(--vscode-editor-background) 65%, transparent) 100%);
-       opacity: 0.7;
+       opacity: 0;
      }
 
      .dxt-graph-scaffold {
@@ -559,6 +564,14 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        stroke-dasharray: 14 7;
        opacity: 1;
        filter: drop-shadow(0 0 16px color-mix(in srgb, currentColor 55%, transparent));
+     }
+
+     /* IMPORTS edges in the selection overlay: tighter dash pattern to distinguish
+        file→file import lines from CALLS/DEFINES edges visually */
+     .dxt-selection-path--imports {
+       stroke-dasharray: 5 5;
+       stroke-width: 3;
+       opacity: 0.8;
      }
 
      .dxt-selection-traveler {
