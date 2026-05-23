@@ -81,9 +81,8 @@ function collectCallExpressions(root: Node): Node[] {
  * `"${relativePath}:${name}"` when a scope is found, or just `relativePath`
  * for module-scope calls.
  *
- * This FQN is written into edge metadata as `source_fqn` so that
- * `resolveCallEdgeSymbols` in `repository.ts` can SQL-JOIN it against
- * `symbol.fqn` after BaselineTsJsExtractor has written the real symbol rows.
+ * For methods, returns `relativePath:ClassName.methodName` to match the FQN
+ * format produced by `buildMethodSymbols` in extractor.ts.
  */
 function resolveSourceFqn(callNode: Node, relativePath: string): string {
   let candidate: Node | null = callNode.parent;
@@ -97,7 +96,33 @@ function resolveSourceFqn(callNode: Node, relativePath: string): string {
           (c) => c.type === "identifier" || c.type === "property_identifier",
         ) ??
         null;
-      if (nameNode) return `${relativePath}:${nameNode.text}`;
+      if (!nameNode) {
+        candidate = candidate.parent;
+        continue;
+      }
+
+      if (candidate.type === "method_definition") {
+        // Walk up further to find the enclosing class so we can build
+        // `ClassName.methodName` to match the FQN in buildMethodSymbols.
+        let classCandidate: Node | null = candidate.parent;
+        while (classCandidate !== null) {
+          if (classCandidate.type === "class_declaration") {
+            const classNameNode =
+              classCandidate.childForFieldName("name") ??
+              classCandidate.children.find((c) => c.type === "type_identifier") ??
+              null;
+            if (classNameNode) {
+              return `${relativePath}:${classNameNode.text}.${nameNode.text}`;
+            }
+            break;
+          }
+          classCandidate = classCandidate.parent;
+        }
+        // No enclosing class found (shouldn't happen) — fall back.
+        return `${relativePath}:${nameNode.text}`;
+      }
+
+      return `${relativePath}:${nameNode.text}`;
     }
     candidate = candidate.parent;
   }

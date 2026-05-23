@@ -258,6 +258,47 @@ function buildTopLevelSymbol(
   };
 }
 
+/**
+ * Extracts method symbols from a class_declaration node's class_body.
+ * Each public/protected/private method_definition becomes its own symbol with
+ * fqn = `relativePath:ClassName.methodName`.
+ */
+function buildMethodSymbols(
+  classNode: Node,
+  className: string,
+  relativePath: string,
+  fileId: string,
+): StoredSymbol[] {
+  const symbols: StoredSymbol[] = [];
+  const classBody = classNode.childForFieldName("body");
+  if (classBody === null) return symbols;
+
+  for (const member of classBody.namedChildren) {
+    if (member.type !== "method_definition") continue;
+    const nameNode =
+      member.childForFieldName("name") ??
+      member.namedChildren.find(
+        (c) => c.type === "property_identifier" || c.type === "identifier",
+      ) ??
+      null;
+    if (nameNode === null) continue;
+    const methodName = nameNode.text;
+    // Skip private fields (#name) — they're not meaningful across files.
+    if (methodName.startsWith("#")) continue;
+    symbols.push({
+      id: uuidv4(),
+      fqn: `${relativePath}:${className}.${methodName}`,
+      name: `${className}.${methodName}`,
+      kind: "method",
+      fileId,
+      range: toRange(member),
+      language: "typescript",
+    });
+  }
+
+  return symbols;
+}
+
 function buildVariableSymbols(node: Node, relativePath: string, fileId: string): StoredSymbol[] {
   const symbols: StoredSymbol[] = [];
 
@@ -331,6 +372,11 @@ export async function extractTypeScriptFromTree(
 
     if (symbol !== null) {
       symbols.push(symbol);
+      // Also extract methods for class declarations so method-level nodes
+      // appear in the graph (mirrors GitNexus symbol density).
+      if (declaration.type === "class_declaration") {
+        symbols.push(...buildMethodSymbols(declaration, symbol.name, relativePath, fileId));
+      }
     }
   }
 

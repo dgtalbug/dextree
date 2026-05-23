@@ -40,7 +40,14 @@ export interface WorkspaceCacheLoadResult {
   shouldHydrateFromCache: boolean;
 }
 
-export type SymbolKind = "function" | "class" | "interface" | "type" | "enum" | "variable";
+export type SymbolKind =
+  | "function"
+  | "class"
+  | "interface"
+  | "type"
+  | "enum"
+  | "variable"
+  | "method";
 
 export type GraphNodeType = "file" | "symbol";
 

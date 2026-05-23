@@ -176,6 +176,10 @@ function readThemeColors(): ThemeColors {
       variable:
         styles.getPropertyValue("--vscode-symbolIcon-variableForeground").trim() || foreground,
       type: interfaceColor || classColor,
+      method:
+        styles.getPropertyValue("--vscode-symbolIcon-methodForeground").trim() ||
+        styles.getPropertyValue("--vscode-symbolIcon-functionForeground").trim() ||
+        foreground,
     },
     definesEdgeColor: styles.getPropertyValue("--vscode-charts-blue").trim() || foreground,
     importsEdgeColor: styles.getPropertyValue("--vscode-charts-green").trim() || foreground,
@@ -269,6 +273,7 @@ function initialPosition(
 
 const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
 const SYMBOL_SIZE_RANGE = { min: 5, max: 15, base: 7 } as const;
+const METHOD_SIZE_RANGE = { min: 3, max: 9, base: 4 } as const;
 
 /**
  * Mix an edge color at `ratio` opacity against a background color to produce
@@ -314,7 +319,12 @@ function computeSizeBounds(nodes: GraphNode[]): { min: number; max: number } {
 }
 
 function sizeForNode(node: GraphNode, bounds: { min: number; max: number }): number {
-  const range = node.type === "file" ? FILE_SIZE_RANGE : SYMBOL_SIZE_RANGE;
+  const range =
+    node.type === "file"
+      ? FILE_SIZE_RANGE
+      : node.symbolKind === "method"
+        ? METHOD_SIZE_RANGE
+        : SYMBOL_SIZE_RANGE;
 
   if (
     typeof node.importance !== "number" ||
