@@ -32,7 +32,9 @@ function makeMockIndexer() {
     initialize: vi.fn(),
     validateWorkspaceCache: vi.fn(),
     getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
-    clearWorkspace: vi.fn().mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
+    clearWorkspace: vi
+      .fn()
+      .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
     clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
     dispose: vi.fn(),
     getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
@@ -55,8 +57,7 @@ vi.mock("vscode", () => ({
 }));
 
 vi.mock("@dextree/core", () => ({
-  createWorkspaceIgnore: () =>
-    Promise.resolve({ ignores: mockIsIgnored }),
+  createWorkspaceIgnore: () => Promise.resolve({ ignores: mockIsIgnored }),
 }));
 
 vi.mock("../commands/indexWorkspace.js", () => ({
@@ -96,8 +97,12 @@ beforeEach(() => {
   onChangeHandler = () => {};
   onCreateHandler = () => {};
   onDeleteHandler = () => {};
-  mockIndexFile.mockReset().mockResolvedValue({ relativePath: "file.ts", symbolCount: 1, symbols: [], elapsedMs: 5 });
-  mockClearFile.mockReset().mockResolvedValue({ deletedFiles: 1, deletedSymbols: 1, deletedEdges: 0 });
+  mockIndexFile
+    .mockReset()
+    .mockResolvedValue({ relativePath: "file.ts", symbolCount: 1, symbols: [], elapsedMs: 5 });
+  mockClearFile
+    .mockReset()
+    .mockResolvedValue({ deletedFiles: 1, deletedSymbols: 1, deletedEdges: 0 });
   mockGetAllFiles.mockReset().mockResolvedValue([]);
   mockIsIgnored.mockReturnValue(false);
   mockReadFile.mockReset();

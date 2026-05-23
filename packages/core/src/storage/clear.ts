@@ -159,10 +159,7 @@ export async function clearFile(
   // Two separate statements because DuckDB named-param binding fails when the
   // params dict has extra unused keys; each statement gets only the keys it uses.
   const edgeFromFileRows = await (
-    await connection.run(
-      `SELECT COUNT(*) AS count FROM edge WHERE source_id = $file_id`,
-      params,
-    )
+    await connection.run(`SELECT COUNT(*) AS count FROM edge WHERE source_id = $file_id`, params)
   ).getRowObjectsJS();
   const edgeFromSymbolRows = await (
     await connection.run(

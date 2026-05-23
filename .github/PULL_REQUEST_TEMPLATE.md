@@ -10,7 +10,7 @@
 ## Linked spec / issue
 
 <!--
-  Reference the SpecKit slice this PR implements, plus any GitHub issue:
+  Reference the slice spec this PR implements, plus any GitHub issue:
     Spec: specs/NNN-<short>/spec.md
     Closes: #<issue-number>
 
@@ -67,8 +67,8 @@
 - [ ] `pnpm build` passes
 - [ ] `pnpm package` produces a valid `.vsix` (if extension code changed)
 - [ ] Net diff under ~400 LOC, or this PR is split (see CLAUDE.md guideline)
-- [ ] No edits to `README.md`, `CHANGELOG.md`, `packages/*/README.md`, or marketplace metadata (Copilot lane)
-- [ ] No edits to `.specify/` (SpecKit lane)
+- [ ] No edits to `README.md`, `CHANGELOG.md`, `packages/*/README.md`, or marketplace metadata (docs lane — leave to the docs-lane agent unless the slice explicitly says otherwise)
+- [ ] No edits to `.specify/` or existing `specs/NNN-*/` (spec lane — toolchain-managed)
 - [ ] No `any` introduced without a justifying comment
 - [ ] No native deps added to `packages/core` (must run via WASM in browser contexts)
 - [ ] No `localStorage` in webview code (uses `vscode.postMessage`)

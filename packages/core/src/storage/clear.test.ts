@@ -282,7 +282,9 @@ describe("clearFile (real DuckDB)", () => {
 
       // fileB and its data remain intact
       const fileBRows = await (
-        await database.connection.run(`SELECT COUNT(*) AS count FROM file WHERE path LIKE '%fileB%'`)
+        await database.connection.run(
+          `SELECT COUNT(*) AS count FROM file WHERE path LIKE '%fileB%'`,
+        )
       ).getRowObjectsJS();
       expect(fileBRows[0]?.count).toBe(1n);
     } finally {
