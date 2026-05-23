@@ -11,6 +11,7 @@ import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.j
 const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
+const FLOW_MAX_DEPTH = 4;
 
 interface ThemeColors {
   backgroundColor: string;
@@ -80,6 +81,7 @@ interface SelectionTraversal {
   nodeIds: Set<string>;
   edgeIds: Set<string>;
   orderedEdgeIds: string[];
+  hopLayers: string[][];
 }
 
 interface OverlaySegment {
@@ -90,6 +92,7 @@ interface OverlaySegment {
   y2: number;
   color: string;
   kind: GraphEdge["kind"];
+  hopIndex: number;
 }
 
 interface SigmaNodeDisplayData {
@@ -100,12 +103,13 @@ interface SigmaNodeDisplayData {
 
 type SigmaWithExtras = Sigma & {
   getNodeDisplayData?: (node: string) => SigmaNodeDisplayData | undefined;
+  graphToViewport?: (nodeId: string) => { x: number; y: number } | undefined;
   getCamera?: () => {
     animate?: (
       state: { x: number; y: number; ratio: number },
       options?: { duration?: number },
     ) => void;
-    getState?: () => { ratio: number };
+    getState?: () => { x: number; y: number; ratio: number };
   };
 };
 
@@ -634,24 +638,38 @@ function computeDescendantSelection(
   const nodeIds = new Set<string>([selectedNodeId]);
   const edgeIds = new Set<string>();
   const orderedEdgeIds: string[] = [];
-  const queue = [selectedNodeId];
+  const hopLayers: string[][] = [];
 
-  while (queue.length > 0) {
-    const currentNodeId = queue.shift() as string;
+  let currentFrontier = [selectedNodeId];
+  let depth = 0;
 
-    graph.forEachOutboundEdge(currentNodeId, (edge, attributes, _source, target) => {
-      edgeIds.add(edge);
-      orderedEdgeIds.push(edge);
+  while (currentFrontier.length > 0 && depth < FLOW_MAX_DEPTH) {
+    const nextFrontier: string[] = [];
+    const layerEdges: string[] = [];
 
-      if (!nodeIds.has(target)) {
-        nodeIds.add(target);
-        queue.push(target);
-      }
+    for (const currentNodeId of currentFrontier) {
+      graph.forEachOutboundEdge(currentNodeId, (edge, attributes, _source, target) => {
+        edgeIds.add(edge);
+        orderedEdgeIds.push(edge);
+        layerEdges.push(edge);
 
-      if ((attributes as GraphEdgeAttributes).edgeKind === "DEFINES") {
-        nodeIds.add(currentNodeId);
-      }
-    });
+        if (!nodeIds.has(target)) {
+          nodeIds.add(target);
+          nextFrontier.push(target);
+        }
+
+        if ((attributes as GraphEdgeAttributes).edgeKind === "DEFINES") {
+          nodeIds.add(currentNodeId);
+        }
+      });
+    }
+
+    if (layerEdges.length > 0) {
+      hopLayers.push(layerEdges);
+    }
+
+    currentFrontier = nextFrontier;
+    depth++;
   }
 
   return {
@@ -659,6 +677,7 @@ function computeDescendantSelection(
     nodeIds,
     edgeIds,
     orderedEdgeIds,
+    hopLayers,
   };
 }
 
@@ -676,6 +695,14 @@ function createOverlaySegments(
 
   if (typeof getNodeDisplayData !== "function") {
     return [];
+  }
+
+  // Build edgeId → hopIndex map from depth-bucketed BFS layers
+  const edgeHopIndex = new Map<string, number>();
+  for (const [idx, layer] of selection.hopLayers.entries()) {
+    for (const edgeId of layer) {
+      edgeHopIndex.set(edgeId, idx);
+    }
   }
 
   const segments: OverlaySegment[] = [];
@@ -707,10 +734,206 @@ function createOverlaySegments(
       y2: target.y,
       color: String(graph.getEdgeAttribute(edgeId, "baseColor")),
       kind: graph.getEdgeAttribute(edgeId, "edgeKind") as GraphEdge["kind"],
+      hopIndex: edgeHopIndex.get(edgeId) ?? 0,
     });
   }
 
   return segments;
+}
+
+function convexHull(points: { x: number; y: number }[]): { x: number; y: number }[] {
+  if (points.length < 3) return points;
+  let start = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (points[i]!.x < points[start]!.x) start = i;
+  }
+  const hull: { x: number; y: number }[] = [];
+  let current = start;
+  do {
+    hull.push(points[current]!);
+    let next = (current + 1) % points.length;
+    for (let i = 0; i < points.length; i++) {
+      const cross =
+        (points[next]!.x - points[current]!.x) * (points[i]!.y - points[current]!.y) -
+        (points[next]!.y - points[current]!.y) * (points[i]!.x - points[current]!.x);
+      if (cross < 0) next = i;
+    }
+    current = next;
+  } while (current !== start && hull.length <= points.length);
+  return hull;
+}
+
+function colorWithAlpha(hex: string, alpha: number): string {
+  const m = hex.match(/^#([0-9a-f]{6})$/i);
+  if (m === null) return `rgba(128,128,128,${alpha})`;
+  const h = m[1] as string;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function drawClusterHulls(
+  graph: MultiDirectedGraph,
+  sigma: Sigma,
+  canvas: HTMLCanvasElement,
+  hoveredFilePath: string | null,
+  selectedFilePath: string | null,
+): void {
+  const ctx = canvas.getContext("2d");
+  if (ctx === null) return;
+  const sigmaPlus = sigma as SigmaWithExtras;
+  if (typeof sigmaPlus.graphToViewport !== "function") return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Group symbol nodes by filePath, collect viewport coordinates
+  const fileGroups = new Map<string, Array<{ x: number; y: number }>>();
+  const fileColors = new Map<string, string>();
+
+  graph.forEachNode((nodeId, attrs) => {
+    const a = attrs as GraphNodeAttributes;
+    if (a.nodeKind === "file") {
+      fileColors.set(String(a.filePath), String(a.baseColor ?? a.color));
+      return;
+    }
+    const vp = (sigmaPlus.graphToViewport as (id: string) => { x: number; y: number } | undefined)(
+      nodeId,
+    );
+    if (vp === undefined) return;
+    const fp = String(a.filePath);
+    let group = fileGroups.get(fp);
+    if (group === undefined) {
+      group = [];
+      fileGroups.set(fp, group);
+    }
+    group.push({ x: vp.x, y: vp.y });
+  });
+
+  for (const [fp, points] of fileGroups.entries()) {
+    if (points.length < 3) continue;
+    const hull = convexHull(points);
+    if (hull.length < 3) continue;
+
+    // Compute centroid
+    let cx = 0;
+    let cy = 0;
+    for (const p of hull) {
+      cx += p.x;
+      cy += p.y;
+    }
+    cx /= hull.length;
+    cy /= hull.length;
+
+    // Expand hull outward by 14px from centroid
+    const expanded = hull.map((p) => {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const dist = Math.max(Math.hypot(dx, dy), 0.01);
+      return { x: cx + (dx / dist) * (dist + 14), y: cy + (dy / dist) * (dist + 14) };
+    });
+
+    const isActive = fp === hoveredFilePath || fp === selectedFilePath;
+    const isDimmed = (hoveredFilePath !== null || selectedFilePath !== null) && !isActive;
+    const fillAlpha = isActive ? 0.14 : isDimmed ? 0.03 : 0.08;
+    const strokeAlpha = isActive ? 0.5 : isDimmed ? 0.1 : 0.28;
+    const baseColor = fileColors.get(fp) ?? "#808080";
+
+    ctx.beginPath();
+    ctx.moveTo(expanded[0]!.x, expanded[0]!.y);
+    for (let i = 1; i < expanded.length; i++) {
+      ctx.lineTo(expanded[i]!.x, expanded[i]!.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = colorWithAlpha(baseColor, fillAlpha);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(expanded[0]!.x, expanded[0]!.y);
+    for (let i = 1; i < expanded.length; i++) {
+      ctx.lineTo(expanded[i]!.x, expanded[i]!.y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = colorWithAlpha(baseColor, strokeAlpha);
+    ctx.setLineDash([4, 6]);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawMinimap(
+  graph: MultiDirectedGraph,
+  sigma: Sigma,
+  canvas: HTMLCanvasElement,
+  _container: HTMLDivElement,
+): void {
+  const ctx = canvas.getContext("2d");
+  if (ctx === null) return;
+
+  const W = canvas.width;
+  const H = canvas.height;
+
+  const nodePoints: Array<{ x: number; y: number; color: string; isFile: boolean }> = [];
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  graph.forEachNode((_nodeId, attrs) => {
+    const a = attrs as GraphNodeAttributes;
+    const x = Number(a.x);
+    const y = Number(a.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    nodePoints.push({
+      x,
+      y,
+      color: String(a.baseColor ?? a.color),
+      isFile: a.nodeKind === "file",
+    });
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  });
+
+  if (nodePoints.length <= 1 || minX >= maxX || minY >= maxY) return;
+
+  const pad = 6;
+  const scaleX = (W - 2 * pad) / (maxX - minX);
+  const scaleY = (H - 2 * pad) / (maxY - minY);
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.fill();
+
+  for (const pt of nodePoints) {
+    const pcx = pad + (pt.x - minX) * scaleX;
+    const pcy = pad + (pt.y - minY) * scaleY;
+    ctx.beginPath();
+    ctx.arc(pcx, pcy, pt.isFile ? 2 : 1, 0, Math.PI * 2);
+    ctx.fillStyle = pt.color;
+    ctx.fill();
+  }
+
+  // Draw camera crosshair
+  const sigmaPlus = sigma as SigmaWithExtras;
+  const cameraState = sigmaPlus.getCamera?.()?.getState?.();
+  if (cameraState !== undefined) {
+    const camX = Number(cameraState.x);
+    const camY = Number(cameraState.y);
+    if (Number.isFinite(camX) && Number.isFinite(camY)) {
+      const ccx = pad + (camX - minX) * scaleX;
+      const ccy = pad + (camY - minY) * scaleY;
+      ctx.beginPath();
+      ctx.arc(ccx, ccy, 4, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
 }
 
 function applySigmaSetting(sigma: Sigma, key: string, value: unknown): void {
@@ -800,12 +1023,16 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
   // Tracks last single-click for manual double-click detection on nodes.
   // Sigma 3's "doubleClickNode" can miss if WebGL picking fails on rapid 2nd click.
   const lastClickRef = useRef<{ node: string; time: number } | null>(null);
+  const clusterCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const hoveredNodeIdRef = useRef<string | null>(null);
+  const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const reducedMotion = useReducedMotionPreference();
 
   const [error, setError] = useState<string | null>(null);
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
+  const [showMinimap, setShowMinimap] = useState(true);
 
   useEffect(() => {
     setSelectedNodeId(null);
@@ -857,6 +1084,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     let resizeObserver: ResizeObserver | null = null;
 
     const enterNodeListener = (event: { node: string }): void => {
+      hoveredNodeIdRef.current = event.node;
       hoverRef.current = computeHoverNeighborhood(graph, event.node);
       hoverSelectionRef.current = computeDescendantSelection(graph, event.node);
       if (sigma !== null) {
@@ -871,6 +1099,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
     };
 
     const leaveNodeListener = (): void => {
+      hoveredNodeIdRef.current = null;
       hoverRef.current = null;
       hoverSelectionRef.current = null;
       if (sigma !== null) {
@@ -1013,6 +1242,13 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
       setOverlaySegments([]);
 
       resizeObserver = new ResizeObserver(() => {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        const cc = clusterCanvasRef.current;
+        if (cc !== null) {
+          cc.width = w;
+          cc.height = h;
+        }
         if (sigma !== null) {
           refreshSigma(sigma);
           updateOverlay();
@@ -1056,6 +1292,34 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
 
       sigma.on("enterNode", enterNodeListener);
       sigma.on("leaveNode", leaveNodeListener);
+
+      sigma.on("afterRender", () => {
+        if (sigma === null) return;
+        const cc = clusterCanvasRef.current;
+        if (cc !== null) {
+          const hoveredFilePath =
+            hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
+              ? String(
+                  (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
+                    .filePath,
+                )
+              : null;
+          const selectedFilePath =
+            selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
+              ? String(
+                  (
+                    graph.getNodeAttributes(
+                      selectionRef.current.selectedNodeId,
+                    ) as GraphNodeAttributes
+                  ).filePath,
+                )
+              : null;
+          drawClusterHulls(graph, sigma, cc, hoveredFilePath, selectedFilePath);
+        }
+        if (minimapCanvasRef.current !== null && graph.order > 20) {
+          drawMinimap(graph, sigma, minimapCanvasRef.current, container);
+        }
+      });
 
       observer = new MutationObserver(() => {
         if (sigma !== null) {
@@ -1129,9 +1393,52 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
   const fallbackTravelers =
     travelerSegments.length > 0 ? travelerSegments : overlaySegments.slice(0, 3);
 
+  // B3: Compute callers and callees from graph during render
+  const neighborCallers: Array<{ id: string; label: string; filePath: string; startLine: number }> =
+    [];
+  const neighborCallees: Array<{
+    id: string;
+    label: string;
+    filePath: string;
+    startLine: number;
+  }> = [];
+
+  if (selectedNodeId !== null && graphRef.current !== null) {
+    const g = graphRef.current;
+    if (g.hasNode(selectedNodeId)) {
+      g.forEachInboundEdge(selectedNodeId, (_edge, attrs, source) => {
+        if ((attrs as GraphEdgeAttributes).edgeKind !== "CALLS") return;
+        const a = g.getNodeAttributes(source) as GraphNodeAttributes;
+        neighborCallers.push({
+          id: source,
+          label: a.label,
+          filePath: a.filePath,
+          startLine: a.startLine,
+        });
+      });
+      g.forEachOutboundEdge(selectedNodeId, (_edge, attrs, _src, target) => {
+        if ((attrs as GraphEdgeAttributes).edgeKind !== "CALLS") return;
+        const a = g.getNodeAttributes(target) as GraphNodeAttributes;
+        neighborCallees.push({
+          id: target,
+          label: a.label,
+          filePath: a.filePath,
+          startLine: a.startLine,
+        });
+      });
+    }
+  }
+
+  const MAX_NEIGHBORS = 8;
+  const shownCallers = neighborCallers.slice(0, MAX_NEIGHBORS);
+  const shownCallees = neighborCallees.slice(0, MAX_NEIGHBORS);
+  const extraCallers = neighborCallers.length - shownCallers.length;
+  const extraCallees = neighborCallees.length - shownCallees.length;
+
   return (
     <div className="dxt-graph-view dxt-graph-stage" data-testid="graph-view-shell">
       <div className="dxt-graph-surface">
+        <canvas className="dxt-cluster-layer" ref={clusterCanvasRef} />
         <div id="dxt-graph-container" data-testid="graph-view" ref={containerRef} />
         <svg
           className="dxt-selection-overlay"
@@ -1157,6 +1464,7 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
                       duration: 1.4,
                       repeat: Number.POSITIVE_INFINITY,
                       ease: "linear" as const,
+                      delay: segment.hopIndex * 0.18,
                     },
                   })}
             />
@@ -1178,12 +1486,79 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
                     duration: 1.25 + index * 0.12,
                     repeat: Number.POSITIVE_INFINITY,
                     ease: "linear",
-                    delay: index * 0.16,
+                    delay: segment.hopIndex * 0.22,
                   }}
                 />
               ))
             : null}
         </svg>
+
+        {selectedNodeId !== null && (neighborCallers.length > 0 || neighborCallees.length > 0) && (
+          <div className="dxt-neighbor-panel">
+            {neighborCallers.length > 0 && (
+              <div className="dxt-neighbor-section">
+                <div className="dxt-neighbor-section-title">Called by</div>
+                {shownCallers.map((caller) => (
+                  <button
+                    key={caller.id}
+                    type="button"
+                    className="dxt-neighbor-row"
+                    onClick={() => {
+                      onNavigate(caller.filePath, caller.startLine);
+                    }}
+                    title={`${caller.filePath}:${caller.startLine}`}
+                  >
+                    <span className="codicon codicon-symbol-function" aria-hidden="true" />
+                    {caller.label}
+                  </button>
+                ))}
+                {extraCallers > 0 && (
+                  <span className="dxt-neighbor-more">+ {extraCallers} more</span>
+                )}
+              </div>
+            )}
+            {neighborCallees.length > 0 && (
+              <div className="dxt-neighbor-section">
+                <div className="dxt-neighbor-section-title">Calls</div>
+                {shownCallees.map((callee) => (
+                  <button
+                    key={callee.id}
+                    type="button"
+                    className="dxt-neighbor-row"
+                    onClick={() => {
+                      onNavigate(callee.filePath, callee.startLine);
+                    }}
+                    title={`${callee.filePath}:${callee.startLine}`}
+                  >
+                    <span className="codicon codicon-symbol-function" aria-hidden="true" />
+                    {callee.label}
+                  </button>
+                ))}
+                {extraCallees > 0 && (
+                  <span className="dxt-neighbor-more">+ {extraCallees} more</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <canvas
+          className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}
+          ref={minimapCanvasRef}
+          width={128}
+          height={96}
+        />
+        <button
+          type="button"
+          className="dxt-minimap-toggle"
+          onClick={() => {
+            setShowMinimap((v) => !v);
+          }}
+          title="Toggle mini-map"
+          aria-label="Toggle mini-map"
+        >
+          <span className="codicon codicon-map" aria-hidden="true" />
+        </button>
       </div>
     </div>
   );

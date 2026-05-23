@@ -756,6 +756,125 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
          border-radius: 6px;
        }
      }
+
+     /* B1 — Cluster hull canvas layer */
+     .dxt-cluster-layer {
+       position: absolute;
+       inset: 0;
+       width: 100%;
+       height: 100%;
+       pointer-events: none;
+       z-index: 1;
+       border-radius: 8px;
+     }
+
+     /* B3 — Caller/callee neighbour panel */
+     .dxt-neighbor-panel {
+       position: absolute;
+       top: 14px;
+       right: 14px;
+       bottom: 14px;
+       width: min(220px, 28%);
+       display: flex;
+       flex-direction: column;
+       gap: 10px;
+       padding: 12px;
+       border: 1px solid color-mix(in srgb, var(--vscode-panel-border, transparent) 70%, transparent);
+       border-radius: 10px;
+       background: color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-foreground) 10%);
+       overflow-y: auto;
+       font-size: 12px;
+       z-index: 10;
+     }
+
+     .dxt-neighbor-section {
+       display: flex;
+       flex-direction: column;
+       gap: 4px;
+     }
+
+     .dxt-neighbor-section-title {
+       font-size: 10px;
+       font-weight: 700;
+       text-transform: uppercase;
+       letter-spacing: 0.08em;
+       opacity: 0.65;
+       margin-bottom: 2px;
+     }
+
+     .dxt-neighbor-row {
+       display: flex;
+       align-items: center;
+       gap: 5px;
+       padding: 3px 0;
+       border: 0;
+       background: transparent;
+       color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+       font: inherit;
+       font-size: 11px;
+       cursor: pointer;
+       text-align: left;
+       width: 100%;
+       white-space: nowrap;
+       overflow: hidden;
+       text-overflow: ellipsis;
+     }
+
+     .dxt-neighbor-row:hover,
+     .dxt-neighbor-row:focus-visible {
+       text-decoration: underline;
+       outline: none;
+     }
+
+     .dxt-neighbor-badge {
+       display: inline-flex;
+       align-items: center;
+       padding: 2px 6px;
+       border-radius: 999px;
+       font-size: 10px;
+       font-weight: 700;
+       background: color-mix(in srgb, var(--vscode-editor-background) 80%, var(--vscode-foreground) 20%);
+       flex-shrink: 0;
+     }
+
+     .dxt-neighbor-more {
+       font-size: 11px;
+       opacity: 0.65;
+       padding: 2px 0;
+     }
+
+     /* B4 — Mini-map */
+     .dxt-minimap-canvas {
+       position: absolute;
+       bottom: 14px;
+       left: 14px;
+       border-radius: 6px;
+       z-index: 10;
+       pointer-events: auto;
+       cursor: crosshair;
+     }
+
+     .dxt-minimap-canvas--hidden {
+       display: none;
+     }
+
+     .dxt-minimap-toggle {
+       position: absolute;
+       top: 14px;
+       left: 14px;
+       z-index: 11;
+       background: transparent;
+       border: 1px solid var(--vscode-panel-border, transparent);
+       border-radius: 4px;
+       padding: 4px;
+       cursor: pointer;
+       color: var(--vscode-foreground);
+       opacity: 0.6;
+     }
+
+     .dxt-minimap-toggle:hover {
+       opacity: 1;
+     }
    </style>
 </head>
 <body>
