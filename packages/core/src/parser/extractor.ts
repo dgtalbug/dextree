@@ -97,23 +97,73 @@ async function resolveImportPath(
   workspaceRoot: string,
   specifier: string,
 ): Promise<string | null> {
-  if (!specifier.startsWith(".")) {
+  if (specifier.startsWith(".")) {
+    for (const candidate of importCandidates(importerAbsolutePath, specifier)) {
+      if (!(await fileExists(candidate))) continue;
+      if (!isWithinWorkspace(workspaceRoot, candidate)) continue;
+      return toPosixRelativePath(workspaceRoot, candidate);
+    }
     return null;
   }
 
-  for (const candidate of importCandidates(importerAbsolutePath, specifier)) {
-    if (!(await fileExists(candidate))) {
-      continue;
+  // Non-relative: try tsconfig path alias expansion (e.g. @/* → src/*).
+  const aliases = await loadPathAliases(workspaceRoot);
+  for (const [prefix, targets] of aliases) {
+    // prefix is e.g. "@/*"; strip trailing "*" to get the alias stem.
+    const stem = prefix.endsWith("/*") ? prefix.slice(0, -2) : prefix;
+    if (!specifier.startsWith(stem)) continue;
+    const remainder = specifier.slice(stem.length);
+    for (const target of targets) {
+      // target is e.g. "src/*" or "./src/*"
+      const targetBase = target.endsWith("/*") ? target.slice(0, -2) : target;
+      const expanded = join(workspaceRoot, targetBase) + remainder;
+      for (const candidate of expandedCandidates(expanded)) {
+        if (!(await fileExists(candidate))) continue;
+        if (!isWithinWorkspace(workspaceRoot, candidate)) continue;
+        return toPosixRelativePath(workspaceRoot, candidate);
+      }
     }
-
-    if (!isWithinWorkspace(workspaceRoot, candidate)) {
-      continue;
-    }
-
-    return toPosixRelativePath(workspaceRoot, candidate);
   }
 
   return null;
+}
+
+/** Candidates when we have an already-resolved absolute base path (no extension). */
+function expandedCandidates(basePath: string): string[] {
+  if (extname(basePath) !== "") return [basePath];
+  return [
+    ...IMPORT_EXTENSIONS.map((ext) => `${basePath}${ext}`),
+    ...IMPORT_EXTENSIONS.map((ext) => join(basePath, `index${ext}`)),
+  ];
+}
+
+/** Per-workspace-root cache of tsconfig `compilerOptions.paths` alias mappings. */
+const pathAliasCache = new Map<string, Map<string, string[]>>();
+
+async function loadPathAliases(workspaceRoot: string): Promise<Map<string, string[]>> {
+  if (pathAliasCache.has(workspaceRoot)) {
+    return pathAliasCache.get(workspaceRoot)!;
+  }
+  const result = new Map<string, string[]>();
+  try {
+    const tsconfigPath = join(workspaceRoot, "tsconfig.json");
+    const raw = await readFile(tsconfigPath, "utf8");
+    // Strip single-line comments before parsing (tsconfig allows them).
+    const stripped = raw.replace(/\/\/[^\n]*/g, "");
+    const parsed = JSON.parse(stripped) as {
+      compilerOptions?: { paths?: Record<string, string[]> };
+    };
+    const paths = parsed?.compilerOptions?.paths;
+    if (paths !== null && typeof paths === "object") {
+      for (const [alias, targets] of Object.entries(paths)) {
+        if (Array.isArray(targets)) result.set(alias, targets as string[]);
+      }
+    }
+  } catch {
+    // tsconfig absent or malformed — fall through with empty map.
+  }
+  pathAliasCache.set(workspaceRoot, result);
+  return result;
 }
 
 async function extractImportRefs(

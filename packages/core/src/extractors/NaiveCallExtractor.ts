@@ -116,16 +116,23 @@ export class NaiveCallExtractor implements Extractor {
       return emptyResult();
     }
 
-    // Symbols are populated by BaselineTsJsExtractor earlier in the same run()
-    // invocation. The registry merges them into `merged.symbols` before this
-    // extractor runs — but we receive `input` which has no merged symbols.
-    // The registry contract says extractors receive the original `input`; we
-    // therefore cannot access baseline symbols from `input`. Instead we walk
-    // the tree directly for source_id resolution.
-    //
-    // For target_id resolution we rely on the same approach: walk the root for
-    // named top-level declarations to build a quick name→id lookup.
-    const fileSymbols = buildSymbolMap(input.tree.rootNode, input.fileId);
+    // Use symbol IDs from prior extractors (populated by the registry after
+    // BaselineTsJsExtractor runs). This ensures source_id / target_id in CALLS
+    // edges match the actual symbol rows written to the DB. Fall back to a local
+    // AST-derived symbol map only when knownSymbols is empty (e.g. tests that
+    // invoke NaiveCallExtractor in isolation).
+    const fileSymbols: SymbolRef[] =
+      (input.knownSymbols ?? []).length > 0
+        ? (input.knownSymbols ?? []).map((s) => ({
+            id: s.id,
+            name: s.name,
+            startLine: s.startLine,
+            startCol: s.startCol,
+            endLine: s.endLine,
+            endCol: s.endCol,
+            callable: s.kind === "function" || s.kind === "class" || s.kind === "method",
+          }))
+        : buildSymbolMap(input.tree.rootNode, input.fileId);
 
     const callNodes = collectCallExpressions(input.tree.rootNode);
     const edges: EdgeRow[] = [];

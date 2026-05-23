@@ -5,7 +5,23 @@ import type {
   ExtractInput,
   ExtractionResult,
   ExtractorRegistry,
+  KnownSymbol,
 } from "./types.js";
+
+/** Convert a StoredSymbol to the lightweight KnownSymbol shape. */
+function toKnownSymbol(s: StoredSymbol): KnownSymbol {
+  return {
+    id: s.id,
+    name: s.name,
+    kind: s.kind,
+    // StoredSymbol.range uses 0-based rows (tree-sitter convention from toRange()).
+    // NaiveCallExtractor also uses 0-based node.startPosition.row — no adjustment needed.
+    startLine: s.range.startLine,
+    startCol: s.range.startCol,
+    endLine: s.range.endLine,
+    endCol: s.range.endCol,
+  };
+}
 
 class InMemoryExtractorRegistry implements ExtractorRegistry {
   private readonly extractors: Extractor[] = [];
@@ -28,11 +44,17 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
     const annotations: unknown[] = [];
     const modules: unknown[] = [];
     const tests: unknown[] = [];
+    // Accumulate known symbols so each extractor sees the IDs the earlier
+    // extractors already minted. This lets NaiveCallExtractor look up the
+    // exact symbol IDs that BaselineTsJsExtractor wrote instead of minting
+    // its own (which would produce dangling foreign keys in the edge table).
+    const knownSymbols: KnownSymbol[] = [...(input.knownSymbols ?? [])];
 
     for (const extractor of matching) {
+      const enrichedInput: ExtractInput = { ...input, knownSymbols };
       let result: ExtractionResult;
       try {
-        result = await extractor.extract(input);
+        result = await extractor.extract(enrichedInput);
       } catch (error) {
         // Per FR-007 / contract: failure isolation. Log and continue.
         console.warn({
@@ -66,6 +88,8 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
       if (result.tests !== undefined) {
         tests.push(...result.tests);
       }
+      // Forward this extractor's symbols to all subsequent extractors.
+      knownSymbols.push(...result.symbols.map(toKnownSymbol));
     }
 
     return { file, symbols, imports, edges, annotations, modules, tests };

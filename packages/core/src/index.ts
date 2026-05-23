@@ -70,6 +70,7 @@ export type {
   ExtractInput,
   ExtractionResult,
   ExtractorRegistry,
+  KnownSymbol,
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 
@@ -150,6 +151,7 @@ class DuckTreeIndexer implements Indexer {
         source,
         tree,
         fileId,
+        knownSymbols: [],
       });
 
       // Registry contract invariant 6: if no extractor populated `file`, build
