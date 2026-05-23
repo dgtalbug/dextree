@@ -45,6 +45,13 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      # Required for actions/attest-build-provenance to mint a keyless
+      # Sigstore signature via OIDC. Provenance is attached to the GitHub
+      # release attestations endpoint — verifiable with `gh attestation verify`.
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -60,12 +67,18 @@ jobs:
           egress-policy: audit
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Setup workspace
         uses: ./.github/actions/setup
       - name: Package .vsix (${{ matrix.target }})
         env:
           VSCE_TARGET: ${{ matrix.target }}
         run: pnpm package
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: packages/extension/*.vsix
       - name: Upload .vsix artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
