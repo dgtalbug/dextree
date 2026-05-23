@@ -1,5 +1,5 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { EmptyState } from "./components/EmptyState.js";
 import { GraphView } from "./components/GraphView.js";
 import { LoadingState } from "./components/LoadingState.js";
@@ -71,6 +71,7 @@ export function App({ vscodeApi }: AppProps) {
   const [indexedCount, setIndexedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
   const [lastIndexedFiles, setLastIndexedFiles] = useState<string[]>([]);
+  const [showSourceOnly, setShowSourceOnly] = useState(false);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -127,10 +128,34 @@ export function App({ vscodeApi }: AppProps) {
     !showEmptyState && (state.indexing !== null || !state.hasReceivedGraph);
   const loadingLabel = state.indexing === null ? "Building graph…" : "Indexing workspace…";
 
-  const nodeCount = state.nodes.length;
-  const edgeCount = state.edges.length;
-  const fileCount = state.nodes.filter((n) => n.type === "file").length;
-  const symbolCount = state.nodes.filter((n) => n.type === "symbol").length;
+  // Source-only filter: hide markdown and test/spec files from the graph.
+  function isSourceFile(filePath: string): boolean {
+    if (/\.md$/i.test(filePath)) return false;
+    if (/\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(filePath)) return false;
+    return true;
+  }
+
+  const displayNodes = useMemo(
+    () => (showSourceOnly ? state.nodes.filter((n) => isSourceFile(n.filePath)) : state.nodes),
+    [showSourceOnly, state.nodes],
+  );
+
+  const displayNodeIds = useMemo(() => new Set(displayNodes.map((n) => n.id)), [displayNodes]);
+
+  const displayEdges = useMemo(
+    () =>
+      showSourceOnly
+        ? state.edges.filter((e) => displayNodeIds.has(e.source) && displayNodeIds.has(e.target))
+        : state.edges,
+    [showSourceOnly, state.edges, displayNodeIds],
+  );
+
+  const nodeCount = displayNodes.length;
+  const edgeCount = displayEdges.length;
+  const fileCount = displayNodes.filter((n) => n.type === "file").length;
+  const symbolCount = displayNodes.filter((n) => n.type === "symbol").length;
+  // During active indexing, show the live file-processed count in the Files pill.
+  const displayFileCount = isIndexingActive && state.indexing ? state.indexing.current : fileCount;
 
   function formatFileLabel(name: string): string {
     const parts = name.split(/[/\\]/);
@@ -145,7 +170,7 @@ export function App({ vscodeApi }: AppProps) {
     <div className={`dxt-app-shell${showLoadingOverlay ? " dxt-app-shell-indexing" : ""}`}>
       <div className="dxt-graph-layer">
         {hasGraph ? (
-          <GraphView nodes={state.nodes} edges={state.edges} onNavigate={handleNavigate} />
+          <GraphView nodes={displayNodes} edges={displayEdges} onNavigate={handleNavigate} />
         ) : (
           <div
             className="dxt-graph-scaffold dxt-graph-stage"
@@ -175,7 +200,7 @@ export function App({ vscodeApi }: AppProps) {
               <span className="dxt-stat-label">Edges</span>
             </div>
             <div className="dxt-stat-cell">
-              <span className="dxt-stat-value">{fileCount}</span>
+              <span className="dxt-stat-value">{displayFileCount}</span>
               <span className="dxt-stat-label">Files</span>
             </div>
             <div className="dxt-stat-cell">
@@ -252,6 +277,17 @@ export function App({ vscodeApi }: AppProps) {
               Cancel
             </button>
           ) : null}
+          <button
+            type="button"
+            className={`dxt-panel-button${showSourceOnly ? " dxt-panel-button-active" : ""}`}
+            onClick={() => {
+              setShowSourceOnly((prev) => !prev);
+            }}
+            title="Toggle source-only view (hides markdown and test files)"
+          >
+            <span className="codicon codicon-filter" aria-hidden="true" />
+            {showSourceOnly ? "All Files" : "Source Only"}
+          </button>
           <button
             type="button"
             className="dxt-panel-button"

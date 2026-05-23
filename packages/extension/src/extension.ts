@@ -193,10 +193,23 @@ export async function activate(context: ActivationContext): Promise<void> {
           pushIndexing("progress", update);
         },
         onIndexingFinished: (update) => {
-          pushIndexing("finished", update);
-          void watcher?.drainQueue();
+          // Refresh cache status and push the completed graph BEFORE sending
+          // "finished" to the webview. This prevents an empty-state flash where
+          // the overlay clears before the graph message has arrived.
+          void (async () => {
+            await refreshWorkspaceCacheStatus();
+            symbolsProvider.refresh();
+            if (WebviewPanelManager.isOpen()) {
+              try {
+                await pushCurrentGraph();
+              } catch {
+                // Non-critical — panel will still clear the overlay
+              }
+            }
+            pushIndexing("finished", update);
+            void watcher?.drainQueue();
+          })();
         },
-        onIndexed: refreshViewsAfterIndex,
       }),
     ),
     vscode.commands.registerCommand("dextree.cancelWorkspaceIndexing", () => {
@@ -229,6 +242,16 @@ export async function activate(context: ActivationContext): Promise<void> {
   });
 
   context.subscriptions.push(treeView);
+
+  // Auto-reveal the graph panel whenever the Dextree sidebar becomes visible
+  // so the two surfaces stay in sync (sidebar tree + editor graph panel).
+  context.subscriptions.push(
+    treeView.onDidChangeVisibility(({ visible }) => {
+      if (visible) {
+        void vscode.commands.executeCommand("dextree.openGraphView");
+      }
+    }),
+  );
 
   // Register file system watcher if a workspace root is available.
   const watcherRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
