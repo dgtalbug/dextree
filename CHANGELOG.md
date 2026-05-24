@@ -2,10 +2,9 @@
 
 ## [1.1.0](https://github.com/dgtalbug/dextree/compare/v1.0.1...v1.1.0) (2026-05-24)
 
-
 ### Features
 
-* **core:** framework detection (slice 018) ([#67](https://github.com/dgtalbug/dextree/issues/67)) ([59884ff](https://github.com/dgtalbug/dextree/commit/59884ffa8d5562e45d86e78db4dd8bd71c659eb8))
+- **core:** framework detection (slice 018) ([#67](https://github.com/dgtalbug/dextree/issues/67)) ([59884ff](https://github.com/dgtalbug/dextree/commit/59884ffa8d5562e45d86e78db4dd8bd71c659eb8))
 
 ## [1.0.1](https://github.com/dgtalbug/dextree/compare/v1.0.0...v1.0.1) (2026-05-24)
 

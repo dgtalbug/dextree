@@ -1,0 +1,71 @@
+/* NodeFilterPanel — node-type filter chips */
+
+.nodeFilterPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  transition: opacity 100ms ease;
+}
+
+.chip:hover:not(.chipDisabled) {
+  opacity: 0.8;
+}
+
+.chip:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.chipInactive {
+  background: transparent;
+  color: var(--vscode-disabledForeground);
+  border-color: var(--vscode-disabledForeground);
+  opacity: 0.7;
+}
+
+.chipDisabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  background: transparent;
+  color: var(--vscode-disabledForeground);
+  border-color: var(--vscode-disabledForeground);
+}
+
+.badge {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.chipEmpty .badge {
+  opacity: 0.45;
+}
+
+.emptyState {
+  font-size: 11px;
+  color: var(--vscode-disabledForeground);
+  padding: 2px 1px;
+  font-style: italic;
+}

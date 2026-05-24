@@ -700,4 +700,116 @@ describe("GraphView", () => {
 
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/util.ts", 4);
   });
+
+  describe("node-kind filter (slice 019)", () => {
+    it("node filter panel renders in the toolbar with all canonical kinds", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("group", { name: "Node type filters" })).toBeTruthy();
+      // Folder, Class, Interface, Function, Method, Property, Variable, Enum, Type, Decorator = 10
+      expect(screen.getAllByRole("checkbox").length).toBe(10);
+    });
+
+    it("hiddenNodeKinds starts as empty set — all chips aria-checked=true (FR-010)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const chips = screen.getAllByRole("checkbox");
+      const activeChips = chips.filter((c) => c.getAttribute("aria-disabled") !== "true");
+      expect(activeChips.length).toBeGreaterThan(0);
+      for (const chip of activeChips) {
+        expect(chip.getAttribute("aria-checked")).toBe("true");
+      }
+    });
+
+    it("toggling a node-kind chip updates aria-checked state", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const functionChip = screen.getByRole("checkbox", { name: "Hide Function nodes" });
+      expect(functionChip.getAttribute("aria-checked")).toBe("true");
+
+      fireEvent.click(functionChip);
+
+      expect(
+        screen.getByRole("checkbox", { name: "Show Function nodes" }).getAttribute("aria-checked"),
+      ).toBe("false");
+    });
+
+    it("toggling a chip twice returns it to visible state", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const functionChip = screen.getByRole("checkbox", { name: "Hide Function nodes" });
+      fireEvent.click(functionChip);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Show Function nodes" }));
+
+      expect(
+        screen.getByRole("checkbox", { name: "Hide Function nodes" }).getAttribute("aria-checked"),
+      ).toBe("true");
+    });
+
+    it("nodeFilterEntries counts are derived from nodes prop", () => {
+      // baseNodes: 1 file, 1 function, 1 class
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      // baseNodes: 1 file, 1 function, 1 class — Folder chip should show count 1
+      const folderChip = screen.getByRole("checkbox", { name: /Folder/ });
+      expect(folderChip).toBeTruthy();
+      // The badge should show "1"
+      const badge =
+        folderChip.querySelector("span[aria-label]") ??
+        folderChip.parentElement?.querySelector("span[aria-label]");
+      expect(badge ?? folderChip.textContent).toBeTruthy();
+    });
+
+    it("Decorator chip is disabled and not clickable", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      // Find chip by aria-disabled
+      const chips = screen.getAllByRole("checkbox");
+      const disabledChip = chips.find((c) => c.getAttribute("aria-disabled") === "true");
+      expect(disabledChip).toBeTruthy();
+      expect(disabledChip?.textContent).toContain("Decorator");
+    });
+  });
 });

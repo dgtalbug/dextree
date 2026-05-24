@@ -3,11 +3,13 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GraphToolbar } from "./GraphToolbar.js";
+import { CANONICAL_NODE_FILTER_LIST } from "./NodeFilterPanel.js";
 
 function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>) {
   const onExportMermaid = vi.fn();
   const onToggleMinimap = vi.fn();
   const onToggleEdgeKind = vi.fn();
+  const onToggleNodeKind = vi.fn();
 
   const result = render(
     <GraphToolbar
@@ -17,11 +19,17 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
       edgeKinds={["DEFINES", "CALLS", "IMPORTS"]}
       hiddenEdgeKinds={new Set()}
       onToggleEdgeKind={onToggleEdgeKind}
+      nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({
+        ...t,
+        count: i,
+      }))}
+      hiddenNodeKinds={new Set()}
+      onToggleNodeKind={onToggleNodeKind}
       {...overrides}
     />,
   );
 
-  return { ...result, onExportMermaid, onToggleMinimap, onToggleEdgeKind };
+  return { ...result, onExportMermaid, onToggleMinimap, onToggleEdgeKind, onToggleNodeKind };
 }
 
 describe("GraphToolbar", () => {
@@ -83,6 +91,9 @@ describe("GraphToolbar", () => {
         edgeKinds={["DEFINES", "CALLS", "IMPORTS"]}
         hiddenEdgeKinds={new Set()}
         onToggleEdgeKind={vi.fn()}
+        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
+        hiddenNodeKinds={new Set()}
+        onToggleNodeKind={vi.fn()}
       />,
     );
 
@@ -104,6 +115,64 @@ describe("GraphToolbar", () => {
     const { container } = renderToolbar({ edgeKinds: [] });
 
     expect(container.querySelector(".dxt-toolbar")).toBeTruthy();
-    expect(container.querySelector(".dxt-edge-filter-pill")).toBeNull();
+    // Implements stub is always rendered even when edgeKinds is empty
+    expect(container.querySelectorAll(".dxt-edge-filter-pill").length).toBe(1);
+  });
+
+  // US2: Edge-type rename + Implements stub
+  it("renders INHERITS edge pill with label 'Extends' (FR-006)", () => {
+    renderToolbar({ edgeKinds: ["INHERITS"] });
+
+    expect(screen.getByRole("button", { name: "Hide Extends edges" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Inherits/i })).toBeNull();
+  });
+
+  it("clicking Extends pill calls onToggleEdgeKind with 'INHERITS'", () => {
+    const { onToggleEdgeKind } = renderToolbar({ edgeKinds: ["INHERITS"] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Extends edges" }));
+
+    expect(onToggleEdgeKind).toHaveBeenCalledWith("INHERITS");
+  });
+
+  it("renders disabled Implements stub with aria-disabled=true (FR-007)", () => {
+    renderToolbar({ edgeKinds: [] });
+
+    const implementsButton = screen.getByTitle(
+      "Available when ImplementsExtractor ships (slice 031)",
+    );
+    expect(implementsButton.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("clicking Implements stub does NOT call onToggleEdgeKind", () => {
+    const { onToggleEdgeKind } = renderToolbar({ edgeKinds: [] });
+
+    const implementsButton = screen.getByTitle(
+      "Available when ImplementsExtractor ships (slice 031)",
+    );
+    fireEvent.click(implementsButton);
+
+    expect(onToggleEdgeKind).not.toHaveBeenCalled();
+  });
+
+  it("renders Implements stub even when edgeKinds has all 5 fixed kinds (FR-005)", () => {
+    renderToolbar({ edgeKinds: ["DEFINES", "IMPORTS", "CALLS", "INHERITS", "INSTANTIATES"] });
+
+    expect(screen.getByTitle("Available when ImplementsExtractor ships (slice 031)")).toBeTruthy();
+  });
+
+  it("renders all 5 fixed edge pills even when edgeKinds list is full", () => {
+    renderToolbar({ edgeKinds: ["DEFINES", "IMPORTS", "CALLS", "INHERITS", "INSTANTIATES"] });
+
+    expect(screen.getByRole("button", { name: "Hide Defines edges" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hide Imports edges" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hide Calls edges" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hide Extends edges" })).toBeTruthy();
+  });
+
+  it("renders node filter panel inside the toolbar", () => {
+    renderToolbar();
+
+    expect(screen.getByRole("group", { name: "Node type filters" })).toBeTruthy();
   });
 });
