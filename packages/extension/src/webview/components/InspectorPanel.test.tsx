@@ -1,6 +1,6 @@
 import type { GraphNode } from "@dextree/core";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   BADGE_SEPARATOR,
@@ -174,5 +174,37 @@ describe("InspectorPanel", () => {
     );
     const badge = container.querySelector('[data-testid="badge-importance"]');
     expect(badge?.textContent).toBe("—");
+  });
+
+  // Slice 023 — "Trace from here" action
+  it("renders the 'Trace from here' button when onTraceFromHere is provided and a node is selected", () => {
+    const onTraceFromHere = vi.fn();
+    const { container } = render(
+      <InspectorPanel selectedNode={symbolNode()} onTraceFromHere={onTraceFromHere} />,
+    );
+    expect(container.querySelector('[data-testid="trace-from-here"]')).toBeTruthy();
+  });
+
+  it("does NOT render 'Trace from here' button when onTraceFromHere is undefined", () => {
+    const { container } = render(<InspectorPanel selectedNode={symbolNode()} />);
+    expect(container.querySelector('[data-testid="trace-from-here"]')).toBeNull();
+  });
+
+  it("does NOT render 'Trace from here' button when no node is selected", () => {
+    const { container } = render(<InspectorPanel selectedNode={null} onTraceFromHere={vi.fn()} />);
+    expect(container.querySelector('[data-testid="trace-from-here"]')).toBeNull();
+  });
+
+  it("calls onTraceFromHere with the selected node id when the button is clicked", () => {
+    const onTraceFromHere = vi.fn();
+    const { container } = render(
+      <InspectorPanel selectedNode={symbolNode()} onTraceFromHere={onTraceFromHere} />,
+    );
+    const button = container.querySelector(
+      '[data-testid="trace-from-here"]',
+    ) as HTMLButtonElement | null;
+    expect(button).not.toBeNull();
+    button?.click();
+    expect(onTraceFromHere).toHaveBeenCalledWith("sym-1");
   });
 });

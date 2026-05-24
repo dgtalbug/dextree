@@ -11,6 +11,8 @@ export interface ThemeColors {
   callsEdgeColor: string;
   inheritsEdgeColor: string;
   instantiatesEdgeColor: string;
+  /** Yellow used for active trace path edges (slice 023). */
+  tracePathEdgeColor: string;
 }
 
 export interface GraphViewProps {
@@ -96,6 +98,47 @@ export interface SearchState {
 export interface DepthState {
   depth: number;
   enabled: boolean;
+}
+
+/** Phase of the trace state machine (slice 023). */
+export type TracePhase = "idle" | "picking-start" | "picking-end" | "path-active";
+
+/**
+ * Transient trace-mode state owned by GraphView. Not persisted.
+ * `noPathFound` is set when the shortest-path query returns null;
+ * `selfTraceError` is set when the user tries to use the same node as
+ * both start and end.
+ */
+export interface TraceState {
+  phase: TracePhase;
+  startNodeId: string | null;
+  endNodeId: string | null;
+  pathNodeIds: string[];
+  pathEdgeIds: string[];
+  noPathFound: boolean;
+  selfTraceError: boolean;
+}
+
+export const TRACE_STATE_IDLE: TraceState = {
+  phase: "idle",
+  startNodeId: null,
+  endNodeId: null,
+  pathNodeIds: [],
+  pathEdgeIds: [],
+  noPathFound: false,
+  selfTraceError: false,
+};
+
+/** Derived from TraceState + graphology node attributes for TraceInspector (slice 023). */
+export interface TracePath {
+  startNodeId: string;
+  endNodeId: string;
+  hopCount: number;
+  fileCount: number;
+  layersCrossed: string[];
+  crossesFrameworkBoundary: boolean;
+  nodeIds: string[];
+  edgeIds: string[];
 }
 
 export interface OverlaySegment {

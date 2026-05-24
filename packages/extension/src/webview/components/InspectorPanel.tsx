@@ -29,6 +29,8 @@ const PLACEHOLDER = "—";
 
 export interface InspectorPanelProps {
   selectedNode: GraphNode | null;
+  /** Slice 023 — when provided, renders a "Trace from here" action button. */
+  onTraceFromHere?: ((nodeId: string) => void) | undefined;
 }
 
 interface BadgeRendering {
@@ -84,7 +86,13 @@ function EmptyState(): React.ReactElement {
   );
 }
 
-function PopulatedState({ node }: { node: GraphNode }): React.ReactElement {
+function PopulatedState({
+  node,
+  onTraceFromHere,
+}: {
+  node: GraphNode;
+  onTraceFromHere?: ((nodeId: string) => void) | undefined;
+}): React.ReactElement {
   const kindLabel =
     node.type === "symbol" && node.symbolKind !== undefined ? node.symbolKind : node.type;
 
@@ -99,6 +107,21 @@ function PopulatedState({ node }: { node: GraphNode }): React.ReactElement {
           {node.filePath}
         </div>
       </div>
+
+      {onTraceFromHere !== undefined && (
+        <div className={styles.actionRow}>
+          <button
+            type="button"
+            className={styles.traceFromHere}
+            data-testid="trace-from-here"
+            onClick={() => onTraceFromHere(node.id)}
+            title="Trace route from this node"
+          >
+            <span className="codicon codicon-rocket" aria-hidden="true" />
+            Trace from here
+          </button>
+        </div>
+      )}
 
       <div className={styles.row}>
         <div className={styles.sectionTitle}>Signature</div>
@@ -134,10 +157,17 @@ function PopulatedState({ node }: { node: GraphNode }): React.ReactElement {
   );
 }
 
-export function InspectorPanel({ selectedNode }: InspectorPanelProps): React.ReactElement {
+export function InspectorPanel({
+  selectedNode,
+  onTraceFromHere,
+}: InspectorPanelProps): React.ReactElement {
   return (
     <aside className={styles.panel} aria-label="Node inspector">
-      {selectedNode === null ? <EmptyState /> : <PopulatedState node={selectedNode} />}
+      {selectedNode === null ? (
+        <EmptyState />
+      ) : (
+        <PopulatedState node={selectedNode} onTraceFromHere={onTraceFromHere} />
+      )}
     </aside>
   );
 }

@@ -14,6 +14,8 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
   const onSearchSelectResult = vi.fn();
   const onSearchClear = vi.fn();
   const onDepthChange = vi.fn();
+  const onTraceToggle = vi.fn();
+  const onTraceExit = vi.fn();
 
   const result = render(
     <GraphToolbar
@@ -38,6 +40,9 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
       depth={3}
       depthEnabled={false}
       onDepthChange={onDepthChange}
+      tracePhase="idle"
+      onTraceToggle={onTraceToggle}
+      onTraceExit={onTraceExit}
       {...overrides}
     />,
   );
@@ -52,6 +57,8 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
     onSearchSelectResult,
     onSearchClear,
     onDepthChange,
+    onTraceToggle,
+    onTraceExit,
   };
 }
 
@@ -126,6 +133,9 @@ describe("GraphToolbar", () => {
         depth={3}
         depthEnabled={false}
         onDepthChange={vi.fn()}
+        tracePhase="idle"
+        onTraceToggle={vi.fn()}
+        onTraceExit={vi.fn()}
       />,
     );
 
@@ -227,5 +237,89 @@ describe("GraphToolbar", () => {
 
     const slider = screen.getByRole("slider", { name: "Hop depth" }) as HTMLInputElement;
     expect(slider.disabled).toBe(true);
+  });
+
+  // Slice 023 — trace route toggle
+  it("renders the trace toggle button with aria-pressed reflecting the phase (slice 023)", () => {
+    const { rerender } = renderToolbar({ tracePhase: "idle" });
+    expect(
+      screen.getByRole("button", { name: "Toggle trace route mode" }).getAttribute("aria-pressed"),
+    ).toBe("false");
+
+    rerender(
+      <GraphToolbar
+        onExportMermaid={vi.fn()}
+        showMinimap={false}
+        onToggleMinimap={vi.fn()}
+        edgeKinds={["DEFINES"]}
+        hiddenEdgeKinds={new Set()}
+        onToggleEdgeKind={vi.fn()}
+        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
+        hiddenNodeKinds={new Set()}
+        onToggleNodeKind={vi.fn()}
+        searchQuery=""
+        searchResults={[]}
+        searchFocusedIndex={0}
+        onSearchQueryChange={vi.fn()}
+        onSearchSelectResult={vi.fn()}
+        onSearchClear={vi.fn()}
+        depth={3}
+        depthEnabled={false}
+        onDepthChange={vi.fn()}
+        tracePhase="picking-start"
+        onTraceToggle={vi.fn()}
+        onTraceExit={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Toggle trace route mode" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("calls onTraceToggle when the trace button is clicked", () => {
+    const { onTraceToggle } = renderToolbar();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+    expect(onTraceToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Export + Exit trace buttons only when tracePhase is not idle", () => {
+    const { rerender } = renderToolbar({ tracePhase: "idle" });
+    expect(screen.queryByRole("button", { name: "Exit trace mode" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export this trace (disabled)" })).toBeNull();
+
+    rerender(
+      <GraphToolbar
+        onExportMermaid={vi.fn()}
+        showMinimap={false}
+        onToggleMinimap={vi.fn()}
+        edgeKinds={["DEFINES"]}
+        hiddenEdgeKinds={new Set()}
+        onToggleEdgeKind={vi.fn()}
+        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
+        hiddenNodeKinds={new Set()}
+        onToggleNodeKind={vi.fn()}
+        searchQuery=""
+        searchResults={[]}
+        searchFocusedIndex={0}
+        onSearchQueryChange={vi.fn()}
+        onSearchSelectResult={vi.fn()}
+        onSearchClear={vi.fn()}
+        depth={3}
+        depthEnabled={false}
+        onDepthChange={vi.fn()}
+        tracePhase="picking-end"
+        onTraceToggle={vi.fn()}
+        onTraceExit={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Exit trace mode" })).toBeTruthy();
+    const exportBtn = screen.getByRole("button", { name: "Export this trace (disabled)" });
+    expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("calls onTraceExit when the Exit trace button is clicked", () => {
+    const { onTraceExit } = renderToolbar({ tracePhase: "path-active" });
+    fireEvent.click(screen.getByRole("button", { name: "Exit trace mode" }));
+    expect(onTraceExit).toHaveBeenCalledTimes(1);
   });
 });

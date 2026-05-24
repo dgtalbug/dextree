@@ -1,0 +1,65 @@
+/* TraceBanner — slice 023 floating trace banner above canvas */
+
+.banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 12px;
+  border-radius: 16px;
+  background: var(--vscode-statusBarItem-prominentBackground, var(--vscode-button-background));
+  color: var(--vscode-statusBarItem-prominentForeground, var(--vscode-button-foreground));
+  border: 1px solid var(--vscode-focusBorder, transparent);
+  font-size: 12px;
+  z-index: 4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  max-width: 70%;
+  pointer-events: auto;
+}
+
+.icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.body {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.body strong {
+  font-weight: 600;
+}
+
+.error {
+  color: var(--vscode-errorForeground);
+  font-weight: 500;
+}
+
+.exitButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.exitButton:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.exitButton:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}

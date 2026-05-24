@@ -40,6 +40,37 @@
   gap: 2px;
 }
 
+/* Slice 023 — actions row + "Trace from here" button */
+.actionRow {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.traceFromHere {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-button-border, var(--vscode-button-secondaryBackground));
+  border-radius: 3px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.traceFromHere:hover {
+  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.traceFromHere:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 .label {
   font-weight: 600;
   font-size: 13px;
