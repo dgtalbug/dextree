@@ -41,9 +41,9 @@ export interface NodeFilterPanelProps {
 }
 
 export function NodeFilterPanel({ entries, hiddenKinds, onToggle }: NodeFilterPanelProps) {
-  const activNonDisabled = entries.filter((e) => !e.disabled);
+  const activeNonDisabled = entries.filter((e) => !e.disabled);
   const allHidden =
-    activNonDisabled.length > 0 && activNonDisabled.every((e) => hiddenKinds.has(e.key));
+    activeNonDisabled.length > 0 && activeNonDisabled.every((e) => hiddenKinds.has(e.key));
 
   return (
     <div className={styles.nodeFilterPanel} role="group" aria-label="Node type filters">
