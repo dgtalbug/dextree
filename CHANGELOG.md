@@ -2,10 +2,9 @@
 
 ## [1.4.0](https://github.com/dgtalbug/dextree/compare/v1.3.0...v1.4.0) (2026-05-24)
 
-
 ### Features
 
-* **extension,core:** lenses panel + graphology-components dep (slice 021) ([#90](https://github.com/dgtalbug/dextree/issues/90)) ([e9394de](https://github.com/dgtalbug/dextree/commit/e9394de8198931373e0d95d7a17b1d44cf33e013))
+- **extension,core:** lenses panel + graphology-components dep (slice 021) ([#90](https://github.com/dgtalbug/dextree/issues/90)) ([e9394de](https://github.com/dgtalbug/dextree/commit/e9394de8198931373e0d95d7a17b1d44cf33e013))
 
 ## [1.3.0](https://github.com/dgtalbug/dextree/compare/v1.2.0...v1.3.0) (2026-05-24)
 
