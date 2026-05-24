@@ -3,6 +3,10 @@ name: package
 on:
   workflow_call:
 
+# Least-privilege default — overridden per-job only when a job needs more.
+permissions:
+  contents: read
+
 jobs:
   package:
     name: package

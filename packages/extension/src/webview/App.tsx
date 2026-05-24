@@ -75,6 +75,19 @@ export function App({ vscodeApi }: AppProps) {
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
+      // VS Code webviews receive messages from the extension host via the
+      // parent frame. Drop anything from a different sender — guards against
+      // a malicious iframe ever being rendered inside the webview content
+      // attempting to spoof host→webview traffic. The downstream data-shape
+      // check via isHostToWebviewMessage is the practical filter today; this
+      // explicit source check is defense in depth.
+      //
+      // event.source === null is accepted because that's what jsdom
+      // synthesises during tests (and what a same-window dispatchEvent
+      // produces). A real malicious cross-frame post would have a non-null
+      // source pointing at the attacker's window, which would fail this
+      // check and get dropped.
+      if (event.source !== null && event.source !== window.parent) return;
       const msg: unknown = event.data;
       if (!isHostToWebviewMessage(msg)) return;
       if (msg.type === "graph") {
