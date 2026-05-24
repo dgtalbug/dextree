@@ -600,12 +600,7 @@
              so it doesn't compete with the text. The composite multiplies
              alpha — wherever EITHER mask is transparent, the grid hides. */
           mask-image:
-            radial-gradient(
-              ellipse at 65% 45%,
-              black 0%,
-              black 30%,
-              transparent 88%
-            ),
+            radial-gradient(ellipse at 65% 45%, black 0%, black 30%, transparent 88%),
             linear-gradient(
               to right,
               transparent 0%,
@@ -615,12 +610,7 @@
             );
           mask-composite: intersect;
           -webkit-mask-image:
-            radial-gradient(
-              ellipse at 65% 45%,
-              black 0%,
-              black 30%,
-              transparent 88%
-            ),
+            radial-gradient(ellipse at 65% 45%, black 0%, black 30%, transparent 88%),
             linear-gradient(
               to right,
               transparent 0%,
@@ -2783,7 +2773,6 @@
         </div>
       </section>
 
-
       <div class="section-divider"></div>
 
       <!-- ════════ §04 HOW IT GETS INDEXED ════════ -->
@@ -2833,11 +2822,7 @@
           content: "";
           position: absolute;
           inset: 0;
-          background: radial-gradient(
-            circle at 30% 0%,
-            var(--amber-tint),
-            transparent 60%
-          );
+          background: radial-gradient(circle at 30% 0%, var(--amber-tint), transparent 60%);
           opacity: 0;
           pointer-events: none;
           transition: opacity var(--t-med) var(--ease);
@@ -2971,9 +2956,8 @@
           <p class="eyebrow"><span class="dot"></span>how it gets indexed</p>
           <h2 class="display">From source to <em>graph</em><br />in &lt; 1 second.</h2>
           <p class="lede">
-            Three stages, two passes, one DuckDB file. The graph is useful the
-            moment Tree-sitter finishes — Pass 2 LSP enrichment upgrades it in
-            place without ever blocking the UI.
+            Three stages, two passes, one DuckDB file. The graph is useful the moment Tree-sitter
+            finishes — Pass 2 LSP enrichment upgrades it in place without ever blocking the UI.
           </p>
         </div>
 
@@ -2987,12 +2971,10 @@
             <p class="indexed-stage__sub">file discovery · glob filters</p>
             <p class="indexed-stage__body">
               Workspace folders, respecting <code>.gitignore</code> and skipping
-              <code>node_modules</code>. Files are queued by language detector
-              and processed concurrently.
+              <code>node_modules</code>. Files are queued by language detector and processed
+              concurrently.
             </p>
-            <div class="indexed-stage__metric">
-              <strong>&lt; 200ms</strong> for a 50k-file repo
-            </div>
+            <div class="indexed-stage__metric"><strong>&lt; 200ms</strong> for a 50k-file repo</div>
           </div>
 
           <div class="indexed-stage">
@@ -3003,9 +2985,8 @@
             <h3 class="indexed-stage__title">Tree-sitter pass</h3>
             <p class="indexed-stage__sub">structural extraction</p>
             <p class="indexed-stage__body">
-              Each file is parsed by a Tree-sitter WASM grammar. Symbols, imports,
-              and lexical call edges land in DuckDB. The graph view opens before
-              the file header is read.
+              Each file is parsed by a Tree-sitter WASM grammar. Symbols, imports, and lexical call
+              edges land in DuckDB. The graph view opens before the file header is read.
             </p>
             <div class="indexed-stage__metric">
               <strong>&lt; 1s</strong> structural graph usable
@@ -3020,17 +3001,14 @@
             <h3 class="indexed-stage__title">LSP enrichment</h3>
             <p class="indexed-stage__sub">semantic upgrade in place</p>
             <p class="indexed-stage__body">
-              Pass 2 runs in the background, asking VS Code's LSPs for type-accurate
-              references, inheritance edges, and framework annotations. Edges
-              upgrade silently — no re-render, no spinner.
+              Pass 2 runs in the background, asking VS Code's LSPs for type-accurate references,
+              inheritance edges, and framework annotations. Edges upgrade silently — no re-render,
+              no spinner.
             </p>
-            <div class="indexed-stage__metric">
-              <strong>live</strong> background enrichment
-            </div>
+            <div class="indexed-stage__metric"><strong>live</strong> background enrichment</div>
           </div>
         </div>
       </section>
-
 
       <div class="section-divider"></div>
 
@@ -3070,11 +3048,7 @@
           right: 0;
           width: 60px;
           height: 60px;
-          background: linear-gradient(
-            225deg,
-            var(--amber-tint) 0%,
-            transparent 70%
-          );
+          background: linear-gradient(225deg, var(--amber-tint) 0%, transparent 70%);
           opacity: 0;
           transition: opacity var(--t-med) var(--ease);
           pointer-events: none;
@@ -3145,11 +3119,7 @@
           gap: 16px;
           padding: 14px 20px;
           margin-top: 8px;
-          background: linear-gradient(
-            90deg,
-            var(--amber-tint),
-            transparent 60%
-          );
+          background: linear-gradient(90deg, var(--amber-tint), transparent 60%);
           border: 1px solid var(--amber);
           border-radius: var(--r-5);
         }
@@ -3198,9 +3168,8 @@
           <p class="eyebrow"><span class="dot"></span>live on your machine</p>
           <h2 class="display">Your code <em>stays</em><br />on your machine.</h2>
           <p class="lede">
-            DuckDB embedded. Zero servers. Zero daemons. No telemetry. The graph
-            lives in a single file inside your workspace — you can delete it with
-            one <code>rm</code>.
+            DuckDB embedded. Zero servers. Zero daemons. No telemetry. The graph lives in a single
+            file inside your workspace — you can delete it with one <code>rm</code>.
           </p>
         </div>
 
@@ -3224,8 +3193,8 @@
             </div>
             <h3 class="live-card__title">No code leaves</h3>
             <p class="live-card__body">
-              Indexing runs entirely inside VS Code. Nothing is uploaded. Alfred
-              (LLM reports) is off by default and BYOK when on.
+              Indexing runs entirely inside VS Code. Nothing is uploaded. Alfred (LLM reports) is
+              off by default and BYOK when on.
             </p>
             <span class="live-card__pill">opt-in only</span>
           </div>
@@ -3255,8 +3224,8 @@
             </div>
             <h3 class="live-card__title">No telemetry</h3>
             <p class="live-card__body">
-              Not anonymized, not aggregated — just none. We don't ship analytics
-              SDKs. Crash reports go to your VS Code output channel.
+              Not anonymized, not aggregated — just none. We don't ship analytics SDKs. Crash
+              reports go to your VS Code output channel.
             </p>
             <span class="live-card__pill">zero pings</span>
           </div>
@@ -3270,14 +3239,13 @@
             </div>
             <h3 class="live-card__title">Works offline</h3>
             <p class="live-card__body">
-              First index, every navigation, every export — all local. Marketplace
-              install needs the network once. After that, airplane mode is fine.
+              First index, every navigation, every export — all local. Marketplace install needs the
+              network once. After that, airplane mode is fine.
             </p>
             <span class="live-card__pill">first install only</span>
           </div>
         </div>
       </section>
-
 
       <div class="section-divider"></div>
 
@@ -4189,118 +4157,119 @@
 
         <!-- Prompt-content templates the cycler swaps into #alfred-pre -->
         <template id="alfred-prompt-templates">
-          <div data-prompt="architecture" data-file=".dextree/prompts/architecture.md"><span class="tk-com"># Architecture Overview</span>
+          <div data-prompt="architecture" data-file=".dextree/prompts/architecture.md">
+            <span class="tk-com"># Architecture Overview</span>
 
-<span class="tk-com">## Context (graph)</span>
+            <span class="tk-com">## Context (graph)</span>
 
-<span class="tk-com">```sql</span>
-<span class="tk-kw">SELECT</span> n.name, n.file, n.fan_in
-<span class="tk-kw">FROM</span> symbols n
-<span class="tk-kw">WHERE</span> n.fan_in &gt; <span class="tk-num">10</span>
-<span class="tk-kw">ORDER BY</span> n.fan_in <span class="tk-kw">DESC</span>
-<span class="tk-kw">LIMIT</span> <span class="tk-num">12</span>;
-<span class="tk-com">```</span>
+            <span class="tk-com">```sql</span>
+            <span class="tk-kw">SELECT</span> n.name, n.file, n.fan_in
+            <span class="tk-kw">FROM</span> symbols n <span class="tk-kw">WHERE</span> n.fan_in &gt;
+            <span class="tk-num">10</span> <span class="tk-kw">ORDER BY</span> n.fan_in
+            <span class="tk-kw">DESC</span> <span class="tk-kw">LIMIT</span>
+            <span class="tk-num">12</span>;
+            <span class="tk-com">```</span>
 
-<span class="tk-com">## Ask</span>
+            <span class="tk-com">## Ask</span>
 
-You're a senior engineer giving a
-new teammate a 5-minute system tour.
-Use the high-fan-in nodes above as
-the spine. End with a <span class="tk-fn">map</span>: 4 layers,
-top to bottom.</div>
+            You're a senior engineer giving a new teammate a 5-minute system tour. Use the
+            high-fan-in nodes above as the spine. End with a <span class="tk-fn">map</span>: 4
+            layers, top to bottom.
+          </div>
 
-          <div data-prompt="onboarding" data-file=".dextree/prompts/onboarding.md"><span class="tk-com"># Day-One Guide</span>
+          <div data-prompt="onboarding" data-file=".dextree/prompts/onboarding.md">
+            <span class="tk-com"># Day-One Guide</span>
 
-<span class="tk-com">## Context (graph)</span>
+            <span class="tk-com">## Context (graph)</span>
 
-<span class="tk-com">```sql</span>
-<span class="tk-kw">SELECT</span> n.name, n.file
-<span class="tk-kw">FROM</span> entry_points() n
-<span class="tk-kw">ORDER BY</span> n.fan_in <span class="tk-kw">DESC</span>;
-<span class="tk-com">```</span>
+            <span class="tk-com">```sql</span>
+            <span class="tk-kw">SELECT</span> n.name, n.file
+            <span class="tk-kw">FROM</span> entry_points() n
+            <span class="tk-kw">ORDER BY</span> n.fan_in <span class="tk-kw">DESC</span>;
+            <span class="tk-com">```</span>
 
-<span class="tk-com">## Ask</span>
+            <span class="tk-com">## Ask</span>
 
-You're writing a day-one orientation
-for a senior dev joining the team.
-Start with the entry points above.
-End with a <span class="tk-fn">checklist</span>: 5 PRs they
-could realistically ship in week 1.</div>
+            You're writing a day-one orientation for a senior dev joining the team. Start with the
+            entry points above. End with a <span class="tk-fn">checklist</span>: 5 PRs they could
+            realistically ship in week 1.
+          </div>
 
-          <div data-prompt="risk" data-file=".dextree/prompts/risk-report.md"><span class="tk-com"># PR Risk Report</span>
+          <div data-prompt="risk" data-file=".dextree/prompts/risk-report.md">
+            <span class="tk-com"># PR Risk Report</span>
 
-<span class="tk-com">## Context (graph)</span>
+            <span class="tk-com">## Context (graph)</span>
 
-<span class="tk-com">```sql</span>
-<span class="tk-kw">SELECT</span> n.name, n.file, n.fan_in,
-       has_tests(n.id) <span class="tk-kw">AS</span> tested
-<span class="tk-kw">FROM</span> blast_radius('${PR_BRANCH}')
-<span class="tk-kw">ORDER BY</span> n.fan_in <span class="tk-kw">DESC</span>
-<span class="tk-kw">LIMIT</span> <span class="tk-num">20</span>;
-<span class="tk-com">```</span>
+            <span class="tk-com">```sql</span>
+            <span class="tk-kw">SELECT</span> n.name, n.file, n.fan_in, has_tests(n.id)
+            <span class="tk-kw">AS</span> tested
+            <span class="tk-kw">FROM</span> blast_radius('${PR_BRANCH}')
+            <span class="tk-kw">ORDER BY</span> n.fan_in <span class="tk-kw">DESC</span>
+            <span class="tk-kw">LIMIT</span> <span class="tk-num">20</span>;
+            <span class="tk-com">```</span>
 
-<span class="tk-com">## Ask</span>
+            <span class="tk-com">## Ask</span>
 
-You're a senior reviewer. Given the
-symbols above, write a 5-bullet risk
-report. Flag any untested hot-paths.
-End with a <span class="tk-fn">verdict</span>: <span class="tk-str">"ship"</span>, <span class="tk-str">"caution"</span>,
-or <span class="tk-str">"hold"</span>.</div>
+            You're a senior reviewer. Given the symbols above, write a 5-bullet risk report. Flag
+            any untested hot-paths. End with a <span class="tk-fn">verdict</span>:
+            <span class="tk-str">"ship"</span>, <span class="tk-str">"caution"</span>, or
+            <span class="tk-str">"hold"</span>.
+          </div>
 
-          <div data-prompt="dead-code" data-file=".dextree/prompts/dead-code.md"><span class="tk-com"># Dead Code Lens</span>
+          <div data-prompt="dead-code" data-file=".dextree/prompts/dead-code.md">
+            <span class="tk-com"># Dead Code Lens</span>
 
-<span class="tk-com">## Context (graph)</span>
+            <span class="tk-com">## Context (graph)</span>
 
-<span class="tk-com">```sql</span>
-<span class="tk-kw">SELECT</span> n.name, n.file
-<span class="tk-kw">FROM</span> symbols n
-<span class="tk-kw">WHERE</span> n.fan_in = <span class="tk-num">0</span>
-  <span class="tk-kw">AND</span> n.visibility = <span class="tk-str">'public'</span>
-  <span class="tk-kw">AND</span> n.last_touched &gt; <span class="tk-num">180</span>;
-<span class="tk-com">```</span>
+            <span class="tk-com">```sql</span>
+            <span class="tk-kw">SELECT</span> n.name, n.file <span class="tk-kw">FROM</span> symbols
+            n <span class="tk-kw">WHERE</span> n.fan_in = <span class="tk-num">0</span>
+            <span class="tk-kw">AND</span> n.visibility = <span class="tk-str">'public'</span>
+            <span class="tk-kw">AND</span> n.last_touched &gt; <span class="tk-num">180</span>;
+            <span class="tk-com">```</span>
 
-<span class="tk-com">## Ask</span>
+            <span class="tk-com">## Ask</span>
 
-Rank these by deletion safety. For
-each one, give a one-line argument
-for delete-vs-keep. Group into
-<span class="tk-str">"safe"</span>, <span class="tk-str">"check first"</span>, and
-<span class="tk-str">"keep — load-bearing"</span>.</div>
+            Rank these by deletion safety. For each one, give a one-line argument for
+            delete-vs-keep. Group into
+            <span class="tk-str">"safe"</span>, <span class="tk-str">"check first"</span>, and
+            <span class="tk-str">"keep — load-bearing"</span>.
+          </div>
 
-          <div data-prompt="impact" data-file=".dextree/prompts/impact.md"><span class="tk-com"># Impact Narrative</span>
+          <div data-prompt="impact" data-file=".dextree/prompts/impact.md">
+            <span class="tk-com"># Impact Narrative</span>
 
-<span class="tk-com">## Context (graph)</span>
+            <span class="tk-com">## Context (graph)</span>
 
-<span class="tk-com">```sql</span>
-<span class="tk-kw">SELECT</span> n.name, n.file, n.depth
-<span class="tk-kw">FROM</span> reachable_from('${SYMBOL}')
-<span class="tk-kw">ORDER BY</span> n.depth, n.fan_in <span class="tk-kw">DESC</span>;
-<span class="tk-com">```</span>
+            <span class="tk-com">```sql</span>
+            <span class="tk-kw">SELECT</span> n.name, n.file, n.depth
+            <span class="tk-kw">FROM</span> reachable_from('${SYMBOL}')
+            <span class="tk-kw">ORDER BY</span> n.depth, n.fan_in <span class="tk-kw">DESC</span>;
+            <span class="tk-com">```</span>
 
-<span class="tk-com">## Ask</span>
+            <span class="tk-com">## Ask</span>
 
-Explain what changes when this
-symbol changes. Use the reachable
-nodes above. Tell the story in 3
-hops: <span class="tk-fn">direct</span>, <span class="tk-fn">nearby</span>,
-<span class="tk-fn">surprising</span>.</div>
+            Explain what changes when this symbol changes. Use the reachable nodes above. Tell the
+            story in 3 hops: <span class="tk-fn">direct</span>, <span class="tk-fn">nearby</span>,
+            <span class="tk-fn">surprising</span>.
+          </div>
 
-          <div data-prompt="custom" data-file=".dextree/prompts/custom.md"><span class="tk-com"># Your Prompt</span>
+          <div data-prompt="custom" data-file=".dextree/prompts/custom.md">
+            <span class="tk-com"># Your Prompt</span>
 
-<span class="tk-com">## Context (graph)</span>
+            <span class="tk-com">## Context (graph)</span>
 
-<span class="tk-com">```sql</span>
-<span class="tk-com">-- any DuckPGQ / SQL query</span>
-<span class="tk-com">-- the result is passed as $CONTEXT</span>
-<span class="tk-com">```</span>
+            <span class="tk-com">```sql</span>
+            <span class="tk-com">-- any DuckPGQ / SQL query</span>
+            <span class="tk-com">-- the result is passed as $CONTEXT</span>
+            <span class="tk-com">```</span>
 
-<span class="tk-com">## Ask</span>
+            <span class="tk-com">## Ask</span>
 
-Drop a markdown file in
-<span class="tk-str">.dextree/prompts/</span> with a SQL block
-and an "Ask" section. Alfred picks
-it up automatically. <span class="tk-fn">BYOK</span>, local
-models welcome.</div>
+            Drop a markdown file in
+            <span class="tk-str">.dextree/prompts/</span> with a SQL block and an "Ask" section.
+            Alfred picks it up automatically. <span class="tk-fn">BYOK</span>, local models welcome.
+          </div>
         </template>
       </section>
 
@@ -4799,7 +4768,6 @@ models welcome.</div>
         </p>
       </section>
 
-
       <div class="section-divider"></div>
 
       <!-- ════════ §10 CTA PANEL (no footer) ════════ -->
@@ -5006,12 +4974,7 @@ models welcome.</div>
             >
               File an issue
             </a>
-            <a
-              class="btn btn-ghost"
-              href="/guide/"
-            >
-              Read the docs
-            </a>
+            <a class="btn btn-ghost" href="/guide/"> Read the docs </a>
           </div>
           <div class="cta-meta">
             <a
@@ -5124,9 +5087,9 @@ models welcome.</div>
          VitePress's isDark. So inside VitePress, this whole block must
          do nothing — running it would race the bridge and stomp the
          single source of truth. */
-      const isInVitePress = typeof window !== "undefined" && (
-        "__VP_HASH_MAP__" in window || document.querySelector("#app[data-v-app]")
-      );
+      const isInVitePress =
+        typeof window !== "undefined" &&
+        ("__VP_HASH_MAP__" in window || document.querySelector("#app[data-v-app]"));
       if (!isInVitePress) {
         const root = document.documentElement;
         const themeToggle = $("#theme-toggle");
@@ -5297,12 +5260,7 @@ models welcome.</div>
         // Sparser graph reads faster as a thumbnail and pairs better with
         // the 50/50 column split (less density crammed into a square).
 
-        const nodes = [
-          ...core,
-          ...modules,
-          ...leaves,
-          ...outers,
-        ];
+        const nodes = [...core, ...modules, ...leaves, ...outers];
 
         // ── Edges ──
         // The pattern: center → each module, each module → 2-3 leaves nearby,
@@ -5476,9 +5434,7 @@ models welcome.</div>
           setStatusIndexing();
           const rings = [core, modules, leaves, outers];
           const ringIndexOfNode = new Map();
-          rings.forEach((ring, ri) =>
-            ring.forEach((n) => ringIndexOfNode.set(n.id, ri)),
-          );
+          rings.forEach((ring, ri) => ring.forEach((n) => ringIndexOfNode.set(n.id, ri)));
           // Build a lookup: for each node, which edges in `edges` connect
           // it to a node in an INNER ring (its "parent links"). These are
           // the edges we paint as soon as the node appears.
@@ -5865,11 +5821,8 @@ models welcome.</div>
         cards.forEach((card, i) => {
           card.addEventListener("click", () => {
             const id = card.getAttribute("data-prompt");
-            const isAlreadyPinned =
-              pinned && card.getAttribute("data-pinned") === "true";
-            cards.forEach((c) =>
-              c.setAttribute("data-pinned", "false"),
-            );
+            const isAlreadyPinned = pinned && card.getAttribute("data-pinned") === "true";
+            cards.forEach((c) => c.setAttribute("data-pinned", "false"));
             if (isAlreadyPinned) {
               pinned = false;
               startCycle();

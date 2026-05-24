@@ -1,9 +1,6 @@
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
-import {
-  groupIconMdPlugin,
-  groupIconVitePlugin,
-} from "vitepress-plugin-group-icons";
+import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 import llmstxt from "vitepress-plugin-llms";
 import { GitChangelog } from "@nolebase/vitepress-plugin-git-changelog/vite";
 
@@ -30,8 +27,7 @@ const themePrePaintScript = `
 export default withMermaid(
   defineConfig({
     title: "Dextree",
-    description:
-      "Index your codebase into a navigable semantic graph — inside VS Code.",
+    description: "Index your codebase into a navigable semantic graph — inside VS Code.",
     lang: "en-US",
 
     // Env-driven base — local dev gets "/", GitHub Pages CI sets DOCS_BASE.
@@ -57,10 +53,7 @@ export default withMermaid(
       // Webfonts the indigo HTML expects: Fraunces (display, variable
       // 9..144 / 300..900), JetBrains Mono (mono), Inter (body).
       // preconnect first for the cross-origin handshake; stylesheet second.
-      [
-        "link",
-        { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      ],
+      ["link", { rel: "preconnect", href: "https://fonts.googleapis.com" }],
       [
         "link",
         {

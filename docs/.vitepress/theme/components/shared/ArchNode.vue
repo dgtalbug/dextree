@@ -26,21 +26,13 @@ const sides = [
   { id: "left", position: Position.Left },
 ] as const;
 
-const toneClass = computed(
-  () => `arch-node--${props.data.tone ?? "neutral"}`,
-);
+const toneClass = computed(() => `arch-node--${props.data.tone ?? "neutral"}`);
 
-const tooltipText = computed(
-  () => props.data.tooltip ?? props.data.sub ?? "",
-);
+const tooltipText = computed(() => props.data.tooltip ?? props.data.sub ?? "");
 </script>
 
 <template>
-  <div
-    class="arch-node"
-    :class="toneClass"
-    :data-tooltip="tooltipText || null"
-  >
+  <div class="arch-node" :class="toneClass" :data-tooltip="tooltipText || null">
     <!-- Source + target handles on every side; Vue Flow picks the right one
          based on the edge's sourceHandle/targetHandle. We make them
          invisible because most architecture diagrams don't need visible

@@ -39,12 +39,9 @@
   --paper: #0f0f15;
   --grain-opacity: 0.04;
   --shadow-card:
-    0 1px 0 rgba(165, 180, 252, 0.05) inset,
-    0 14px 40px -20px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(165, 180, 252, 0.05) inset, 0 14px 40px -20px rgba(0, 0, 0, 0.8),
     0 4px 10px -6px rgba(0, 0, 0, 0.65);
-  --shadow-pop:
-    0 28px 60px -22px rgba(129, 140, 248, 0.5),
-    0 4px 14px -4px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 28px 60px -22px rgba(129, 140, 248, 0.5), 0 4px 14px -4px rgba(0, 0, 0, 0.7);
 }
 
 /* ── theme: light (warm-paper) ───────────────────────────── */
@@ -76,12 +73,9 @@
   --paper: #ffffff;
   --grain-opacity: 0.03;
   --shadow-card:
-    0 1px 0 rgba(255, 255, 255, 1) inset,
-    0 14px 40px -22px rgba(30, 27, 75, 0.18),
+    0 1px 0 rgba(255, 255, 255, 1) inset, 0 14px 40px -22px rgba(30, 27, 75, 0.18),
     0 4px 10px -6px rgba(30, 27, 75, 0.12);
-  --shadow-pop:
-    0 28px 60px -22px rgba(79, 70, 229, 0.4),
-    0 4px 14px -4px rgba(30, 27, 75, 0.15);
+  --shadow-pop: 0 28px 60px -22px rgba(79, 70, 229, 0.4), 0 4px 14px -4px rgba(30, 27, 75, 0.15);
 }
 
 /* ── universal tokens (typography stack, radii, timings, layout) ── */

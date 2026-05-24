@@ -43,7 +43,12 @@ html:has(.indigo-home) #VPContent {
   margin-right: -50vw !important;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
 .indigo-home code,

@@ -36,14 +36,7 @@
 -->
 <script setup lang="ts">
 import { computed, markRaw, onBeforeUnmount, onMounted, ref } from "vue";
-import {
-  MarkerType,
-  Position,
-  VueFlow,
-  useVueFlow,
-  type Edge,
-  type Node,
-} from "@vue-flow/core";
+import { MarkerType, Position, VueFlow, useVueFlow, type Edge, type Node } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { useData } from "vitepress";
 import ArchNode from "./ArchNode.vue";
@@ -148,9 +141,7 @@ const baseNodes = computed<Node[]>(() =>
       },
       width: n.width ?? (isGroup ? 280 : 160),
       height: n.height ?? (isGroup ? 200 : 90),
-      style: isGroup
-        ? { width: `${n.width ?? 280}px`, height: `${n.height ?? 200}px` }
-        : undefined,
+      style: isGroup ? { width: `${n.width ?? 280}px`, height: `${n.height ?? 200}px` } : undefined,
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       draggable: false,
@@ -184,11 +175,7 @@ const layoutNodes = computed<Node[]>(() => {
 const edges = computed<Edge[]>(() =>
   props.edges.map((e, idx) => {
     const labelText =
-      e.label !== undefined
-        ? e.label
-        : e.step !== undefined
-          ? String(e.step)
-          : undefined;
+      e.label !== undefined ? e.label : e.step !== undefined ? String(e.step) : undefined;
 
     const classList: string[] = [];
     if (e.animated) classList.push("animated");
@@ -282,11 +269,7 @@ const bgColor = computed(() =>
 </script>
 
 <template>
-  <div
-    ref="boardEl"
-    class="arch-diagram"
-    :id="props.id ? `arch-${props.id}` : undefined"
-  >
+  <div ref="boardEl" class="arch-diagram" :id="props.id ? `arch-${props.id}` : undefined">
     <div class="arch-diagram__toolbar" role="toolbar" aria-label="Diagram controls">
       <div class="arch-diagram__toolbar-group">
         <button
@@ -330,11 +313,7 @@ const bgColor = computed(() =>
         class="arch-diagram__text-btn"
         type="button"
         :aria-pressed="isSpread"
-        :title="
-          isSpread
-            ? 'Restore original node positions'
-            : 'Spread nodes outward for more room'
-        "
+        :title="isSpread ? 'Restore original node positions' : 'Spread nodes outward for more room'"
         @click="toggleSpread"
       >
         {{ isSpread ? "Original" : "Spread" }}
