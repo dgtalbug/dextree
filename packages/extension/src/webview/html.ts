@@ -854,18 +854,53 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        cursor: crosshair;
      }
 
-     .dxt-minimap-canvas--hidden {
-       display: none;
-     }
+      .dxt-minimap-canvas--hidden {
+        display: none;
+      }
 
-     .dxt-minimap-toggle {
-       position: absolute;
-       top: 14px;
-       left: 14px;
-       z-index: 11;
-       background: transparent;
-       border: 1px solid var(--vscode-panel-border, transparent);
-       border-radius: 4px;
+      .dxt-toolbar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 11;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 40px;
+        padding: 0 8px;
+        box-sizing: border-box;
+        background: var(--vscode-editor-background);
+        border-bottom: 1px solid var(--vscode-panel-border, transparent);
+      }
+
+      .dxt-toolbar__export {
+        flex-shrink: 0;
+      }
+
+      .dxt-toolbar__pills {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .dxt-toolbar__pills::-webkit-scrollbar {
+        display: none;
+      }
+
+      .dxt-toolbar__minimap-toggle {
+        flex-shrink: 0;
+      }
+
+      .dxt-minimap-toggle {
+        background: transparent;
+        border: 1px solid var(--vscode-panel-border, transparent);
+        border-radius: 4px;
        padding: 4px;
        cursor: pointer;
        color: var(--vscode-foreground);
@@ -874,16 +909,12 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
 
      .dxt-minimap-toggle:hover {
        opacity: 1;
-     }
+      }
 
-     .dxt-export-mermaid {
-       position: absolute;
-       top: 46px;
-       left: 14px;
-       z-index: 11;
-       background: transparent;
-       border: 1px solid var(--vscode-panel-border, transparent);
-       border-radius: 4px;
+      .dxt-export-mermaid {
+        background: transparent;
+        border: 1px solid var(--vscode-panel-border, transparent);
+        border-radius: 4px;
        padding: 4px;
        cursor: pointer;
        color: var(--vscode-foreground);
@@ -894,16 +925,13 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        opacity: 1;
      }
 
-     .dxt-edge-filter-bar {
-       position: absolute;
-       top: 14px;
-       right: 14px;
-       display: flex;
-       flex-direction: column;
-       gap: 4px;
-       z-index: 11;
-       align-items: flex-end;
-     }
+      .dxt-edge-filter-bar {
+        display: flex;
+        flex-direction: row;
+        gap: 4px;
+        align-items: center;
+        width: max-content;
+      }
 
      .dxt-edge-filter-pill {
        display: flex;

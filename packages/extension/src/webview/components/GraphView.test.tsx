@@ -170,6 +170,7 @@ describe("GraphView", () => {
     mockSigma.on.mockClear();
     mockSigma.kill.mockClear();
     mockSigma.refresh.mockClear();
+    mockSigma.getNodeDisplayData = undefined;
     vi.spyOn(window, "getComputedStyle").mockImplementation(
       () =>
         ({
@@ -197,6 +198,76 @@ describe("GraphView", () => {
     expect(forceAtlasAssign).toHaveBeenCalledTimes(1);
     expect(sigmaConstructor.mock.calls[0]?.[2]).toMatchObject({ allowInvalidContainer: true });
     expect(resizeObservers[0]?.observe).toHaveBeenCalled();
+  });
+
+  it("hides the minimap on a fresh render by default", () => {
+    const { container } = render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector(".dxt-minimap-canvas--hidden")).toBeTruthy();
+  });
+
+  it("calls onExportMermaid from the toolbar export button", () => {
+    const onExportMermaid = vi.fn();
+
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={onExportMermaid}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Export as Mermaid" }));
+
+    expect(onExportMermaid).toHaveBeenCalledTimes(1);
+  });
+
+  it("toggles the minimap visibility from the toolbar button", () => {
+    const { container } = render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
+
+    const minimapButton = screen.getByRole("button", { name: "Toggle minimap" });
+    const minimapCanvas = container.querySelector(".dxt-minimap-canvas");
+
+    expect(minimapCanvas?.className).toContain("dxt-minimap-canvas--hidden");
+
+    fireEvent.click(minimapButton);
+
+    expect(minimapCanvas?.className).not.toContain("dxt-minimap-canvas--hidden");
+    expect(minimapButton.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("updates edge filter pill state from the toolbar", () => {
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
+
+    const definesButton = screen.getByRole("button", { name: "Hide Defines edges" });
+
+    fireEvent.click(definesButton);
+
+    expect(
+      screen.getByRole("button", { name: "Show Defines edges" }).getAttribute("aria-pressed"),
+    ).toBe("false");
   });
 
   it("assigns distinct node size and color attributes for file and symbol nodes", () => {
@@ -569,5 +640,64 @@ describe("GraphView", () => {
 
     expect(Number(selectedEdge.size)).toBeGreaterThan(1.8);
     expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.06\)/);
+  });
+
+  it("renders overlay travelers and neighbor navigation after selecting a node", () => {
+    const onNavigate = vi.fn();
+    const toolbarNodes = [
+      ...baseNodes,
+      {
+        id: "symbol-3",
+        type: "symbol" as const,
+        label: "formatCaller",
+        filePath: "/workspace/src/caller.ts",
+        startLine: 9,
+        symbolKind: "function" as const,
+      },
+    ];
+    const toolbarEdges = [
+      ...baseEdges,
+      { id: "edge-calls-in", source: "symbol-3", target: "symbol-1", kind: "CALLS" as const },
+    ];
+    mockSigma.getNodeDisplayData = vi.fn((nodeId: string) => {
+      if (nodeId === "symbol-1") {
+        return { x: 40, y: 40 };
+      }
+
+      if (nodeId === "symbol-2") {
+        return { x: 84, y: 54 };
+      }
+
+      if (nodeId === "symbol-3") {
+        return { x: 18, y: 28 };
+      }
+
+      return { x: 12, y: 16 };
+    });
+    const { container } = render(
+      <GraphView
+        nodes={toolbarNodes}
+        edges={toolbarEdges}
+        onNavigate={onNavigate}
+        onExportMermaid={vi.fn()}
+      />,
+    );
+
+    const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+    clickNodeHandler?.({ node: "symbol-1" });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(container.querySelectorAll(".dxt-selection-path").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".dxt-selection-traveler").length).toBeGreaterThan(0);
+    expect(screen.getByText("Called by")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "formatCaller" }));
+    expect(onNavigate).toHaveBeenCalledWith("/workspace/src/caller.ts", 9);
+
+    fireEvent.click(screen.getByRole("button", { name: "formatDate" }));
+
+    expect(onNavigate).toHaveBeenCalledWith("/workspace/src/util.ts", 4);
   });
 });

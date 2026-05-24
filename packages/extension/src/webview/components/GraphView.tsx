@@ -1,4 +1,4 @@
-import type { GraphEdge, GraphNode, SymbolKind } from "@dextree/core";
+import type { GraphEdge, GraphNode } from "@dextree/core";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { motion } from "framer-motion";
@@ -6,103 +6,24 @@ import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "re
 import Sigma from "sigma";
 
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
+import { GraphToolbar } from "./GraphToolbar.js";
+import type {
+  FallbackNode,
+  FallbackGraph,
+  GraphEdgeAttributes,
+  GraphNodeAttributes,
+  GraphViewProps,
+  OverlaySegment,
+  SelectionTraversal,
+  SigmaNodeDisplayData,
+  ThemeColors,
+} from "./graphViewTypes.js";
 
 // Keep faded nodes/edges very dim so only the hovered/selected cluster is prominent
 const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 const FLOW_MAX_DEPTH = 4;
-
-interface ThemeColors {
-  backgroundColor: string;
-  labelColor: string;
-  disabledColor: string;
-  fileNodeColor: string;
-  symbolKindColors: Record<SymbolKind | "default", string>;
-  definesEdgeColor: string;
-  importsEdgeColor: string;
-  callsEdgeColor: string;
-  inheritsEdgeColor: string;
-  instantiatesEdgeColor: string;
-}
-
-interface GraphViewProps {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  onNavigate: (filePath: string, line: number) => void;
-  onExportMermaid: () => void;
-}
-
-interface GraphNodeAttributes {
-  label: string;
-  filePath: string;
-  startLine: number;
-  nodeKind: GraphNode["type"];
-  symbolKind?: GraphNode["symbolKind"];
-  x: number;
-  y: number;
-  size: number;
-  baseSize: number;
-  color: string;
-  baseColor: string;
-}
-
-interface GraphEdgeAttributes {
-  edgeKind: GraphEdge["kind"];
-  color: string;
-  baseColor: string;
-  size: number;
-  baseSize: number;
-}
-
-interface FallbackNode {
-  id: string;
-  label: string;
-  filePath: string;
-  startLine: number;
-  x: number;
-  y: number;
-  color: string;
-  type: GraphNode["type"];
-}
-
-interface FallbackEdge {
-  id: string;
-  source: string;
-  target: string;
-  color: string;
-  kind: GraphEdge["kind"];
-}
-
-interface FallbackGraph {
-  nodes: FallbackNode[];
-  edges: FallbackEdge[];
-}
-
-interface SelectionTraversal {
-  selectedNodeId: string;
-  nodeIds: Set<string>;
-  edgeIds: Set<string>;
-  orderedEdgeIds: string[];
-  hopLayers: string[][];
-}
-
-interface OverlaySegment {
-  id: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  color: string;
-  kind: GraphEdge["kind"];
-  hopIndex: number;
-}
-
-interface SigmaNodeDisplayData {
-  x: number;
-  y: number;
-  hidden?: boolean;
-}
 
 type SigmaWithExtras = Sigma & {
   getNodeDisplayData?: (node: string) => SigmaNodeDisplayData | undefined;
@@ -693,14 +614,6 @@ function StaticGraphFallback({
   );
 }
 
-const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
-  DEFINES: "Defines",
-  IMPORTS: "Imports",
-  CALLS: "Calls",
-  INHERITS: "Inherits",
-  INSTANTIATES: "New",
-};
-
 const ALL_EDGE_KINDS: GraphEdge["kind"][] = [
   "DEFINES",
   "IMPORTS",
@@ -708,36 +621,6 @@ const ALL_EDGE_KINDS: GraphEdge["kind"][] = [
   "INHERITS",
   "INSTANTIATES",
 ];
-
-function EdgeFilterBar({
-  hiddenKinds,
-  onToggle,
-}: {
-  hiddenKinds: Set<GraphEdge["kind"]>;
-  onToggle: (kind: GraphEdge["kind"]) => void;
-}) {
-  return (
-    <div className="dxt-edge-filter-bar" role="toolbar" aria-label="Edge type filters">
-      {ALL_EDGE_KINDS.map((kind) => {
-        const active = !hiddenKinds.has(kind);
-        return (
-          <button
-            key={kind}
-            type="button"
-            className={`dxt-edge-filter-pill${active ? "" : " dxt-edge-filter-pill--disabled"}`}
-            data-kind={kind}
-            onClick={() => onToggle(kind)}
-            aria-pressed={active}
-            title={`${active ? "Hide" : "Show"} ${EDGE_KIND_LABELS[kind]} edges`}
-          >
-            <span className="dxt-edge-filter-dot" aria-hidden="true" />
-            {EDGE_KIND_LABELS[kind]}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function computeDescendantSelection(
   graph: MultiDirectedGraph,
@@ -1143,7 +1026,7 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
-  const [showMinimap, setShowMinimap] = useState(true);
+  const [showMinimap, setShowMinimap] = useState(false);
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(new Set());
   const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
 
@@ -1157,6 +1040,10 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
       }
       return next;
     });
+  }, []);
+
+  const onToggleMinimap = useCallback(() => {
+    setShowMinimap((visible) => !visible);
   }, []);
 
   useEffect(() => {
@@ -1689,33 +1576,20 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
           </div>
         )}
 
-        <EdgeFilterBar hiddenKinds={hiddenEdgeKinds} onToggle={toggleEdgeKind} />
+        <GraphToolbar
+          onExportMermaid={onExportMermaid}
+          showMinimap={showMinimap}
+          onToggleMinimap={onToggleMinimap}
+          edgeKinds={ALL_EDGE_KINDS}
+          hiddenEdgeKinds={hiddenEdgeKinds}
+          onToggleEdgeKind={toggleEdgeKind}
+        />
         <canvas
           className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}
           ref={minimapCanvasRef}
           width={128}
           height={96}
         />
-        <button
-          type="button"
-          className="dxt-minimap-toggle"
-          onClick={() => {
-            setShowMinimap((v) => !v);
-          }}
-          title="Toggle mini-map"
-          aria-label="Toggle mini-map"
-        >
-          <span className="codicon codicon-map" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="dxt-export-mermaid"
-          onClick={onExportMermaid}
-          title="Export graph as Mermaid (.mmd)"
-          aria-label="Export as Mermaid"
-        >
-          <span className="codicon codicon-export" aria-hidden="true" />
-        </button>
       </div>
     </div>
   );
