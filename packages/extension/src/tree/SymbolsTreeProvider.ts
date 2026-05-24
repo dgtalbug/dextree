@@ -25,6 +25,7 @@ const KIND_CODICON: Record<SymbolKind, string> = {
   type: "symbol-type-parameter",
   enum: "symbol-enum",
   variable: "symbol-variable",
+  method: "symbol-method",
 };
 
 function kindCodicon(kind: SymbolKind): string {

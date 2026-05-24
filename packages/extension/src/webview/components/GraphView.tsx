@@ -1448,10 +1448,10 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
                     ).filePath,
                   )
                 : null;
-            drawClusterHulls(graph, sigma, cc, hoveredFilePath, selectedFilePath);
+            drawClusterHulls(graph, sigma!, cc, hoveredFilePath, selectedFilePath);
           }
           if (minimapCanvasRef.current !== null && graph.order > 20) {
-            drawMinimap(graph, sigma, minimapCanvasRef.current, container);
+            drawMinimap(graph, sigma!, minimapCanvasRef.current, container);
           }
         } catch (err) {
           console.error("Dextree cluster/minimap draw failed", err);
