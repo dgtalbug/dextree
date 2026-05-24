@@ -2,11 +2,12 @@ import type { GraphEdge, GraphNode } from "@dextree/core";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { motion } from "framer-motion";
-import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
+import { CANONICAL_NODE_FILTER_LIST, type NodeFilterEntry } from "./NodeFilterPanel.js";
 import type {
   FallbackNode,
   FallbackGraph,
@@ -1029,6 +1030,8 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
   const [showMinimap, setShowMinimap] = useState(false);
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(new Set());
   const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
+  const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(new Set());
+  const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
 
   const toggleEdgeKind = useCallback((kind: GraphEdge["kind"]) => {
     setHiddenEdgeKinds((prev) => {
@@ -1042,9 +1045,33 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
     });
   }, []);
 
+  const toggleNodeKind = useCallback((key: string) => {
+    setHiddenNodeKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
   const onToggleMinimap = useCallback(() => {
     setShowMinimap((visible) => !visible);
   }, []);
+
+  const nodeFilterEntries = useMemo<NodeFilterEntry[]>(() => {
+    const counts = new Map<string, number>();
+    for (const node of nodes) {
+      const key = node.type === "file" ? "file" : (node.symbolKind ?? "function");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return CANONICAL_NODE_FILTER_LIST.map((template) => ({
+      ...template,
+      count: counts.get(template.key) ?? 0,
+    }));
+  }, [nodes]);
 
   useEffect(() => {
     setSelectedNodeId(null);
@@ -1204,6 +1231,13 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
         // Prevent built-in double-click zoom — navigation is handled manually via clickNode.
         doubleClickZoomingRatio: 1,
         nodeReducer: (node, data) => {
+          // 1. Node-kind filter (applied first — hides node before hover/focus logic runs)
+          const attrs = data as GraphNodeAttributes;
+          const kindKey = attrs.nodeKind === "file" ? "file" : (attrs.symbolKind ?? "function");
+          if (hiddenNodeKindsRef.current.has(kindKey)) {
+            return { ...data, hidden: true };
+          }
+
           const hover = hoverRef.current;
           const selection = selectionRef.current;
           const activeFocus = hover ?? selection;
@@ -1408,6 +1442,15 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
       refreshSigma(sigma);
     }
   }, [hiddenEdgeKinds]);
+
+  // Sync hidden-node-kinds ref so the nodeReducer (created once) can read current filter.
+  useEffect(() => {
+    hiddenNodeKindsRef.current = hiddenNodeKinds;
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [hiddenNodeKinds]);
   if (fallbackGraph !== null) {
     return <StaticGraphFallback fallbackGraph={fallbackGraph} onNavigate={onNavigate} />;
   }
@@ -1583,6 +1626,9 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
           edgeKinds={ALL_EDGE_KINDS}
           hiddenEdgeKinds={hiddenEdgeKinds}
           onToggleEdgeKind={toggleEdgeKind}
+          nodeFilterEntries={nodeFilterEntries}
+          hiddenNodeKinds={hiddenNodeKinds}
+          onToggleNodeKind={toggleNodeKind}
         />
         <canvas
           className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}

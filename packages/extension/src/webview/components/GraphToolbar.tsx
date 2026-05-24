@@ -1,12 +1,17 @@
 import type { GraphEdge } from "@dextree/core";
 
+import { NodeFilterPanel } from "./NodeFilterPanel.js";
+import type { NodeFilterEntry } from "./NodeFilterPanel.js";
+
 const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
   DEFINES: "Defines",
   IMPORTS: "Imports",
   CALLS: "Calls",
-  INHERITS: "Inherits",
+  INHERITS: "Extends",
   INSTANTIATES: "New",
 };
+
+const IMPLEMENTS_TOOLTIP = "Available when ImplementsExtractor ships (slice 031)";
 
 export interface GraphToolbarProps {
   onExportMermaid: () => void;
@@ -15,6 +20,10 @@ export interface GraphToolbarProps {
   edgeKinds: GraphEdge["kind"][];
   hiddenEdgeKinds: Set<GraphEdge["kind"]>;
   onToggleEdgeKind: (kind: GraphEdge["kind"]) => void;
+  // Node filter (new — slice 019):
+  nodeFilterEntries: NodeFilterEntry[];
+  hiddenNodeKinds: Set<string>;
+  onToggleNodeKind: (key: string) => void;
 }
 
 function EdgeFilterBar({
@@ -48,6 +57,17 @@ function EdgeFilterBar({
           </button>
         );
       })}
+      {/* Disabled Implements stub — always shown, not interactive */}
+      <button
+        type="button"
+        className="dxt-edge-filter-pill dxt-edge-filter-pill--disabled dxt-edge-filter-pill--stub"
+        aria-disabled="true"
+        title={IMPLEMENTS_TOOLTIP}
+        tabIndex={-1}
+      >
+        <span className="dxt-edge-filter-dot" aria-hidden="true" />
+        Implements
+      </button>
     </div>
   );
 }
@@ -59,6 +79,9 @@ export function GraphToolbar({
   edgeKinds,
   hiddenEdgeKinds,
   onToggleEdgeKind,
+  nodeFilterEntries,
+  hiddenNodeKinds,
+  onToggleNodeKind,
 }: GraphToolbarProps) {
   return (
     <div className="dxt-toolbar" role="toolbar" aria-label="Graph toolbar">
@@ -71,6 +94,11 @@ export function GraphToolbar({
       >
         <span className="codicon codicon-export" aria-hidden="true" />
       </button>
+      <NodeFilterPanel
+        entries={nodeFilterEntries}
+        hiddenKinds={hiddenNodeKinds}
+        onToggle={onToggleNodeKind}
+      />
       <div className="dxt-toolbar__pills">
         <EdgeFilterBar
           edgeKinds={edgeKinds}
