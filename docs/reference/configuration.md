@@ -99,4 +99,4 @@ The key is stored in SecretStorage and never written to disk in plaintext.
 
 ## Full settings reference
 
-See [.dextree/design.md §9.2](https://github.com/dgtalbug/dextree/blob/main/.dextree/design.md) in the repo for the canonical, exhaustive settings list including types, valid value ranges, and which slice introduced each setting.
+The complete settings catalogue (types, ranges, defaults, slice provenance) is generated from `packages/extension/package.json` `contributes.configuration`. Open VS Code's settings UI (`Cmd+,` / `Ctrl+,`) and filter by `dextree.` to browse every setting alongside its description and current value.
