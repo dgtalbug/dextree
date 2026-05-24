@@ -1030,7 +1030,7 @@
                 Star on GitHub
                 <span class="arrow">→</span>
               </a>
-              <a class="btn btn-ghost" href="/guide/">
+              <a class="btn btn-ghost" href="guide/">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
                   <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -4339,6 +4339,64 @@
           font-weight: 600;
         }
 
+        /* Honest stats strip — real OpenSSF + coverage numbers from CI.
+           Sits above the gaps list to ground each gap in a quantified baseline.
+           Updated on every roadmap sweep. */
+        .gaps-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px;
+          margin-bottom: 28px;
+        }
+        .gaps-stat {
+          padding: 18px 20px;
+          background: var(--bg-elev);
+          border: 1px solid var(--line);
+          border-radius: var(--r-4);
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .gaps-stat-label {
+          font-family: var(--mono);
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--ink-faint);
+        }
+        .gaps-stat-value {
+          font-family: var(--display);
+          font-size: 28px;
+          font-weight: 500;
+          color: var(--ink);
+          letter-spacing: -0.01em;
+          line-height: 1;
+        }
+        .gaps-stat-value[data-tone="good"] {
+          color: var(--mint);
+        }
+        .gaps-stat-value[data-tone="warn"] {
+          color: var(--warn);
+        }
+        .gaps-stat-value[data-tone="bad"] {
+          color: var(--danger);
+        }
+        .gaps-stat-meta {
+          font-family: var(--mono);
+          font-size: 11px;
+          color: var(--ink-mute);
+          line-height: 1.5;
+        }
+        .gaps-stat-meta a {
+          color: var(--cyan);
+          text-decoration: none;
+          border-bottom: 1px dashed currentColor;
+        }
+        .gaps-stat-meta a:hover {
+          color: var(--amber);
+        }
+
         .gaps-list {
           display: grid;
           grid-template-columns: 1fr;
@@ -4437,33 +4495,88 @@
         <div class="gaps-banner reveal">
           <span class="gaps-banner-icon">✱</span>
           <p class="gaps-banner-text">
-            Dextree is <strong>pre-alpha v0.1</strong>. The monorepo scaffold is in, the indexer
-            works, the webview renders.
-            <strong>None of this is on the VS Code Marketplace yet.</strong>
-            Below is the honest list of what's known-broken, scoped to ship before v0.2. We update
-            this as bugs land and ship.
+            Dextree is <strong>pre-alpha v0.1</strong>. The indexer works, the webview renders, the
+            workspace cache survives restarts, Mermaid export ships.
+            <strong>Not on the VS Code Marketplace yet.</strong>
+            The numbers below are pulled from the latest CI run + OpenSSF Scorecard. The gap list
+            shifts as slices ship — we refresh it on every roadmap sweep.
           </p>
+        </div>
+
+        <div class="gaps-stats reveal">
+          <div class="gaps-stat">
+            <span class="gaps-stat-label">test coverage</span>
+            <span class="gaps-stat-value" data-tone="good">80.3<span style="font-size: 18px; color: var(--ink-mute)">%</span></span>
+            <span class="gaps-stat-meta">
+              statements · core + exporters<br />
+              threshold 70% · vitest v8
+            </span>
+          </div>
+          <div class="gaps-stat">
+            <span class="gaps-stat-label">openssf scorecard</span>
+            <span class="gaps-stat-value" data-tone="warn">5.8<span style="font-size: 18px; color: var(--ink-mute)">/10</span></span>
+            <span class="gaps-stat-meta">
+              <a href="https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree" target="_blank" rel="noopener">live report ↗</a><br />
+              CI-Tests · Pinned-Deps · License: 10/10
+            </span>
+          </div>
+          <div class="gaps-stat">
+            <span class="gaps-stat-label">slices merged</span>
+            <span class="gaps-stat-value">16<span style="font-size: 18px; color: var(--ink-mute)">/22</span></span>
+            <span class="gaps-stat-meta">
+              Phase 1 done · S7 Hello Mermaid landed<br />
+              Phase 2 (mockup) next — <a href="https://github.com/dgtalbug/dextree/blob/main/ROADMAP.md" target="_blank" rel="noopener">roadmap ↗</a>
+            </span>
+          </div>
+          <div class="gaps-stat">
+            <span class="gaps-stat-label">known vulns</span>
+            <span class="gaps-stat-value" data-tone="warn">2</span>
+            <span class="gaps-stat-meta">
+              GHSA-67mh-4wv8-2f99<br />
+              GHSA-4w7w-66w2-5vf9
+            </span>
+          </div>
         </div>
 
         <div class="gaps-list reveal">
           <div class="gap-row">
             <span class="gap-sev" data-sev="critical">critical</span>
             <div class="gap-text">
-              <strong>Webview reload loses graph state</strong>
+              <strong>OpenSSF Code-Review check: 0/10</strong>
               <p>
-                Toggling theme inside VS Code reloads the webview and dumps the in-memory layout.
-                Re-querying works; layout doesn't persist.
+                0 of 17 changesets had approving review before merge — solo committer, no
+                CODEOWNERS file, no PR-review enforcement. Single largest item dragging the
+                Scorecard from 6→8.
               </p>
             </div>
-            <div class="gap-fix">fix · <span class="ver">v0.1.1</span></div>
+            <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
           </div>
           <div class="gap-row">
             <span class="gap-sev" data-sev="critical">critical</span>
             <div class="gap-text">
-              <strong>Tree-sitter parser leaks on workspace switch</strong>
+              <strong>OpenSSF Token-Permissions: 0/10</strong>
               <p>
-                Each workspace reactivation spawns a new WASM instance without disposing the
-                previous. Memory climbs ~80MB / switch.
+                5 workflows hold write-level permissions where read suffices:
+                <code style="font-family: var(--mono); color: var(--amber)">auto-merge-dependabot</code>,
+                <code style="font-family: var(--mono); color: var(--amber)">codeql</code> security-events,
+                <code style="font-family: var(--mono); color: var(--amber)">osv-scanner</code> security-events,
+                <code style="font-family: var(--mono); color: var(--amber)">pre-release</code>,
+                <code style="font-family: var(--mono); color: var(--amber)">release</code>,
+                <code style="font-family: var(--mono); color: var(--amber)">sbom</code>.
+              </p>
+            </div>
+            <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
+          </div>
+          <div class="gap-row">
+            <span class="gap-sev" data-sev="high">high</span>
+            <div class="gap-text">
+              <strong>2 known dependency vulnerabilities</strong>
+              <p>
+                Scorecard flags
+                <code style="font-family: var(--mono); color: var(--amber)">GHSA-67mh-4wv8-2f99</code>
+                and
+                <code style="font-family: var(--mono); color: var(--amber)">GHSA-4w7w-66w2-5vf9</code>.
+                Dependabot is on; tracked for the next batch update.
               </p>
             </div>
             <div class="gap-fix">fix · <span class="ver">v0.1.1</span></div>
@@ -4471,58 +4584,75 @@
           <div class="gap-row">
             <span class="gap-sev" data-sev="high">high</span>
             <div class="gap-text">
-              <strong>DuckDB write contention on first index</strong>
+              <strong>Exporters package coverage reporter is misleading</strong>
               <p>
-                Concurrent file walkers hit the same connection; insert throughput drops 4x on cold
-                start. Need a write queue.
+                The exporters package's own files are at 100%, but vitest's
+                <code style="font-family: var(--mono); color: var(--amber)">coverage.include</code>
+                scans the whole monorepo, producing a misleading "2.42% statements" headline that
+                fails the per-package <code style="font-family: var(--mono); color: var(--amber)">--coverage</code>
+                threshold. Headline number is wrong; real coverage is fine.
               </p>
             </div>
-            <div class="gap-fix">fix · <span class="ver">v0.1.2</span></div>
+            <div class="gap-fix">fix · <span class="ver">v0.1.1</span></div>
           </div>
           <div class="gap-row">
             <span class="gap-sev" data-sev="high">high</span>
             <div class="gap-text">
-              <strong>No incremental indexing yet</strong>
+              <strong>Branch protection is incomplete</strong>
               <p>
-                File edit triggers full re-parse of the file, not the changed range. Slow on large
-                files until pass 2 lands.
+                Scorecard 5/10 on Branch-Protection: required-approvers = 1, no CODEOWNERS, "apply
+                to administrators" disabled, "last push approval" disabled. Tightens with the
+                Code-Review fix above.
               </p>
             </div>
             <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
-          </div>
-          <div class="gap-row">
-            <span class="gap-sev" data-sev="high">high</span>
-            <div class="gap-text">
-              <strong>Sigma.js label overlap at high zoom</strong>
-              <p>
-                Node labels collide above 8k nodes. Need force-directed label de-collision or
-                LOD-based label hiding.
-              </p>
-            </div>
-            <div class="gap-fix">fix · <span class="ver">v0.1.2</span></div>
           </div>
           <div class="gap-row">
             <span class="gap-sev" data-sev="medium">medium</span>
             <div class="gap-text">
-              <strong>Python parser misses dataclass inheritance</strong>
+              <strong>No LSP pass-2 yet — cross-file CALLS are FQN-resolved, not semantic</strong>
               <p>
-                Tree-sitter Python grammar doesn't surface
-                <code style="font-family: var(--mono); color: var(--amber)">@dataclass</code> mixin
-                chains. Edge resolution waits on pass 2.
+                Pass-1 emits naive
+                <code style="font-family: var(--mono); color: var(--amber)">CALLS</code>
+                edges via tree-sitter + a fqn lookup. Method overloads, dynamic dispatch, and
+                imported aliases need real LSP resolution. Planned for S8.
               </p>
             </div>
-            <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
+            <div class="gap-fix">add · <span class="ver">v0.3</span></div>
+          </div>
+          <div class="gap-row">
+            <span class="gap-sev" data-sev="medium">medium</span>
+            <div class="gap-text">
+              <strong>TypeScript / JavaScript only — no multi-language pass-1</strong>
+              <p>
+                Python / Go / Rust / Java extractors are not implemented yet. The
+                <code style="font-family: var(--mono); color: var(--amber)">ExtractorRegistry</code>
+                plumbing is ready; grammars + per-language emission still to ship. Planned for S8.5.
+              </p>
+            </div>
+            <div class="gap-fix">add · <span class="ver">v0.3</span></div>
           </div>
           <div class="gap-row">
             <span class="gap-sev" data-sev="medium">medium</span>
             <div class="gap-text">
               <strong>No graph diff between commits</strong>
               <p>
-                Would unlock "what changed structurally between v1 and v2." Specced, not
-                implemented.
+                Would unlock "what changed structurally between v1 and v2." Planned for the git
+                fusion slice (S10) + the blast radius slice (S11).
               </p>
             </div>
             <div class="gap-fix">add · <span class="ver">v0.3</span></div>
+          </div>
+          <div class="gap-row">
+            <span class="gap-sev" data-sev="medium">medium</span>
+            <div class="gap-text">
+              <strong>No fuzzing, no OpenSSF Best Practices badge, no SAST on every commit</strong>
+              <p>
+                Scorecard: Fuzzing 0/10, CII-Best-Practices 0/10, SAST 7/10 (CodeQL configured but
+                only 0/29 commits scanned). All low-priority gaps the score reflects.
+              </p>
+            </div>
+            <div class="gap-fix">add · <span class="ver">later</span></div>
           </div>
         </div>
       </section>
@@ -4887,6 +5017,20 @@
           font-size: 12px;
           color: var(--ink-mute);
           display: flex;
+          flex-direction: column;
+          gap: 14px;
+          justify-content: center;
+          align-items: center;
+        }
+        .cta-meta-label {
+          font-family: var(--mono);
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--ink-faint);
+        }
+        .cta-meta-row {
+          display: flex;
           gap: 24px;
           justify-content: center;
           align-items: center;
@@ -4928,10 +5072,9 @@
         }
         .cta-built-by-logo {
           display: block;
-          /* 36px (was 22px) so the logo reads as a brand mark, not a
-             tiny adjacent icon. Aligned vertically with the · separators
-             via the parent's align-items: center on .cta-meta. */
-          height: 36px;
+          /* 44px to visually match the .btn height (padding 13px + ~18px line
+             ≈ 44px). Logo now reads at button weight in the meta row. */
+          height: 44px;
           width: auto;
           opacity: 0.95;
           transition: opacity var(--t-fast);
@@ -5004,9 +5147,10 @@
             >
               File an issue
             </a>
-            <a class="btn btn-ghost" href="/guide/"> Read the docs </a>
+            <a class="btn btn-ghost" href="guide/"> Read the docs </a>
           </div>
           <div class="cta-meta">
+            <span class="cta-meta-label">built by</span>
             <a
               class="cta-built-by"
               href="https://github.com/dgtalbug"
@@ -5016,26 +5160,29 @@
             >
               <img
                 class="cta-built-by-logo cta-built-by-logo--dark"
-                src="/dgtalbug-dark.png"
+                src="dgtalbug-dark.png"
                 alt="dgtalbug"
-                height="36"
+                height="44"
               />
               <img
                 class="cta-built-by-logo cta-built-by-logo--light"
-                src="/dgtalbug-light.png"
+                src="dgtalbug-light.png"
                 alt="dgtalbug"
-                height="36"
+                height="44"
               />
             </a>
-            <span>·</span>
-            <a
-              href="https://github.com/dgtalbug/dextree/blob/main/LICENSE"
-              target="_blank"
-              rel="noopener"
-              >MIT</a
-            >
-            <span>·</span>
-            <span>pre-alpha</span>
+            <div class="cta-meta-row">
+              <a
+                href="https://github.com/dgtalbug/dextree/blob/main/LICENSE"
+                target="_blank"
+                rel="noopener"
+                >MIT</a
+              >
+              <span>·</span>
+              <span>pre-alpha</span>
+              <span>·</span>
+              <span>v0.1</span>
+            </div>
           </div>
         </div>
       </section>
