@@ -1,0 +1,39 @@
+/**
+ * Home-page footer. Subtle, below the final CTA section.
+ */
+
+.dx-footer {
+  position: relative;
+  padding: 48px 0 64px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.dx-footer__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dx-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dx-footer__link {
+  color: var(--ink-mute);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+
+.dx-footer__link:hover {
+  color: var(--ink);
+}

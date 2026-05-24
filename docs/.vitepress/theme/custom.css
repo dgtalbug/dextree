@@ -1,0 +1,17 @@
+/**
+ * Entry point for the Dextree custom theme. Only @imports — no rules here.
+ * Each split file has one job; keep it that way.
+ *
+ * Order matters: tokens first, then VitePress overrides, then typography,
+ * then home-unwrap (which strips VitePress's wrapper containers so the
+ * indigo HTML home renders edge-to-edge). home-unwrap loads LAST so its
+ * high-specificity unwrap rules win against anything VitePress ships.
+ *
+ * No `styles/home.css` import — that file styled the pre-indigo Vue home
+ * components and is archived under docs/_archive/. The current home is
+ * the indigo HTML, which carries its own inline styles.
+ */
+@import "./styles/tokens.css";
+@import "./styles/brand-overrides.css";
+@import "./styles/typography.css";
+@import "./styles/home-unwrap.css";

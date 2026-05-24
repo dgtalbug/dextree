@@ -1,0 +1,96 @@
+/**
+ * Home-page wrapper unwrap.
+ *
+ * The indigo HTML is mounted via <IndigoHome /> inside a deep chain:
+ *   .Layout → .VPContent → .VPHome → .vp-doc.container → .indigo-home
+ *
+ * Every wrapper applies max-width / padding intended for narrow doc pages.
+ * For the home, we strip every constraint and let the indigo content go
+ * edge-to-edge.
+ *
+ * This file lives in theme/styles/ (not scoped inside IndigoHome.vue) so it
+ * loads in the global stylesheet bundle alongside VitePress's own theme
+ * styles — guaranteed to apply with the right specificity regardless of
+ * Vue component bundling order.
+ */
+
+/* Top-level reset on the home route. The :has() selector means these rules
+   only apply when an .indigo-home is mounted, so doc pages aren't affected. */
+html:has(.indigo-home) body,
+html:has(.indigo-home) .Layout,
+html:has(.indigo-home) .VPContent,
+html:has(.indigo-home) .VPContent.is-home,
+html:has(.indigo-home) .VPHome,
+html:has(.indigo-home) .vp-doc,
+html:has(.indigo-home) .vp-doc.container,
+html:has(.indigo-home) #VPContent {
+  max-width: none !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* The indigo-home wrapper itself should fill the viewport edge-to-edge.
+   We use 100vw with a negative-margin centering trick so it escapes any
+   parent that's narrower than the viewport. */
+.indigo-home {
+  width: 100vw;
+  max-width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw !important;
+  margin-right: -50vw !important;
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.indigo-home code,
+.indigo-home pre,
+.indigo-home kbd {
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* The indigo CSS uses `.display` for big serif headings. Force the right
+   font stack here so the heading renders correctly even if load order
+   races put VitePress's heading rules on top. */
+.indigo-home .display {
+  font-family: "Fraunces", "Iowan Old Style", Georgia, serif !important;
+  font-weight: 300 !important;
+  line-height: 0.96 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.indigo-home .display em {
+  font-style: italic;
+  color: var(--amber);
+}
+
+/* Reset heading and prose styles so VitePress's .vp-doc rules don't bleed
+   into indigo content. `all: revert` rolls back to user-agent defaults,
+   then indigo's own classes (`.display`, `.lede`, `.eyebrow`, etc.) re-style
+   on top. */
+.indigo-home h1,
+.indigo-home h2,
+.indigo-home h3,
+.indigo-home h4 {
+  all: revert;
+  /* Re-apply indigo display intent — the .display class above wins where
+     it's used, but bare h1/h2 without .display will pick these up. */
+  font-family: var(--display, "Fraunces", Georgia, serif);
+  letter-spacing: -0.015em;
+}
+
+.indigo-home p,
+.indigo-home ul,
+.indigo-home ol,
+.indigo-home li {
+  margin: revert;
+  padding: revert;
+}

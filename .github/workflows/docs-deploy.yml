@@ -1,0 +1,83 @@
+name: Docs site
+
+# Build on PRs touching docs/**, deploy to GitHub Pages on push to main.
+# Deployed URL: https://dgtalbug.github.io/dextree/
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/docs-deploy.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/docs-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docs-deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build docs site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          turbo-cache: "false"
+
+      # DOCS_BASE hardcoded instead of derived via actions/configure-pages —
+      # that action throws TypeError on startup on this runner (broken in
+      # v6.0.0; revisit if upstream fixes it).
+      - name: Build docs site
+        env:
+          DOCS_BASE: /dextree/
+        run: pnpm docs:build
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+      - name: Write deployment summary
+        run: |
+          {
+            echo "## 📚 Docs deployed"
+            echo ""
+            echo "**URL:** ${{ steps.deployment.outputs.page_url }}"
+            echo ""
+            echo "Triggered by \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` (\`${{ github.sha }}\`)."
+          } >> "$GITHUB_STEP_SUMMARY"

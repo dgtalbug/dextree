@@ -1,0 +1,26 @@
+/**
+ * Home-page outer shell. The home page is composed via the <HomePage />
+ * Vue component, mounted inside VitePress's home layout. We override
+ * VitePress's defaults so HomePage owns the full content width.
+ */
+
+/* Strip VitePress's home-layout padding so HomePage controls its own gutter */
+.VPHome {
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+.dx-home {
+  --section-padding-y: clamp(64px, 9vw, 128px);
+  position: relative;
+  width: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  overflow-x: clip;
+}
+
+.dx-home__shell {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}

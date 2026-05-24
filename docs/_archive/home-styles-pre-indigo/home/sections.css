@@ -1,0 +1,140 @@
+/**
+ * Shared styles for the 9 content sections below the hero.
+ * Each section component (ValueProps, FastFirst, AskGraph, …) uses the
+ * .dx-section wrapper and the .dx-display H2. Per-section files only
+ * add styles unique to that section's layout.
+ */
+
+.dx-section {
+  position: relative;
+  padding: var(--section-padding-y) 0;
+  border-top: 1px solid var(--line);
+}
+
+.dx-section:first-child {
+  border-top: 0;
+}
+
+.dx-section__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: clamp(32px, 5vw, 56px);
+  max-width: 800px;
+}
+
+.dx-section__eyebrow {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+.dx-display {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  margin: 0;
+  color: var(--ink);
+}
+
+.dx-display em {
+  font-style: italic;
+  background: linear-gradient(
+    145deg,
+    var(--amber) 0%,
+    var(--amber-soft) 60%,
+    var(--cyan) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.dx-section__lede {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink-warm);
+  max-width: 56ch;
+  margin: 0;
+}
+
+/* Generic card pattern used by ValueProps, FourVersions, etc. */
+.dx-card {
+  position: relative;
+  padding: 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-5);
+  transition: all var(--t-fast) var(--ease);
+}
+
+.dx-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
+}
+
+.dx-card__title {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.25;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+
+.dx-card__sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin: 0 0 16px;
+}
+
+.dx-card__body {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-warm);
+  margin: 0;
+}
+
+/* Section grids — used by ValueProps (4 cols), FourVersions (4 cols), etc. */
+.dx-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.dx-grid--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.dx-grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.dx-grid--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 920px) {
+  .dx-grid--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .dx-grid--3,
+  .dx-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .dx-grid--4 {
+    grid-template-columns: 1fr;
+  }
+}

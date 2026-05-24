@@ -1,0 +1,12 @@
+/**
+ * home.css — entry for all home-page styles.
+ *
+ * Each section owns its own file under styles/home/. The skeleton pass adds
+ * one file per section; enrichment phases evolve them in place. This entry
+ * file should only contain @imports and shared home-page utilities.
+ */
+@import "./home/shell.css";
+@import "./home/nav.css";
+@import "./home/hero.css";
+@import "./home/sections.css";
+@import "./home/footer.css";

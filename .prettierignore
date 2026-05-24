@@ -6,3 +6,8 @@ node_modules/
 pnpm-lock.yaml
 *.wasm
 test-results.json
+
+# Archived docs assets (frozen at the moment they were superseded by the
+# indigo HTML strategy). Treat as read-only history — tools shouldn't
+# touch them, and reformatting would just churn the archive.
+docs/_archive/
