@@ -2,7 +2,9 @@
 //   1 — initial baseline (slice 008 era)
 //   2 — adds annotation, module, test core entity tables (migration 002)
 //   3 — unifies call_site + import_ref into edge with kind/metadata (migration 003)
-export const SCHEMA_VERSION = 4;
+//   4 — adds workspace_cache table (migration 004)
+//   5 — adds workspace_framework table + file.framework columns (migration 005)
+export const SCHEMA_VERSION = 5;
 
 export interface WorkspaceCacheIdentity {
   cacheKey: string;
@@ -68,6 +70,8 @@ export interface GraphNode {
   startLine: number;
   symbolKind?: SymbolKind;
   importance?: number;
+  framework?: string;
+  frameworkRole?: string;
 }
 
 export interface GraphEdge {
@@ -77,9 +81,18 @@ export interface GraphEdge {
   kind: GraphEdgeKind;
 }
 
+export type FrameworkDetectionSource = "manifest" | "structural" | "manifest+structural";
+
+export interface FrameworkInfo {
+  name: string;
+  detectionSource: FrameworkDetectionSource;
+  confidence: number;
+}
+
 export interface WorkspaceSubgraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  frameworks: readonly FrameworkInfo[];
 }
 
 export interface StoredSymbol {
@@ -188,6 +201,14 @@ export interface Indexer {
     workspaceRoot: string,
     cacheIdentity?: WorkspaceCacheIdentity,
   ): Promise<IndexResult>;
+  /**
+   * Detect application frameworks present in a workspace and persist them to
+   * `workspace_framework`. Caches the detected list internally so subsequent
+   * `indexFile` calls can attribute per-file framework + role without re-detecting.
+   *
+   * Call once at the start of a workspace indexing pass, before the per-file loop.
+   */
+  detectWorkspaceFrameworks(workspaceRoot: string): Promise<readonly FrameworkInfo[]>;
   /**
    * Run after all files in a workspace have been indexed.
    *

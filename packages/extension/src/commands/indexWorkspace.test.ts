@@ -43,10 +43,11 @@ function createMockIndexer() {
       elapsedMs: 5,
     }),
     finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
+    detectWorkspaceFrameworks: vi.fn().mockResolvedValue([]),
     validateWorkspaceCache: vi.fn(),
     getSymbols: vi.fn(),
     getAllFiles: vi.fn(),
-    getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+    getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [], frameworks: [] }),
     clearWorkspace: vi
       .fn()
       .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),

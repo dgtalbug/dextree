@@ -35,7 +35,7 @@ const EDGE_IMPORTS = makeEdge("e002", FILE_B.id, FILE_A.id, "IMPORTS");
 // ---------------------------------------------------------------------------
 
 function subgraph(nodes: GraphNode[], edges: GraphEdge[] = []): WorkspaceSubgraph {
-  return { nodes, edges };
+  return { nodes, edges, frameworks: [] };
 }
 
 // ---------------------------------------------------------------------------

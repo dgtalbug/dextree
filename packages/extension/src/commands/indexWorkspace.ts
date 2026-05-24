@@ -106,6 +106,19 @@ export function createIndexWorkspaceCommand(
       });
       await indexer.clearWorkspace(root.uri.fsPath);
 
+      // Framework detection runs once before the per-file loop (slice 018).
+      // Result is cached inside the indexer and consumed by each indexFile call.
+      try {
+        const frameworks = await indexer.detectWorkspaceFrameworks(root.uri.fsPath);
+        if (frameworks.length > 0) {
+          dependencies.logger.debug(
+            `Detected frameworks: ${frameworks.map((f) => f.name).join(", ")}`,
+          );
+        }
+      } catch (error) {
+        dependencies.logger.error("Framework detection failed", error);
+      }
+
       const cacheIdentity = await resolveCacheIdentity({
         workspaceRoot: root.uri.fsPath,
       });

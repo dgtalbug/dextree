@@ -27,6 +27,7 @@ export function fuzz(data: Buffer): void {
       },
     ],
     edges: [],
+    frameworks: [],
   };
 
   const result = serializeToMermaid(subgraph, { theme: DEFAULT_MERMAID_THEME });

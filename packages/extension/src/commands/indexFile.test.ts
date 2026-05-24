@@ -42,7 +42,7 @@ function createMockIndexer() {
     validateWorkspaceCache: vi.fn(),
     getSymbols: vi.fn(),
     getAllFiles: vi.fn(),
-    getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+    getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [], frameworks: [] }),
     clearWorkspace: vi
       .fn()
       .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
@@ -50,6 +50,7 @@ function createMockIndexer() {
     clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
     getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
     getSessionSummary: vi.fn().mockResolvedValue(null),
+    detectWorkspaceFrameworks: vi.fn().mockResolvedValue([]),
     finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
   };
