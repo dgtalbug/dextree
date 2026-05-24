@@ -1,0 +1,66 @@
+name: Fuzzing
+
+# Continuous fuzzing via Jazzer.js.
+# Runs on every push to main and weekly to catch regressions.
+# Each target gets a fixed 30-second corpus-exploration budget so the job
+# completes in well under the 10-minute timeout.
+#
+# OpenSSF Scorecard "Fuzzing" check detects @jazzer.js/core in package.json
+# *and* a workflow that exercises it — both are present after this commit.
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # Weekly, Wednesday 05:00 UTC.
+    - cron: "0 5 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzzing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - packages/exporters/src/__fuzz__/serializer.fuzz.ts
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          turbo-cache: "false"
+
+      - name: Build exporters
+        run: pnpm --filter @dextree/exporters build
+
+      - name: Run fuzzer (${{ matrix.target }})
+        # --timeout limits each individual input; --fuzz_time limits the total
+        # corpus exploration run so CI does not block indefinitely.
+        run: |
+          npx jazzer ${{ matrix.target }} \
+            --timeout=5000 \
+            -- \
+            -max_total_time=30 \
+            -print_final_stats=1

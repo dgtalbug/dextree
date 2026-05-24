@@ -76,6 +76,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@jazzer.js/core": "^4.0.0",
     "@nolebase/vitepress-plugin-breadcrumbs": "^2.18.2",
     "@nolebase/vitepress-plugin-git-changelog": "^2.18.2",
     "@testing-library/jest-dom": "^6.9.1",
