@@ -2,6 +2,7 @@ import type { GraphEdge, GraphNode } from "@dextree/core";
 import type { LensId } from "@dextree/core/lenses";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
+import { bfsFromNode } from "graphology-traversal";
 import { motion } from "framer-motion";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
@@ -20,6 +21,7 @@ import type {
   GraphNodeAttributes,
   GraphViewProps,
   OverlaySegment,
+  SearchResultItem,
   SelectionTraversal,
   SigmaNodeDisplayData,
   ThemeColors,
@@ -628,49 +630,72 @@ const ALL_EDGE_KINDS: GraphEdge["kind"][] = [
   "INSTANTIATES",
 ];
 
-function computeDescendantSelection(
+function computeSelection(
   graph: MultiDirectedGraph,
   selectedNodeId: string | null,
+  maxDepth: number,
 ): SelectionTraversal | null {
   if (selectedNodeId === null || !graph.hasNode(selectedNodeId)) {
     return null;
   }
 
   const nodeIds = new Set<string>([selectedNodeId]);
+  // Group visited nodes by depth so we can walk outbound edges layer-by-layer below.
+  const nodesByDepth = new Map<number, string[]>([[0, [selectedNodeId]]]);
+
+  bfsFromNode(
+    graph,
+    selectedNodeId,
+    (node, _attrs, depth) => {
+      // bfsFromNode invokes the callback for the start node at depth 0 too.
+      if (node !== selectedNodeId) {
+        nodeIds.add(node);
+        const layer = nodesByDepth.get(depth);
+        if (layer === undefined) {
+          nodesByDepth.set(depth, [node]);
+        } else {
+          layer.push(node);
+        }
+      }
+      // Returning true prunes further traversal beyond this node. We prune when
+      // we've reached maxDepth so the next layer is never expanded.
+      return depth >= maxDepth;
+    },
+    { mode: "outbound" },
+  );
+
+  // Walk outbound edges per BFS layer to reproduce hopLayers / orderedEdgeIds
+  // exactly as the legacy implementation produced them. The DEFINES quirk
+  // (re-adding the source node when the edge is DEFINES) is preserved.
   const edgeIds = new Set<string>();
   const orderedEdgeIds: string[] = [];
   const hopLayers: string[][] = [];
 
-  let currentFrontier = [selectedNodeId];
-  let depth = 0;
-
-  while (currentFrontier.length > 0 && depth < FLOW_MAX_DEPTH) {
-    const nextFrontier: string[] = [];
+  for (let depth = 0; depth < maxDepth; depth++) {
+    const frontier = nodesByDepth.get(depth);
+    if (frontier === undefined) {
+      break;
+    }
     const layerEdges: string[] = [];
-
-    for (const currentNodeId of currentFrontier) {
+    for (const currentNodeId of frontier) {
       graph.forEachOutboundEdge(currentNodeId, (edge, attributes, _source, target) => {
         edgeIds.add(edge);
         orderedEdgeIds.push(edge);
         layerEdges.push(edge);
 
-        if (!nodeIds.has(target)) {
-          nodeIds.add(target);
-          nextFrontier.push(target);
-        }
+        // Ensure all reachable targets at depth+1 are in nodeIds even if BFS
+        // pruned them (e.g. when an edge crosses to a node already visited at
+        // the same or lower depth).
+        nodeIds.add(target);
 
         if ((attributes as GraphEdgeAttributes).edgeKind === "DEFINES") {
           nodeIds.add(currentNodeId);
         }
       });
     }
-
     if (layerEdges.length > 0) {
       hopLayers.push(layerEdges);
     }
-
-    currentFrontier = nextFrontier;
-    depth++;
   }
 
   return {
@@ -679,6 +704,7 @@ function computeDescendantSelection(
     edgeIds,
     orderedEdgeIds,
     hopLayers,
+    maxDepth,
   };
 }
 
@@ -1039,6 +1065,13 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
   const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
   const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
   const lensMatchSetRef = useRef<ReadonlySet<string> | null>(null);
+  // Search state (slice 022). `searchQuery` is the committed (post-debounce)
+  // value; the SearchBar manages its own pending input internally.
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchFocusedIndex, setSearchFocusedIndex] = useState<number>(0);
+  const matchedNodeIdsRef = useRef<Set<string>>(new Set());
+  // Depth slider state (slice 022). Default 3 per spec FR-005.
+  const [depth, setDepth] = useState<number>(3);
 
   const toggleEdgeKind = useCallback((kind: GraphEdge["kind"]) => {
     setHiddenEdgeKinds((prev) => {
@@ -1117,6 +1150,76 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
     setActiveLensId((current) => (current === id ? null : id));
   }, []);
 
+  // Search results (slice 022). Case-insensitive substring match on label +
+  // filePath. `fqn` is referenced in the spec but not yet present on GraphNode;
+  // falls back gracefully (always-undefined) per FR-005 / CC-003.
+  const searchResults = useMemo<SearchResultItem[]>(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length === 0) {
+      return [];
+    }
+    const needle = trimmed.toLowerCase();
+    const out: SearchResultItem[] = [];
+    for (const node of nodes) {
+      const labelLower = node.label.toLowerCase();
+      const filePathLower = node.filePath.toLowerCase();
+      const labelHit = labelLower.indexOf(needle);
+      const filePathHit = filePathLower.indexOf(needle);
+      const matchIndex = labelHit >= 0 ? labelHit : filePathHit;
+      if (matchIndex < 0) {
+        continue;
+      }
+      out.push({
+        nodeId: node.id,
+        label: node.label,
+        filePath: node.filePath,
+        matchIndex,
+      });
+    }
+    return out;
+  }, [nodes, searchQuery]);
+
+  const matchedNodeIds = useMemo<Set<string>>(() => {
+    return new Set(searchResults.map((r) => r.nodeId));
+  }, [searchResults]);
+
+  // Depth slider is enabled only when there's something to expand from —
+  // either an explicit selection or a search match set.
+  const depthEnabled = selectedNodeId !== null || matchedNodeIds.size > 0;
+
+  const handleSearchQueryChange = useCallback((next: string): void => {
+    setSearchQuery(next);
+    setSearchFocusedIndex(0);
+  }, []);
+
+  const handleSearchSelectResult = useCallback((nodeId: string, index: number): void => {
+    setSearchFocusedIndex(index);
+    const sigma = sigmaRef.current;
+    const graph = graphRef.current;
+    if (sigma === null || graph === null || !graph.hasNode(nodeId)) {
+      return;
+    }
+    const sigmaWithExtras = sigma as SigmaWithExtras;
+    const camera = sigmaWithExtras.getCamera?.();
+    if (camera?.animate !== undefined) {
+      const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
+      const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+      const currentRatio = camera.getState?.().ratio ?? 1;
+      if (typeof x === "number" && typeof y === "number") {
+        camera.animate({ x, y, ratio: currentRatio }, { duration: CAMERA_CENTER_DURATION_MS });
+      }
+    }
+  }, []);
+
+  const handleSearchClear = useCallback((): void => {
+    setSearchQuery("");
+    setSearchFocusedIndex(0);
+  }, []);
+
+  const handleDepthChange = useCallback((next: number): void => {
+    setDepth(next);
+  }, []);
+
   useEffect(() => {
     setSelectedNodeId(null);
     selectionRef.current = null;
@@ -1169,7 +1272,7 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
     const enterNodeListener = (event: { node: string }): void => {
       hoveredNodeIdRef.current = event.node;
       hoverRef.current = computeHoverNeighborhood(graph, event.node);
-      hoverSelectionRef.current = computeDescendantSelection(graph, event.node);
+      hoverSelectionRef.current = computeSelection(graph, event.node, FLOW_MAX_DEPTH);
       if (sigma !== null) {
         refreshSigma(sigma);
         // Show animated edge overlay on hover when nothing is selected
@@ -1205,7 +1308,7 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
 
     const selectNode = (nodeId: string): void => {
       setSelectedNodeId(nodeId);
-      selectionRef.current = computeDescendantSelection(graph, nodeId);
+      selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
 
       if (sigma !== null) {
         refreshSigma(sigma);
@@ -1282,6 +1385,13 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
             return { ...data, hidden: true };
           }
 
+          // 2. Depth filter (slice 022) — hide nodes outside the depth-N
+          // neighbourhood of the selected/matched anchor(s).
+          const depthVisible = depthVisibleNodeIdsRef.current;
+          if (depthVisible !== null && !depthVisible.has(node)) {
+            return { ...data, hidden: true };
+          }
+
           const hover = hoverRef.current;
           const selection = selectionRef.current;
           const activeFocus = hover ?? selection;
@@ -1295,15 +1405,25 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
               };
             }
 
-            // No hover/selection focus — apply lens dimming if a lens is active
-            // and this node isn't in the match set. User focus always wins over
-            // lens (FR-014 spirit).
-            const matchSet = lensMatchSetRef.current;
-            if (activeFocus === null && matchSet !== null && !matchSet.has(node)) {
-              return {
-                ...data,
-                color: dimColor(String(data.color)),
-              };
+            // No hover/selection focus — apply search dimming first
+            // (slice 022), then lens dimming (slice 021).  User focus always
+            // wins over both.
+            if (activeFocus === null) {
+              const matched = matchedNodeIdsRef.current;
+              if (matched.size > 0 && !matched.has(node)) {
+                return {
+                  ...data,
+                  color: dimColor(String(data.color)),
+                  label: "",
+                };
+              }
+              const lensMatchSet = lensMatchSetRef.current;
+              if (lensMatchSet !== null && !lensMatchSet.has(node)) {
+                return {
+                  ...data,
+                  color: dimColor(String(data.color)),
+                };
+              }
             }
 
             return data;
@@ -1474,9 +1594,10 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
     const graph = graphRef.current;
     const sigma = sigmaRef.current;
 
-    selectionRef.current = computeDescendantSelection(
+    selectionRef.current = computeSelection(
       graph ?? new MultiDirectedGraph(),
       selectedNodeId,
+      FLOW_MAX_DEPTH,
     );
 
     if (graph === null || sigma === null) {
@@ -1516,6 +1637,43 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
       refreshSigma(sigma);
     }
   }, [lensMatchSet]);
+
+  // Slice 022 — sync matched-node ids + depth visibility set into refs so the
+  // nodeReducer reads them without being recreated. The depth-visible set is
+  // the union of (selected-node depth neighbourhood) ∪ (each matched-node
+  // depth neighbourhood). null means depth filter is inactive — show all.
+  const depthVisibleNodeIdsRef = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    matchedNodeIdsRef.current = matchedNodeIds;
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [matchedNodeIds]);
+
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!depthEnabled || graph === null) {
+      depthVisibleNodeIdsRef.current = null;
+    } else {
+      const visible = new Set<string>();
+      const anchors = matchedNodeIds.size > 0 ? Array.from(matchedNodeIds) : [selectedNodeId!];
+      for (const anchor of anchors) {
+        const traversal = computeSelection(graph, anchor, depth);
+        if (traversal !== null) {
+          for (const id of traversal.nodeIds) {
+            visible.add(id);
+          }
+        }
+      }
+      depthVisibleNodeIdsRef.current = visible;
+    }
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [depthEnabled, matchedNodeIds, selectedNodeId, depth]);
 
   if (fallbackGraph !== null) {
     return <StaticGraphFallback fallbackGraph={fallbackGraph} onNavigate={onNavigate} />;
@@ -1700,6 +1858,15 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
           nodeFilterEntries={nodeFilterEntries}
           hiddenNodeKinds={hiddenNodeKinds}
           onToggleNodeKind={toggleNodeKind}
+          searchQuery={searchQuery}
+          searchResults={searchResults}
+          searchFocusedIndex={searchFocusedIndex}
+          onSearchQueryChange={handleSearchQueryChange}
+          onSearchSelectResult={handleSearchSelectResult}
+          onSearchClear={handleSearchClear}
+          depth={depth}
+          depthEnabled={depthEnabled}
+          onDepthChange={handleDepthChange}
         />
         <canvas
           className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}

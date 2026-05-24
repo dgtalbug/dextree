@@ -1,7 +1,10 @@
 import type { GraphEdge } from "@dextree/core";
 
+import { DepthSlider } from "./DepthSlider.js";
 import { NodeFilterPanel } from "./NodeFilterPanel.js";
 import type { NodeFilterEntry } from "./NodeFilterPanel.js";
+import { SearchBar } from "./SearchBar.js";
+import type { SearchResultItem } from "./graphViewTypes.js";
 
 const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
   DEFINES: "Defines",
@@ -24,6 +27,16 @@ export interface GraphToolbarProps {
   nodeFilterEntries: NodeFilterEntry[];
   hiddenNodeKinds: Set<string>;
   onToggleNodeKind: (key: string) => void;
+  // Search + Depth (new — slice 022):
+  searchQuery: string;
+  searchResults: SearchResultItem[];
+  searchFocusedIndex: number;
+  onSearchQueryChange: (query: string) => void;
+  onSearchSelectResult: (nodeId: string, index: number) => void;
+  onSearchClear: () => void;
+  depth: number;
+  depthEnabled: boolean;
+  onDepthChange: (depth: number) => void;
 }
 
 function EdgeFilterBar({
@@ -82,6 +95,15 @@ export function GraphToolbar({
   nodeFilterEntries,
   hiddenNodeKinds,
   onToggleNodeKind,
+  searchQuery,
+  searchResults,
+  searchFocusedIndex,
+  onSearchQueryChange,
+  onSearchSelectResult,
+  onSearchClear,
+  depth,
+  depthEnabled,
+  onDepthChange,
 }: GraphToolbarProps) {
   return (
     <div className="dxt-toolbar" role="toolbar" aria-label="Graph toolbar">
@@ -94,6 +116,14 @@ export function GraphToolbar({
       >
         <span className="codicon codicon-export" aria-hidden="true" />
       </button>
+      <SearchBar
+        query={searchQuery}
+        results={searchResults}
+        focusedIndex={searchFocusedIndex}
+        onQueryChange={onSearchQueryChange}
+        onSelectResult={onSearchSelectResult}
+        onClear={onSearchClear}
+      />
       <NodeFilterPanel
         entries={nodeFilterEntries}
         hiddenKinds={hiddenNodeKinds}
@@ -106,6 +136,7 @@ export function GraphToolbar({
           onToggle={onToggleEdgeKind}
         />
       </div>
+      <DepthSlider depth={depth} enabled={depthEnabled} onDepthChange={onDepthChange} />
       <button
         type="button"
         className="dxt-minimap-toggle dxt-toolbar__minimap-toggle"

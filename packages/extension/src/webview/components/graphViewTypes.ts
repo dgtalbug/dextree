@@ -72,6 +72,30 @@ export interface SelectionTraversal {
   edgeIds: Set<string>;
   orderedEdgeIds: string[];
   hopLayers: string[][];
+  /** Maximum BFS hop depth applied when this traversal was computed (slice 022). */
+  maxDepth: number;
+}
+
+/** A single result row shown in the SearchBar dropdown (slice 022). */
+export interface SearchResultItem {
+  nodeId: string;
+  label: string;
+  filePath: string;
+  matchIndex: number;
+}
+
+/** Webview search state (slice 022). */
+export interface SearchState {
+  query: string;
+  matchedNodeIds: Set<string>;
+  results: SearchResultItem[];
+  focusedIndex: number;
+}
+
+/** Webview depth-slider state (slice 022). */
+export interface DepthState {
+  depth: number;
+  enabled: boolean;
 }
 
 export interface OverlaySegment {

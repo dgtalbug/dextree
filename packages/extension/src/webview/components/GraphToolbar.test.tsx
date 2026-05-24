@@ -10,6 +10,10 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
   const onToggleMinimap = vi.fn();
   const onToggleEdgeKind = vi.fn();
   const onToggleNodeKind = vi.fn();
+  const onSearchQueryChange = vi.fn();
+  const onSearchSelectResult = vi.fn();
+  const onSearchClear = vi.fn();
+  const onDepthChange = vi.fn();
 
   const result = render(
     <GraphToolbar
@@ -25,11 +29,30 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
       }))}
       hiddenNodeKinds={new Set()}
       onToggleNodeKind={onToggleNodeKind}
+      searchQuery=""
+      searchResults={[]}
+      searchFocusedIndex={0}
+      onSearchQueryChange={onSearchQueryChange}
+      onSearchSelectResult={onSearchSelectResult}
+      onSearchClear={onSearchClear}
+      depth={3}
+      depthEnabled={false}
+      onDepthChange={onDepthChange}
       {...overrides}
     />,
   );
 
-  return { ...result, onExportMermaid, onToggleMinimap, onToggleEdgeKind, onToggleNodeKind };
+  return {
+    ...result,
+    onExportMermaid,
+    onToggleMinimap,
+    onToggleEdgeKind,
+    onToggleNodeKind,
+    onSearchQueryChange,
+    onSearchSelectResult,
+    onSearchClear,
+    onDepthChange,
+  };
 }
 
 describe("GraphToolbar", () => {
@@ -94,6 +117,15 @@ describe("GraphToolbar", () => {
         nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
         hiddenNodeKinds={new Set()}
         onToggleNodeKind={vi.fn()}
+        searchQuery=""
+        searchResults={[]}
+        searchFocusedIndex={0}
+        onSearchQueryChange={vi.fn()}
+        onSearchSelectResult={vi.fn()}
+        onSearchClear={vi.fn()}
+        depth={3}
+        depthEnabled={false}
+        onDepthChange={vi.fn()}
       />,
     );
 
@@ -174,5 +206,26 @@ describe("GraphToolbar", () => {
     renderToolbar();
 
     expect(screen.getByRole("group", { name: "Node type filters" })).toBeTruthy();
+  });
+
+  // Slice 022 — search + depth slider
+  it("renders the search input inside the toolbar (slice 022)", () => {
+    renderToolbar();
+
+    expect(screen.getByRole("combobox", { name: "Search graph" })).toBeTruthy();
+  });
+
+  it("renders the depth slider inside the toolbar with the provided depth value", () => {
+    renderToolbar({ depth: 4, depthEnabled: true });
+
+    expect(screen.getByRole("slider", { name: "Hop depth" })).toBeTruthy();
+    expect(screen.getByText("Depth: 4")).toBeTruthy();
+  });
+
+  it("disables the depth slider when depthEnabled is false", () => {
+    renderToolbar({ depth: 3, depthEnabled: false });
+
+    const slider = screen.getByRole("slider", { name: "Hop depth" }) as HTMLInputElement;
+    expect(slider.disabled).toBe(true);
   });
 });

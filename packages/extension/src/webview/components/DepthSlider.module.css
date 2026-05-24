@@ -1,0 +1,63 @@
+/* DepthSlider — slice 022 toolbar depth control (1–6 hops) */
+
+.depthSlider {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  color: var(--vscode-foreground);
+  font-size: 11px;
+  user-select: none;
+}
+
+.disabled {
+  cursor: not-allowed;
+  color: var(--vscode-disabledForeground);
+}
+
+.label {
+  font-size: 11px;
+  min-width: 56px;
+  white-space: nowrap;
+}
+
+.range {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 96px;
+  height: 4px;
+  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.range:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.range:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--vscode-focusBorder, var(--vscode-foreground));
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+.range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--vscode-focusBorder, var(--vscode-foreground));
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
