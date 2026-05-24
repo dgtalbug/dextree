@@ -1,4 +1,5 @@
-import type { GraphEdge, GraphNode, LensId } from "@dextree/core";
+import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { LensId } from "@dextree/core/lenses";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { motion } from "framer-motion";

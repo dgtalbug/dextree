@@ -39,6 +39,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./lenses": {
+      "types": "./dist/query/lenses.d.ts",
+      "import": "./dist/query/lenses.js",
+      "require": "./dist/query/lenses.cjs"
     }
   },
   "scripts": {

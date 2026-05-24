@@ -5,7 +5,7 @@ import {
   selectMostUsed,
   type LensId,
   type LensSelector,
-} from "@dextree/core";
+} from "@dextree/core/lenses";
 import type React from "react";
 
 import styles from "./LensesPanel.module.css";

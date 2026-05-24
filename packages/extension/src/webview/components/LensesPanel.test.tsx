@@ -1,4 +1,4 @@
-import { LENS_IDS, STUB_TOOLTIP_REQUIRED_SUBSTRING, type LensId } from "@dextree/core";
+import { LENS_IDS, STUB_TOOLTIP_REQUIRED_SUBSTRING, type LensId } from "@dextree/core/lenses";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
