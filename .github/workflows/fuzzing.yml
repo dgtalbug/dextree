@@ -27,6 +27,7 @@ concurrency:
 jobs:
   fuzz:
     name: fuzz (serializer)
+    name: fuzz (${{ matrix.target }})
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
