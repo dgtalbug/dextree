@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@dextree/core": "workspace:*",
+    "@dextree/exporters": "workspace:*",
     "@duckdb/node-api": "^1.5.2-r.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -117,6 +118,10 @@
         "enablement": "dextree.isIndexing"
       },
       {
+        "command": "dextree.exportMermaid",
+        "title": "Dextree: Export as Mermaid"
+      },
+      {
         "command": "dextree.exportSessionSummary",
         "title": "Dextree: Export Session Summary"
       }
@@ -160,6 +165,17 @@
           "type": "boolean",
           "default": false,
           "description": "Log skipped (unchanged) file events to the Dextree output channel."
+        },
+        "dextree.exporters.theme": {
+          "type": "string",
+          "enum": [
+            "Light",
+            "Dark",
+            "Print"
+          ],
+          "default": "Light",
+          "description": "Theme applied when exporting a Mermaid diagram.",
+          "scope": "resource"
         }
       }
     }

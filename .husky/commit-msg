@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# Reject commit messages that contain Co-authored-by trailers.
+# AI agents (Copilot, Claude, etc.) must not add co-author citations.
+
+if grep -qiE "^Co-authored-by:" "$1"; then
+  echo ""
+  echo "  ✖ Commit rejected: Co-authored-by trailer detected."
+  echo "    Remove all 'Co-authored-by:' lines from the commit message."
+  echo ""
+  exit 1
+fi

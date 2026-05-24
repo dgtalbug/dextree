@@ -181,6 +181,7 @@ If you're not Claude Code, follow the same shape conceptually: plan first, imple
 
 - **Branch:** `feature/slice-<N>-<short>`, `fix/<issue>-<short>`, `refactor/<scope>-<short>`
 - **Commits:** Conventional Commits — `feat(core):`, `fix(extension):`, `test(core):`, etc.
+- **No co-author trailers:** Never add `Co-authored-by:` lines to commit messages. This applies to all agents (Claude, Copilot, any automation).
 - **PR title:** `[slice S<N>] <short description>`
 - **PR:** open as draft. Fill every section of `.github/PULL_REQUEST_TEMPLATE.md`. Link spec and issue.
 - **Mark ready:** only after CI green and self-review passes.
@@ -199,7 +200,7 @@ If you're not Claude Code, follow the same shape conceptually: plan first, imple
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **dextree** (1963 symbols, 3510 relationships, 137 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **dextree** (2298 symbols, 3970 relationships, 142 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

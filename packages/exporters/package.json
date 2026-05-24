@@ -1,0 +1,51 @@
+{
+  "name": "@dextree/exporters",
+  "description": "Export adapters for the Dextree shared graph (Mermaid and future formats).",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "author": {
+    "name": "DgtalBug",
+    "url": "https://github.com/dgtalbug"
+  },
+  "homepage": "https://github.com/dgtalbug/dextree#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dgtalbug/dextree.git",
+    "directory": "packages/exporters"
+  },
+  "bugs": {
+    "url": "https://github.com/dgtalbug/dextree/issues"
+  },
+  "keywords": [
+    "dextree",
+    "code-intelligence",
+    "mermaid",
+    "graph",
+    "export"
+  ],
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": "11.1.2"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
+    "test": "vitest run --root ../.. --config vitest.config.ts --project exporters",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@dextree/core": "workspace:*"
+  }
+}

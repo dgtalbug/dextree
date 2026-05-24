@@ -14,6 +14,7 @@ const WEBVIEW_COMMANDS: Record<string, string> = {
   "cancel-indexing": "dextree.cancelWorkspaceIndexing",
   "clear-workspace": "dextree.clearWorkspaceIndex",
   "clear-all": "dextree.clearAllIndex",
+  "export-mermaid": "dextree.exportMermaid",
 };
 
 // Module-level singleton — exactly one panel per extension session.

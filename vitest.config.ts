@@ -5,6 +5,8 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
+      include: ["packages/core/src/**/*.ts", "packages/exporters/src/**/*.ts"],
+      exclude: ["**/*.test.ts", "**/*.d.ts"],
       thresholds: {
         statements: 70,
         branches: 60,
@@ -17,6 +19,14 @@ export default defineConfig({
         test: {
           name: "core",
           include: ["packages/core/src/**/*.test.ts"],
+          environment: "node",
+          globals: false,
+        },
+      },
+      {
+        test: {
+          name: "exporters",
+          include: ["packages/exporters/src/**/*.test.ts"],
           environment: "node",
           globals: false,
         },

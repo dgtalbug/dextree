@@ -1,648 +1,655 @@
-# Dextree Roadmap
+# Dextree Roadmap — single source of truth
 
-This is the draft working roadmap for building Dextree through small spec-driven
-vertical slices.
+This is the **canonical roadmap** for Dextree. There is **one** roadmap. Update this file when scope shifts.
 
-The goal is to avoid writing every spec up front. Keep the long-range roadmap at a
-coarse level, but fully specify only the next slice you are ready to build.
+> Renamed from `ROADMAP-v2.md` on 2026-05-24 after consolidation. Prior draft `ROADMAP.md` and `scratch/ROADMAP.md` were merged into this file and deleted.
 
-## How To Use This Roadmap
+It consolidates:
 
-Use three planning levels:
+- The live slice / status tracking from the legacy `ROADMAP.md`
+- The sequencing corrections from `RESEARCH-SCRATCH.md`
+- The GraphView redesign + Phase 0 enrichment + Mermaid v2 work from `scratch/ROADMAP.md`
+- The library audit findings (sigma.js + graphology ecosystems)
 
-1. **Roadmap level**: keep the whole product sequence visible from S0 to later
-   surfaces.
-2. **Active spec level**: write a full slice spec only for the next slice, or at
-   most the next one or two slices.
-3. **Implementation level**: generate plan and tasks only after the active spec is
-   approved.
+**Immediate goal:** finish Hello Mermaid (S7), then resequence the rest of the roadmap so that **reaching the final-state mockup** ([scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html)) is the next thing built — before the original Phase 2 backlog. The mockup IS the spec for that work.
 
-That keeps the repo adaptive while still preserving direction.
+## Reference artefacts (not separate roadmaps)
 
-## Working Rules
+- [scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html) — **frozen** final-state mockup; the spec for the GraphView redesign slices below
+- [scratch/graphview-db-relations.md](scratch/graphview-db-relations.md) — DB schema reference + per-column "wired vs unused" audit
+- [scratch/mermaid-diagram-types-audit.md](scratch/mermaid-diagram-types-audit.md) — per-diagram-type data audit + render formulas + validators
+- [scratch/graphview-mockup-v2.html](scratch/graphview-mockup-v2.html) — earlier iteration mockup (diff reference)
+- [RESEARCH-SCRATCH.md](RESEARCH-SCRATCH.md) — competitive audit, prior-art notes, source for many slice decisions
 
-- One slice should prove one clear product step.
-- One slice should stay independently demoable.
-- Prefer one primary surface per slice plus only the minimum shared core change.
-- Preserve pass 1 usefulness before taking on pass 2 accuracy work.
-- Keep package ownership explicit: shared graph work in `packages/core`, VS Code UI
-  in `packages/extension`, other surfaces in their owning packages.
-- Ship each slice through a draft PR with validation before moving on.
+---
 
-## Operating Limits
+## 1. Planning standard
 
-To keep the roadmap useful for spec-driven execution instead of turning into a wish list,
-apply these limits:
+### Product rule
 
-- Max **one slice in implementation** at a time.
-- Max **one slice in spec/clarification** at a time.
-- Keep only the **next one or two slices** fully thought through; everything after
-  that stays coarse.
-- Do not start a new slice because a later one looks more exciting. Finish the
-  current proof point first.
+Ship **truth before breadth**:
 
-## Slice States
+1. The graph contract must be honest.
+2. The local VS Code loop must be fast and reliable.
+3. **Then** finish the mockup — the redesigned GraphView is the immediate post-S7 goal.
+4. Only **after** the mockup is real should Dextree expand into the deeper moat overlays (LSP, diagnostics, git, MCP, route maps, etc.).
 
-Use these states consistently when updating this roadmap, issues, and PRs:
+### Execution rule
 
-| State               | Meaning                                                    |
-| ------------------- | ---------------------------------------------------------- |
-| `roadmap`           | Mentioned here only. No detailed spec work yet.            |
-| `next-up`           | Candidate for the next spec. Still not detailed.           |
-| `in-spec`           | Spec is being written or clarified. No implementation yet. |
-| `ready-for-plan`    | Spec is approved; plan and tasks can be generated next.    |
-| `in-implementation` | Code and tests are being written.                          |
-| `in-review`         | Draft PR is open and validation or review is running.      |
-| `done`              | Merged, validated, and reflected back into the roadmap.    |
+- Max **one active implementation slice** at a time.
+- Max **one active spec / clarification slice** at a time.
+- Branch-local code does **not** automatically change roadmap priority.
+- Pass 1 must stay useful before pass 2 arrives.
+- Public docs and marketplace metadata must not advertise non-shipped behavior.
 
-## Promotion Gates
+### State vocabulary
 
-### Definition of Ready
+| State            | Meaning                                                     |
+| ---------------- | ----------------------------------------------------------- |
+| `done`           | merged and validated                                        |
+| `ready-to-merge` | implementation exists; final review or merge remains        |
+| `blocker`        | must be resolved before roadmap promotion can continue      |
+| `blocked`        | valid slice, waiting on an earlier blocker                  |
+| `active`         | current implementation focus                                |
+| `next-up`        | next slice to spec or promote after the active focus clears |
+| `later`          | intentional future work, not near-term                      |
 
-A slice is ready to leave roadmap-level planning only when all of the following are
-true:
+---
 
-- The slice has one primary proof point.
-- The owning package or packages are explicit.
-- The primary surface is explicit.
-- The independent validation is known.
-- The slice does not mix multiple new surfaces or multiple major architecture
-  decisions.
-- Pass 1 vs pass 2 expectations are explicit if indexing is involved.
-- Privacy and opt-in boundaries are explicit if Alfred or remote calls are involved.
+## 2. Current reality (2026-05-24)
 
-### Definition of Done
+Honest snapshot from git history + spec task lists:
 
-A slice is done only when all of the following are true:
+| Area               | Reality                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Packages           | `packages/core`, `packages/extension`, `packages/exporters` (added in 016)                                                      |
+| CI/CD              | Foundation fixes (004) + GitHub Actions (005) merged + release-truth gate (015) live                                            |
+| Schema             | Schema alignment (009/S3.5) merged; `Annotation`, `Module`, `Test` tables present; migration runner active                      |
+| Graph              | Hello Graph (010/S4) merged with `ExtractorRegistry` + naive `CALLS`; webview renders the graph the runtime actually writes     |
+| Persistence        | Persistent workspace cache (011/S5) merged with migration 004                                                                   |
+| Workspace indexing | Full-workspace indexing (012/S6) merged + auto-sync watcher (013/S6.5) merged                                                   |
+| Session summary    | 014/S6.8 mostly done                                                                                                            |
+| Release-truth gate | 015/S6.9 mostly done                                                                                                            |
+| Hello Mermaid (S7) | **Active.** Exporters package added, serializer + theme system live, Export button in GraphView toolbar; finishing tasks remain |
 
-- Spec, plan, and tasks are committed or otherwise captured in the repo.
-- Code, tests, and validation are complete.
-- The slice's independent proof has been demonstrated.
-- The draft PR has passed review and merged.
-- README, changelog, or marketplace docs are updated if the change is user-facing.
-- This roadmap is updated with any scope, ordering, or dependency changes learned
-  from the slice.
+**Current branch:** `016-hello-mermaid`. **Active slice:** Hello Mermaid finalisation.
 
-## Spec-To-Code Loop
+---
 
-### 1. Pick the next slice
+## 3. Slice board
 
-Choose the smallest remaining step that unlocks a visible proof point.
+Renumbered to reflect git reality. Spec dir is the on-disk folder; design slice is the S-number from this roadmap.
 
-For each candidate, answer:
+| Spec dir                                  | Design slice | State                        | Notes                                                                                 |
+| ----------------------------------------- | ------------ | ---------------------------- | ------------------------------------------------------------------------------------- |
+| `001-hello-symbol`                        | S1           | `done`                       | One-file parse → DuckDB → extension command                                           |
+| `002-hello-tree-view`                     | S2           | `done`                       | Sidebar tree of files → symbols                                                       |
+| `003-hello-webview`                       | S3           | `done`                       | React webview, message bridge, symbol list                                            |
+| `004-cicd-foundation-fixes`               | —            | `done`                       | Lint/typecheck/coverage scripts honest                                                |
+| `005-cicd-github-actions`                 | —            | `done`                       | CI/CD wired                                                                           |
+| `006-hello-graph` (intent)                | S4 (intent)  | superseded                   | Replaced by `010-hello-graph` after schema-alignment                                  |
+| `007-persistent-workspace-cache` (intent) | S5 (intent)  | superseded                   | Replaced by `011-persistent-workspace-cache`                                          |
+| `008-hello-workspace` (intent)            | S6 (intent)  | superseded                   | Replaced by `012-hello-workspace`                                                     |
+| `009-align-schema-migrations`             | S3.5         | `done`                       | Migration runner; `Annotation` / `Module` / `Test` tables; `_schema_version` registry |
+| `010-hello-graph`                         | S4           | `done`                       | `ExtractorRegistry`; pass-1 naive `CALLS`; Sigma webview render                       |
+| `011-persistent-workspace-cache`          | S5           | `done`                       | Cache identity, schema-versioned DB reuse across restarts                             |
+| `012-hello-workspace`                     | S6           | `done`                       | Workspace-scale indexing, progress, PageRank node sizing                              |
+| `013-auto-sync-watcher`                   | S6.5         | `done`                       | Debounced FS watcher + selective reparse                                              |
+| `014-session-summary-export`              | S6.8         | `done` (final tasks pending) | User-pull session summary export                                                      |
+| `015-release-truth-gate`                  | S6.9         | `done` (final tasks pending) | Validation gate before releases                                                       |
+| `016-hello-mermaid`                       | S7           | **`active`**                 | Mermaid serializer + Export button shipped; finalising remaining tasks                |
 
-- What user-visible proof does this slice deliver?
-- Which package owns the behavior?
-- Does it depend on pass 1 only, or on pass 2 / VS Code data sources?
-- What is explicitly out of scope?
+> Specs `006/007/008` exist as folders but their implementations were rewritten under `010/011/012` after the schema-alignment correction. They remain on disk for history.
 
-### 2. Write the slice spec
+### Active slice
 
-Create one feature spec for that slice under `specs/NNN-<short>/spec.md`.
+| Field         | Value                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| Spec dir      | `016-hello-mermaid`                                                                            |
+| Design slice  | `S7 — Hello Mermaid`                                                                           |
+| Branch        | `016-hello-mermaid`                                                                            |
+| Primary proof | Export the current graph as a valid `.mmd` file; theme picker (Light/Dark/Print) live          |
+| Done when     | All 016 tasks marked complete; PR merged; README / changelog reflect the new command + setting |
 
-A good Dextree slice spec should name:
+---
 
-- Primary surface: webview, tree view, exporter, MCP, CLI, web component, or Alfred
-- Impacted packages
-- Shared graph impact: schema, indexing, query layer, or none
-- Independent test for the slice
-- Edge cases when enrichment, diagnostics, git, or tests are unavailable
-- Measurable success criteria
+## 4. Strategic resequencing
 
-Do not spec a large phase as one feature. Spec the smallest valuable proof point.
+The original Phase 2 ordered LSP → multi-lang → diagnostics → git → tests → MCP → blast radius → route map → PageRank/community overlay → repo-map text snapshot. **That order is no longer right.** After S7 lands, the immediate goal is **reaching the final-state mockup** ([scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html)) — because the mockup represents the user-visible product moat, and the underlying graph contract is now stable enough to dress it up.
 
-### 3. Clarify before design
+The resequencing principle:
 
-Clarify before moving to design when any of these are still fuzzy:
+1. **Mockup-completion work jumps the queue.** Toolbar consolidation, filters, lenses, search, depth, trace mode, workspace switcher, layout presets, entry-point styling, and Mermaid v2 (preview panel + classDiagram + sequenceDiagram) become Phase 2.
+2. **Index-time enrichment is woven in.** Framework detection, entry-point tagging, architectural layer classification, and `enclosing_symbol_id` are prerequisites to several mockup features — they ship as Phase 2 sub-slices, not as a separate phase, and each one lands just before the UI slice that consumes it.
+3. **Original Phase 2 moat features move to Phase 3.** LSP, multi-language pass-1, diagnostics, git, tests, MCP, blast radius, route map, repo-map text snapshot, PageRank/community overlay — they still ship, but **after** the mockup. PageRank value is already partially delivered via S6's node sizing; the dedicated PageRank slice now focuses on the community overlay + ranking persistence.
+4. **Exports / Alfred / federation stay in their original later phases.**
 
-- package ownership
-- pass 1 vs pass 2 behavior
-- user-visible acceptance criteria
-- quality gates or privacy boundaries
+This is the change v2 ratifies. The rest of the doc reflects the new order.
 
-If the slice still has unresolved ambiguity after clarification, do not code it yet.
+---
 
-### 4. Generate the implementation plan
+## 5. Library audit — what we use vs what we adopt
 
-Produce `specs/NNN-<short>/plan.md` once the spec is stable.
+The sigma.js + graphology ecosystems already contain most of what the mockup needs. **Reusing library primitives is the largest single source of code reduction in Phase 2.**
 
-The plan should confirm:
+### Currently installed
 
-- the shared graph contract remains intact
-- package boundaries stay clean
-- the approved stack is sufficient
-- validation is clear: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and slice-specific proof
+`sigma`, `graphology` (`MultiDirectedGraph`, `DirectedGraph`), `graphology-layout-forceatlas2`, `graphology-pagerank`, `graphology-types`, `graphology-utils` (transitive).
 
-### 5. Generate executable tasks
+### graphology packages to adopt (per slice)
 
-Produce `specs/NNN-<short>/tasks.md` to break the slice into independent story-scoped tasks.
+| Package                                  | What it gives                                                                                                  | Used by slice                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `graphology-shortest-path`               | `bidirectional` (unweighted), `dijkstra.bidirectional` (weighted), `edgePathFromNodePath`                      | Trace route (S7.6)                                                                  |
+| `graphology-traversal`                   | `bfs`, `bfsFromNode` with depth in callback; return `true` to prune                                            | Focus depth slider (S7.5)                                                           |
+| `graphology-communities-louvain`         | Louvain communities; `assign` writes `community` attr; `detailed()` exposes modularity                         | Architecture lens (S7.4); later S11.7 community overlay                             |
+| `graphology-metrics`                     | density, modularity, centrality (betweenness/closeness/degree/eigenvector), HITS, **PageRank**, layout-quality | All lenses (S7.4); replaces `graphology-pagerank`                                   |
+| `graphology-operators`                   | `subgraph(graph, nodeSet)`, `reverse`, `union`, casting                                                        | Mermaid scoped export (S7.10)                                                       |
+| `graphology-components`                  | `connectedComponents`, `largestConnectedComponent`, `cropToLargestConnectedComponent`                          | Least-used lens (S7.4) — exclude orphans cleanly                                    |
+| `graphology-dag`                         | `topologicalSort`, `topologicalGenerations`, `hasCycle`                                                        | Hierarchical layout preset (S7.8)                                                   |
+| `graphology-layout`                      | `circular`, `random`, `circlepack`                                                                             | Layout presets (S7.8) — circular                                                    |
+| `graphology-layout-noverlap`             | Iterative anti-collision post-pass on `x,y`                                                                    | All layouts → hulls look better (S7.8)                                              |
+| `graphology-svg`                         | Server-side SVG export, pure JS                                                                                | Future CLI SVG export — defer                                                       |
+| `graphology-canvas`                      | Canvas + `renderToPNG` (needs `node-canvas` in Node)                                                           | Future CLI PNG export — native dep, banned in `core`, fine in `cli` package — defer |
+| `graphology-simple-path`                 | `allSimplePaths` with cutoff                                                                                   | Trace v2: "show 3 paths between A and B" — defer to S7.6 follow-up                  |
+| `graphology-gexf` / `graphology-graphml` | Gephi / GraphML import-export                                                                                  | **Skip.** Mermaid is the export contract.                                           |
 
-Task quality bar:
+### Sigma.js capabilities to lean on harder
 
-- tasks grouped by user story
-- package-local file paths
-- tests before implementation where applicable
-- no vague "wire everything" tasks
+| API                                                                                       | What it gives                                | Slices                                                                                 |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `sigma.getCamera().animate(state, opts)` + `animatedReset()` / `animatedZoom()`           | Smooth tweens                                | Fly-to-search (S7.5), fit-to-view, reset                                               |
+| `sigma.viewportToGraph()` / `sigma.graphToViewport()` / `sigma.getNodeDisplayData(id)`    | Coord conversion for overlays                | Trace overlay drawing (S7.6), cluster hulls                                            |
+| `nodeReducer` / `edgeReducer`                                                             | Per-frame display object — no graph mutation | Click-to-isolate, lens dimming, search highlight, trace dimming (already used, expand) |
+| Events: `clickNode`, `enterNode`, `doubleClickNode`, `clickStage`, `wheel`, `afterRender` | Interaction + render-lifecycle hooks         | All interactions; `afterRender` for canvas overlays                                    |
+| `labelRenderedSizeThreshold`, `labelGridCellSize`                                         | Built-in label management at zoom            | Search results, hierarchical layout                                                    |
 
-### 6. Implement the slice
+### Sigma official add-on packages
 
-Recommended flow — any agent (Claude, Copilot, or a human) can drive this:
+| Package                                     | Purpose                                             | Slice                                                                                |
+| ------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `@sigma/node-square` + `@sigma/node-border` | Entry-point styling: `type: 'square'` + gold border | S7.9 entry-point styling — **drops to ~1 day** vs writing a custom node program      |
+| `@sigma/edge-curve`                         | Reduces overlap on parallel edges                   | Future polish — defer                                                                |
+| `@sigma/layer-webgl`                        | Helper to draw your own WebGL layer                 | Reconsider for cluster hulls only if current canvas implementation degrades at scale |
 
-1. Implement against the approved plan.
-2. Add tests and run local validation (`pnpm check`).
-3. Open a draft PR linking the slice spec.
-4. A reviewer (the docs-lane agent by default) reviews correctness, risks,
-   docs, and release-note impact.
-5. Only then move to the next slice.
+### No off-the-shelf option (keep building)
 
-### 7. Re-plan after each slice
+- **Minimap** — no official Sigma minimap plugin. Keep custom canvas implementation. Default OFF per mockup.
+- **Cluster hulls** — current canvas implementation works. Rewrite to `@sigma/layer-webgl` only if performance degrades.
 
-At the end of every slice:
+### Library churn summary
 
-- update this roadmap if scope shifted
-- tighten the next slice based on what was learned
-- keep later slices coarse until they are near-term work
+| Action | Package(s)                                                                                                                                                                                                                                                                   | When                 |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Add    | `graphology-shortest-path`, `graphology-traversal`, `graphology-communities-louvain`, `graphology-metrics`, `graphology-operators`, `graphology-components`, `graphology-dag`, `graphology-layout`, `graphology-layout-noverlap`, `@sigma/node-square`, `@sigma/node-border` | Per the slices below |
+| Remove | `graphology-pagerank` (subsumed by `graphology-metrics`)                                                                                                                                                                                                                     | S7.4 lenses          |
+| Keep   | `sigma`, `graphology`, `graphology-layout-forceatlas2`, `graphology-types`, `graphology-utils`                                                                                                                                                                               | —                    |
 
-## Current Slice State
+---
 
-Actual state as of 2026-05-22.
+## 6. Mermaid export — supported diagram types
 
-| Spec dir                         | Design slice | State               | Notes                                                                                                  |
-| -------------------------------- | ------------ | ------------------- | ------------------------------------------------------------------------------------------------------ |
-| `001-hello-symbol`               | S1           | `done`              | Parser → DuckDB → extension command end-to-end                                                         |
-| `002-hello-tree-view`            | S2           | `done`              | Sidebar TreeView with file → symbol hierarchy                                                          |
-| `003-hello-webview`              | S3           | `in-review`         | React webview, message protocol, symbol list, directory tree, nav; on branch 003                       |
-| `004-cicd-foundation-fixes`      | —            | `in-spec`           | Fix lint/typecheck/coverage scripts before CI is wired; intermediate slice                             |
-| `005-cicd-github-actions`        | —            | `in-spec`           | GitHub Actions CI/CD workflow; depends on 004                                                          |
-| `006-hello-graph`                | S4           | `in-spec`           | Sigma + graphology graph render; **active spec** — depends on pre-S4 schema-alignment slice (see S3.5) |
-| `007-persistent-workspace-cache` | S5           | `in-implementation` | Workspace cache + identity resolution; code lives on `feature/slice-8-hello-workspace`                 |
-| `008-hello-workspace`            | S6           | `in-implementation` | Full-workspace indexing with progress + cancellation; same branch                                      |
+After a per-type data audit ([scratch/mermaid-diagram-types-audit.md](scratch/mermaid-diagram-types-audit.md)), Dextree supports **three** Mermaid diagram types. The picker shows only these three; unsupported are tooltipped with the reason.
 
-> Intermediate slices 004 and 005 are CI/CD prerequisites inserted before S4.
-> S5 and S6 are listed as `in-implementation` because their code already lives on the active branch
-> ahead of formal ROADMAP promotion — see RESEARCH-SCRATCH.md §2.
-> The design slice numbering (S0–S13) and spec directory numbering are independent.
+| Type                       | When available                                | Slice                                                                                     |
+| -------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `flowchart` (LR / TD / TB) | Always — works on any non-empty subgraph      | S7 (baseline shipping now) + S7.10 (scoped, capped)                                       |
+| `classDiagram` v1          | Scope contains ≥1 class / interface / enum    | S7.11 (boxes + method-name stubs, no signatures yet — labelled "v1 / preview")            |
+| `classDiagram` v2          | After signature + visibility extraction lands | Future enhancement, not yet sliced                                                        |
+| `sequenceDiagram`          | Scope is a trace route                        | Picker shows **disabled with reason** until S7.6 (trace route) ships; serializer in S7.14 |
 
-## Recommended Execution Queue
+The serializer becomes a **discriminated union — one function per diagram type** (S7.10 refactor). Each type has a **fail-closed validator**: refuses to render if scope exceeds the cap, with one-click suggestions to coarsen.
 
-This is the practical queue, not just the long-range sequence.
+### Caps
 
-| Priority | Spec dir                    | State       | Why now                                                                    |
-| -------- | --------------------------- | ----------- | -------------------------------------------------------------------------- |
-| 1        | `003-hello-webview`         | `in-review` | Merge 003 branch; validates S3 before CI exists.                           |
-| 2        | `004-cicd-foundation-fixes` | `in-spec`   | Fix scripts so CI can trust them; prerequisite for 005.                    |
-| 3        | `005-cicd-github-actions`   | `in-spec`   | Wire CI once scripts are honest.                                           |
-| 4        | `006-hello-graph`           | `in-spec`   | First real graph render — the "wow" moment; ready to move to plan + tasks. |
+| Diagram           | Soft cap (warn)       | Hard cap (refuse)     |
+| ----------------- | --------------------- | --------------------- |
+| `flowchart`       | 100 nodes / 200 edges | 150 nodes / 300 edges |
+| `classDiagram`    | 60 nodes              | 100 nodes             |
+| `sequenceDiagram` | 40 steps              | 80 steps              |
 
-Anything after `006` should stay at roadmap level until 006 is merged or nearly merged.
+### Picker behaviour
 
-The next roadmap-level candidate after `006` is a persistence slice: settle
-workspace or checkout cache identity and persisted DB reuse before taking on full
-workspace indexing and reindex behavior.
+- Lives inside the preview panel (not a modal) — changing diagram type re-renders inline.
+- Granularity options filtered by diagram type (`classDiagram` requires `Class`; `sequenceDiagram` requires `Symbol`).
+- Direction auto-inferred from scope; override in Advanced.
+- Scope expansion via `graphology-operators.subgraph()` against the focused node set.
 
-## Recommended Incremental Slice Sequence
+### Output formats
 
-### Phase 0: Foundation
+`.mmd`, `.svg` (via `mermaid.render()`), `.png` (SVG → canvas → toBlob), clipboard image, Markdown snippet, `.html` (standalone). PDF deferred.
 
-**Dependency rule**: do not treat later slices as real until the repo can install,
-lint, typecheck, test, and track its agent/spec metadata correctly.
+### Mermaid features exploited
 
-#### S0 — Repo and SpecKit foundation
+- **Clickable nodes** — `click NodeId "vscode://file/<path>:<line>"`; per-format default (off for `.mmd` committed to repos, on for SVG/PNG/clipboard).
+- **`classDiagram` UML edges** — `<|--` extends, `<|..` implements, `*--` composition.
+- **`sequenceDiagram` from trace** — actor per enclosing class via `enclosing_symbol_id`.
 
-**Spec focus**: monorepo scaffold, agent instructions, SpecKit setup, tracked repo
-metadata, baseline tooling, and draft CI path.
+---
 
-**Code focus**: workspace/package scaffolding, pnpm/turbo wiring, empty packages,
-base scripts, repo governance.
+## 7. Release roadmap
 
-**Done when**: the repo can install, lint, typecheck, and hold specs and agent
-metadata in git.
+### Phase 0 — Baseline integrity ✅
 
-### Phase 1: v0.1 core loop
+**Goal:** the repo is trustworthy enough that later slice validation means something.
 
-**Dependency rule**: this phase should prove the full pass 1 loop before any moat or
-multi-surface work becomes active.
+Slices: `003`, `004`, `005`. **All done.** Exit gate cleared: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and packaging are green.
 
-#### S1 — Hello Symbol
+### Phase 1 — v0.1 truthful local graph loop (mostly done)
 
-**Spec focus**: prove one-file parsing to one stored symbol with a minimal extension
-command or message.
+**Definition:** a developer can index a real local workspace in VS Code, reopen it from cache, edit files, and see the graph remain truthful and responsive.
 
-**Code focus**: pass 1 parser path, DuckDB write/read, minimal extension command.
+| Slice                                                   | Status                            |
+| ------------------------------------------------------- | --------------------------------- |
+| `S3.5` (009) — Schema alignment + migration scaffolding | ✅ done                           |
+| `S4` (010) — Hello Graph                                | ✅ done                           |
+| `S5` (011) — Persistent Workspace Cache                 | ✅ done                           |
+| `S6` (012) — Hello Workspace                            | ✅ done                           |
+| `S6.5` (013) — Auto-sync watcher                        | ✅ done                           |
+| `S6.8` (014) — Session summary export                   | ✅ done (final tasks)             |
+| `S6.9` (015) — Release-truth gate                       | ✅ done (final tasks)             |
+| **`S7` (016) — Hello Mermaid**                          | **🟡 active** — baseline shipping |
 
-**Independent proof**: parse one TypeScript file and show one discovered symbol end
-to end.
+**Exit gate (mostly met):**
 
-#### S2 — Hello Tree View
+- Pass 1 writes the graph the UI visualizes ✅
+- `CALLS` is real naive pass-1 data ✅
+- Unchanged file save is a no-op for parse + DB write ✅
+- Workspace reopen from cache is safe and obvious ✅
+- Runtime doctor flow for DuckDB / WASM — partial (S6.9 covers release gating)
+- README / extension metadata match shipped commands ✅
+- `S7` baseline Mermaid export — finalising
 
-**Spec focus**: turn indexed symbols into a first VS Code UI surface.
+### Phase 2 — v0.2 reach the mockup (NEW SEQUENCE)
 
-**Code focus**: tree data provider in `packages/extension`, symbol lookup from core.
+**Definition:** Dextree's GraphView matches [scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html). Toolbar consolidated, filters/lenses functional, search + depth + trace + workspace switcher live, layout presets, entry-point styling, and Mermaid v2 (scoped + classDiagram + preview panel) all shipped.
 
-**Independent proof**: one file's symbols render in a VS Code Tree View and can
-navigate to source.
+The mockup IS the spec. Each slice's success = "this part of the mockup now works."
 
-#### S3 — Hello Webview
+**Required slices (in execution order):**
 
-**Spec focus**: establish extension-to-webview messaging with a minimal React UI.
+#### S7.1 — Toolbar consolidation
 
-**Code focus**: webview bootstrapping, message bridge, React render shell.
+Move existing controls (Export, minimap toggle, edge-filter pills) into a unified top toolbar. Minimap default **OFF**. First user-visible win post-S7.
 
-**Independent proof**: the webview opens and shows indexed symbol data from the
-extension host.
+- Decompose [packages/extension/src/webview/components/GraphView.tsx](packages/extension/src/webview/components/GraphView.tsx) (~1700 LOC) — extract `GraphToolbar` sub-component
+- Mockup delta: toolbar shell live; minimap toggleable but hidden by default
 
-#### S3.5 — Schema alignment + migration scaffolding (pre-S4 hard prerequisite)
+#### S7.2 — Phase 0a: Framework detection (index-time)
 
-**Spec focus**: converge `packages/core/src/storage/schema.ts` with design §8 entity
-model before the S4 graph render locks the wire format. See RESEARCH-SCRATCH.md §3 (Ranked Findings).
+Per-workspace + per-file framework detection. Required input for S7.4 framework chip + S7.9 entry-point styling.
 
-**Code focus**:
+- Manifest parser (`package.json` deps, `pyproject.toml`, `go.mod`, etc.)
+- Framework registry — require BOTH manifest marker AND structural signal (e.g. `app.get(` for Express, `vscode.commands.registerCommand` for VS Code extensions)
+- New `workspace_framework` table; new `file.framework`, `file.framework_role` columns
+- Mockup delta: workspace switcher shows framework chips; status bar `vscode-ext` pill
 
-- Add `Annotation`, `Module`, `Test` tables (currently missing per design §8.2).
-- Parameterize `_schema_version` writes (currently hardcoded literal `1` in
-  `packages/core/src/storage/repository.ts:88,119,182`).
-- Pick: per-edge-kind tables (§8.4) OR unified `edge` table (§8.5). Document choice
-  in `.dextree/memory/decisions.md`.
-- Wire `fan_in` recomputation as the last step of `replaceFileGraph` (currently
-  hardcoded `0`).
-- Add `packages/core/src/storage/migrations/` with `001-initial.sql` baseline and an
-  `applyMigrations()` runner.
-- Add a `_schema_version` registry table populated at `initializeSchema` time.
+**Cross-reference:** legacy S11.5 (Framework route map) is a **richer** version of this work — runtime route extraction with `ApiEndpoint` extension nodes. S7.2 is the detection layer; S11.5 (deferred to Phase 3) adds the route map on top.
 
-**Independent proof**: existing tests still green; a single seeded annotation +
-module + test row reads back round-trip; `fan_in` for a known symbol is non-zero
-after indexing.
+#### S7.3 — Node-type + edge-type filters
 
-#### S4 — Hello Graph
+Left rail filter list (Folder + File + 7 symbol kinds; Decorator + Import disabled rows). Right rail Edge Types section (Defines, Imports, Calls, Extends, Contains-derived, Implements-stub). Rename `INHERITS` → `Extends` in UI.
 
-**Spec focus**: render a real graph for a small workspace sample using pass 1 edges.
+- Mockup delta: left + right rails functional; legend chips show edge colours
 
-**Code focus**: graph query path, Sigma integration, subgraph extraction, graph node
-selection.
+#### S7.4 — Inspector panel + lenses
 
-- **Required**: introduce `Extractor` interface + `ExtractorRegistry` (design §8.6).
-  Refactor existing `extractTypeScriptFile`/`extractPlainFile` as registrants.
-- **Required**: pass-1 emits naive `CALLS` edges from `call_expression` tree-sitter
-  nodes. `metadata.kind = "naive"` for later S8 upgrade-in-place.
-- **Required**: implement the chosen edge-storage variant from S3.5; query layer
-  reads it.
+Permanent right-rail Inspector with signature + docstring + badges (importance, framework, layer, entry). Lenses panel: God class / Most-used / Least-used / Entry points / Architecture.
 
-**UI/UX (per RESEARCH-SCRATCH.md §10.2)**: ship minimap viewport rectangle (G1), LOD
-label policy (G7), hover-card mini-LSP basic shell (G6), keyboard cheatsheet `?` +
-`j/k/f/o` bindings (G3). Optional enhancements deferred.
+- Project additional columns from `getWorkspaceSubgraph` (`fan_in`, `flags`, `is_core`, `signature`, `docstring`)
+- **Library change:** drop `graphology-pagerank`, adopt `graphology-metrics` (subsumes PageRank + adds centrality + modularity)
+- Lenses use `graphology-metrics` (PageRank, fan-in) + `graphology-components` (orphan exclusion for Least-used)
+- Mockup delta: Inspector + Lenses panels live; status-bar active-lens pill
 
-**Independent proof**: a 10-file graph renders, and clicking a node navigates to its
-definition. **At least one `CALLS` edge is visible.**
+#### S7.5 — Search + focus depth slider
 
-#### S5 — Persistent Workspace Cache
+Toolbar search box (matches by label / fqn). Depth slider (1–6 hops). Camera flies to search hits via `sigma.getCamera().animate()`.
 
-**Spec focus**: define how Dextree identifies a persisted local graph for one
-workspace or repo checkout and safely reuses it across VS Code restarts and repo
-reopens.
+- **Library change:** adopt `graphology-traversal.bfsFromNode` with max-depth pruning; replaces hand-rolled `computeDescendantSelection`
+- Mockup delta: search returns results, depth changes BFS hop count
 
-**Code focus**: cache identity, DB location policy, persisted cache metadata,
-startup validation, and load-from-cache behavior before reindex.
+#### S7.6 — Trace route mode
 
-**Independent proof**: index a small repo, close and reopen VS Code on the same
-checkout, and show the tree and graph from the persisted DB without re-running a
-full index first.
+Toolbar Trace toggle. Two-click state machine: pick start, pick end. Banner at top of canvas. Dashed yellow path with off-path dimming. Inspector "Trace from here" shortcut.
 
-#### S6 — Hello Workspace
+- **Library change:** adopt `graphology-shortest-path.bidirectional` + `edgePathFromNodePath`
+- Mockup delta: trace scene from mockup is functional end-to-end
 
-**Spec focus**: move from toy inputs to full-workspace indexing with progress and
-manual reindex.
+#### S7.7 — Workspace switcher
 
-**Code focus**: workspace file discovery, incremental indexing loop, progress UI,
-reindex command.
+Toolbar workspace name + popover. Workspaces page (multi-card view with framework chips + architecture-preview strip). `dextree.switchWorkspace` command.
 
-- **Required**: per-file content-hash (SHA-256) staleness check before reparse.
-- **Required**: persisted `file.hash` already exists in schema; wire
-  `if hash unchanged: skip`.
-- **Required**: named pipeline-phase progress — replace generic
-  "Discovering / Parsing / Writing" with `scan → parse → persist → resolve → index`
-  as a horizontal stepper inside `withProgress`; each phase has its own elapsed
-  timer. See RESEARCH-SCRATCH.md §10.2.b G20 + §13.2 (prior art: GitNexus
-  `AnalyzeProgress.tsx`).
-- **Inspirational**: CodeIndexer `sync/merkle.ts` (~200 LOC Merkle tree persisted to
-  disk) — optional acceleration if hash-only proves too slow on 10K+ file repos.
-  See RESEARCH-SCRATCH.md §13.4.
+- Backed by existing `workspace_cache` table
+- New webview ↔ extension messages: `requestWorkspaceList`, `workspaceList`, `switchWorkspace`
+- Mockup delta: workspaces scene from mockup is functional; switching re-opens the GraphView with a different indexed workspace
 
-**UI/UX (per RESEARCH-SCRATCH.md §10.2)**: 3-step VS Code walkthrough on first
-activation; spotlight onboarding (G16); status-bar live counter
-`$(database) <n> syms`; empty-state surfaces for 0/1/10 nodes; named pipeline-phase
-stepper (G20).
+#### S7.8 — Layout presets
 
-**Independent proof**: index a representative workspace with visible progress and a
-usable graph at the end. **Saving an unchanged file is a no-op (no DB writes).**
+Toolbar layout dropdown: ForceAtlas2 (default) / Circular / Hierarchical.
 
-#### S6.5 — Auto-sync watcher
+- **Library change:** adopt `graphology-layout.circular` + `graphology-dag.topologicalGenerations` (for hierarchical) + `graphology-layout-noverlap` (anti-collision post-pass)
+- Mockup delta: layout dropdown works; users can switch presets
 
-**Spec focus**: debounced FS watcher (FSEvents/inotify/RDCW via VS Code's
-`FileSystemWatcher`) with selective reparse. Closes the codegraph file-watcher gap.
+#### S7.9 — Phase 0b: Entry-point tagging + architectural layer (index-time)
 
-**Code focus**: workspace `FileSystemWatcher` registration, debounce policy,
-per-file dirty marker integration with S6's hash-based skip path.
+Index-time classification. Required input for S7.4 layer badges + Architecture lens + S7.9 entry-point node styling.
 
-**Independent proof**: editing a file outside VS Code (or inside, via save) triggers
-a debounced reparse that updates only the affected symbols. Editing rapidly does not
-queue redundant reparses.
+- **Entry-point tagging** — four kinds: runtime entry (`main`, `activate`), registered handler (Express route, VS Code command), test entry (`describe`/`it`, pytest), public API. New `symbol.entry_kind` + `symbol.entry_metadata` JSON columns.
+- **Architectural layer classification** — entry → orchestration → domain → I/O → utility → dead. Heuristic classifier. New `symbol.arch_layer` column.
+- **Entry-point styling** — square + gold border via `@sigma/node-square` + `@sigma/node-border`. (~1 day vs writing a custom node program.)
+- Mockup delta: Entry-points lens shows real data; entry nodes render as gold-bordered squares; layer badges populated in Inspector
 
-#### S7 — Hello Mermaid
+**Cross-reference:** legacy S11.5 (Framework route map) and S11.7 (PageRank + community overlay) build on this enrichment in Phase 3.
 
-**Spec focus**: prove the first "render everywhere" export surface.
+#### S7.10 — Scoped flowchart serializer + caps
 
-**Code focus**: subgraph serialization, Mermaid export command, output path handling.
+Discriminated-union refactor of [packages/exporters/src/mermaid/serializer.ts](packages/exporters/src/mermaid/serializer.ts). Scope + granularity + direction options. Fail-closed validator.
 
-- **Required**: native VS Code settings `dextree.exporters.theme` (Light/Dark/Print)
-  as a 3-radio picker. Defer WYSIWYG token editor to E3.
-  See RESEARCH-SCRATCH.md §11.
+- **Library change:** adopt `graphology-operators.subgraph()` for scope extraction
+- New `packages/exporters/src/mermaid/scope.ts` — pure BFS / path-walk, enforces caps
+- Still `.mmd` output. No new UI.
+- Mockup delta: the `flowchart` part of the Mermaid preview-panel mockup is render-ready
 
-**Independent proof**: export the current graph view as a valid Mermaid file.
-Theme applied at export time matches the chosen radio.
+#### S7.11 — `enclosing_symbol_id` column + classDiagram v1
 
-#### S7.5 — PGQ / SQL query console (FAB)
+Phase 0c: add `symbol.enclosing_symbol_id` column; populate during extraction so class methods point at their class.
 
-**Spec focus**: make the §4.8 PGQ / SQL moat **visible** to users. The strategic
-differentiator is invisible without a UI surface that lets power users write
-queries. Falls back to plain SQL if the H5 PGQ feasibility smoke test fails on a
-target platform. See RESEARCH-SCRATCH.md §10.2.b G19 + §13.2 (prior art: GitNexus
-`QueryFAB.tsx`).
+- Unlocks reliable class-grouping for Mermaid `classDiagram` without fqn parsing
+- New `serializeToClassDiagram` (boxes + method-name stubs; labelled "v1 / preview")
+- Mockup delta: `classDiagram` option in the Mermaid picker; method-grouping works
 
-**Code focus**: Codicon `terminal` FAB bottom-right of graph; slide-up panel with
-Monaco editor (free — already in VS Code) using a custom `dextree.pgq` language
-config; prefab dropdown of canned queries (`MATCH (n:Function) ...`); results in
-plain HTML `<table>` with CSS Modules (no `@tanstack/react-table` without rules
-amendment); matched nodes highlight in graph.
+#### S7.12 — Mermaid preview-and-export panel
 
-**Hard prerequisite**: H5 PGQ feasibility smoke test — confirm
-`INSTALL duckpgq; LOAD duckpgq; FROM GRAPH_TABLE (...);` works on Mac + Linux +
-Windows against `@duckdb/node-api@1.5.2-r.1` before scoping this slice. If PGQ
-fails on a target, the console ships in SQL-only mode.
+New webview tab. Inline picker (scope / granularity / diagram / direction). Rendered SVG. `.mmd` source pane. Format buttons (`.mmd`, `.svg`, `.png`, clipboard image, Markdown snippet).
 
-**Independent proof**: opening the FAB and running the default prefab "All
-Functions" query returns rows and highlights the matched nodes in the graph.
+- `mermaid` npm package only loads in this webview, not in `core`
+- New webview: `packages/extension/src/webview/MermaidPreview/`
+- Mockup delta: the Mermaid preview scene from the mockup is functional
 
-### Phase 2: v0.2 moat features
+#### S7.13 — Context menu commands + clickable export
 
-**Dependency rule**: do not start these until the pass 1 graph loop and first export
-surface are stable enough that enrichment and data fusion are improving a working
-product, not compensating for an unfinished base.
+Right-click symbol / file / folder → export with default scope + diagram type inferred from selection. `vscode://` `click` directives in exported diagrams; gated by `dextree.exporters.includeClickLinks` setting.
+
+- New commands: `dextree.exportCallers`, `exportCallees`, `exportClassHierarchy`, `exportPackage`, `exportTrace`, `exportCurrentView`
+- New `packages/exporters/src/mermaid/clickLinks.ts` — pure
+
+#### S7.14 — `sequenceDiagram` from trace + `IMPLEMENTS` extractor + Decorator extractor
+
+Closes the remaining mockup stubs.
+
+- `serializeToSequenceDiagram` consuming S7.6 trace output — enables the previously-disabled picker entry
+- `ImplementsExtractor` — class-to-interface relationships; populates Inspector "Implements" group + `classDiagram` UML implements arrows
+- `DecoratorExtractor` — populates `annotation` table; enables "Decorator" node-type filter
+
+**Phase 2 exit gate:**
+
+- The final-state mockup ([scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html)) is realised in product, all four scenes (GraphView, Mermaid preview, Trace mode, Workspaces) functional
+- Phase 0 enrichment (framework / entry / layer / enclosing_symbol_id) populates on every reindex
+- Mermaid v2 (scoped + classDiagram + sequenceDiagram + preview panel + click links) ships
+- README + marketplace metadata reflect the new commands + settings
+
+---
+
+### Phase 3 — v0.3 moat overlays (resequenced from old Phase 2)
+
+**Definition:** Dextree stops being "graph in VS Code" and starts shipping signals headless/browser competitors do not naturally own. The mockup is already real; these slices add semantic depth and external surfaces.
+
+**Required slices:**
 
 #### S8 — Hello LSP
 
-**Spec focus**: introduce pass 2 semantic enrichment without breaking pass 1
-usefulness.
+Pass-2 semantic enrichment without breaking pass-1 usefulness.
 
-**Code focus**: LSP adapter, upgrade-in-place logic for resolved edges, UI refresh for
-enriched nodes.
-
-**Independent proof**: pass 1 graph appears immediately, then resolved semantic edges
-upgrade live.
+- LSP adapter; upgrade-in-place logic for resolved edges; UI refresh for enriched nodes
+- Pass-1 graph appears immediately; resolved semantic edges upgrade live
 
 #### S8.5 — Multi-language pass-1
 
-**Spec focus**: extend pass-1 beyond TypeScript to TS/JS/Python/Go/Rust via the
-`ExtractorRegistry` introduced in S4. Closes the 1-vs-19-langs competitive gap.
-See RESEARCH-SCRATCH.md §6.1 (gap analysis).
+Extend pass-1 beyond TypeScript to TS/JS/Python/Go/Rust via the `ExtractorRegistry`. Closes the 1-vs-N-languages competitive gap.
 
-**Code focus**: per-language `Extractor` registrants; bundle tree-sitter WASM
-grammars under `packages/extension/resources/`; per-language `call_expression`
-heuristics for naive `CALLS`.
-
-**Independent proof**: indexing a mixed-language repo (Python + Go + TS) produces
-symbols and naive `CALLS` edges in all three languages.
+- Per-language `Extractor` registrants
+- Bundle tree-sitter WASM grammars under `packages/extension/resources/`
+- Per-language `call_expression` heuristics for naive `CALLS`
 
 #### S9 — Hello Diagnostics
 
-**Spec focus**: fuse VS Code diagnostics into the graph.
-
-**Code focus**: diagnostics ingestion, graph annotations, diagnostic overlays or
-filters.
-
-**Independent proof**: symbols with VS Code errors or warnings are visible and
-queryable in the graph.
+Fuse VS Code diagnostics into the graph. Symbols with errors/warnings visible and queryable.
 
 #### S10 — Hello Git
 
-**Spec focus**: introduce git-derived recency and authorship signals.
-
-**Code focus**: Git API integration, file metadata updates, recency visualization.
-
-**Independent proof**: graph nodes can be colored or filtered by git recency.
+Git-derived recency and authorship signals. Graph nodes can be colored or filtered by git recency.
 
 #### S10.5 — Hello Tests
 
-**Spec focus**: link tests to symbols-under-test via framework heuristics
-(jest/vitest/pytest); populate `TESTED_BY` edges (design §8.4) at index time.
-Closes the test-linkage moat gap (no competitor has this).
-See RESEARCH-SCRATCH.md §6.3 (potential edges not yet delivered).
+Link tests to symbols-under-test via framework heuristics (jest/vitest/pytest); populate `TESTED_BY` edges. Closes the test-linkage moat gap.
 
-**Code focus**: test-file detection, framework-specific heuristics, `Test` entity
-table writes (relies on S3.5 schema alignment), `TESTED_BY` edge emission.
-
-**Independent proof**: a function with a colocated `*.test.ts` shows the test as a
-linked node in the graph; coverage overlay (#11) lights it up.
+- Relies on S3.5 schema alignment (Test entity table)
+- Coverage overlay possible once edges exist
 
 #### S10.7 — MCP server (read-only)
 
-**Spec focus**: expose the v0.2 graph to external agents over MCP, read-only, using
-the same SQL/PGQ query layer the webview consumes. Promoted from E2 (v0.3) because
-every traction-y competitor leads with MCP. See RESEARCH-SCRATCH.md §7.4 (MCP sequencing decision).
+Expose the v0.2 graph to external agents over MCP. Same SQL/PGQ query layer the webview consumes.
 
-**Code focus**: `packages/mcp/` (new); `@modelcontextprotocol/sdk`; MCP tools
-wrapping existing `query/*` exports. No write surface, no agent-mutation tools.
-
-**Independent proof**: a Claude Code or Cursor MCP-aware session can call
-`dextree.find_callers(symbol)` and get the same answer the webview hover card shows.
+- New `packages/mcp/`; `@modelcontextprotocol/sdk`
+- MCP tools wrap existing `query/*` exports
+- No write surface yet — write tools land in Phase 4 (E2)
 
 #### S11 — Hello Blast Radius
 
-**Spec focus**: combine git diff plus reverse graph traversal into Dextree's first
-killer feature.
+Combine git diff + reverse graph traversal into Dextree's first killer feature.
 
-**Code focus**: changed-line-to-symbol mapping, reverse traversal, scoring,
-core-file warnings, blast-radius panel.
+- Changed-line-to-symbol mapping; reverse traversal; scoring; core-file warnings; blast-radius panel
+- Compare against `main`, show changed symbols, affected neighbors, score, and core-file hits
 
-**Independent proof**: compare against `main`, show changed symbols, affected
-neighbors, score, and core-file hits.
+#### S11.5 — Framework route map (extension of S7.2 detection)
 
-#### S11.5 — Framework route map
+Builds on S7.2 framework detection. Detect framework-driven HTTP routes (Express, NestJS, FastAPI, Flask, Spring); materialize `ApiEndpoint` extension nodes.
 
-**Spec focus**: detect framework-driven HTTP routes (Express, NestJS, FastAPI, Flask,
-Spring — five to start); materialize `ApiEndpoint` extension nodes (design §8.3).
-Closes the codegraph 14-framework gap.
-See RESEARCH-SCRATCH.md §6 (Gap Analysis) + §13.1 (codegraph framework folders).
+- Per-framework extractors registered against the §8.6 plugin contract
+- `ApiEndpoint` writes; `ROUTES_TO` edges
+- **UI:** process / execution-flow panel — left-side panel grouping detected routes by community
 
-**Code focus**: per-framework extractors registered against the §8.6 plugin contract;
-`ApiEndpoint` writes; `ROUTES_TO` edges.
+#### S11.7 — PageRank persistence + community overlay (extension of S7.4 lenses)
 
-**UI/UX**: process / execution-flow panel — left-side panel grouping detected routes
-by cross-community vs intra-community; clicking a route opens a side-panel detail
-with step list + "Focus in graph" action. **NOT** rendered as Mermaid in the webview
-(locked-rule violation); Mermaid is the export-only path. See RESEARCH-SCRATCH.md
-§10.2.b G18 + §13.2 (prior art: GitNexus `ProcessesPanel.tsx`).
+Builds on S7.4 lenses (which already use `graphology-metrics` PageRank in-memory). Now persist to `symbol.pagerank` column for blast-radius scoring + Alfred top-K selection.
 
-**Independent proof**: indexing an Express app surfaces every route as a queryable
-`ApiEndpoint` with HTTP method + path + handler symbol; the process panel lists them
-grouped by community.
+- Same recompute pass also computes Louvain communities via `graphology-communities-louvain`
+- Writes `community_id` column on `symbol`
+- **UI:** community overlay — nodes colored by community; soft convex hulls behind clusters; `C` toggles hull visibility
 
-#### S11.7 — PageRank symbol ranking + community overlay
+#### S11.8 — Repo-map text snapshot
 
-**Spec focus**: port Aider's RepoMap PageRank algorithm
-(`aider/repomap.py:368-540`, ~170 LOC) to graphology; write back to
-`symbols.pagerank` column. Used by S11 blast-radius scoring and every Alfred prompt's
-top-K selection. See RESEARCH-SCRATCH.md §13.3 (Aider PageRank) + §10.2.b G17
-(community overlay) + §13.2 (GitNexus community visualization).
+Token-budgeted text snapshot built from PageRank top-K per file. Default 1024 tokens. Non-LLM text snapshot for Cmd-F / copy-paste; also the default system prompt every Alfred prompt consumes.
 
-**Code focus**: graphology PageRank traversal; personalization vector built from
-"mentioned identifiers" per Aider; persistence; recompute hook on incremental
-reindex. **Same recompute pass also computes Louvain communities** via
-`graphology-communities-louvain` (allowed under RULE-LIB-002) and writes a
-`community_id` column on `symbol` — communities and PageRank share the graph
-materialization cost.
+**Phase 3 exit gate:**
 
-**UI/UX**: community overlay — nodes colored by community index; soft convex hulls
-behind clusters via Sigma reducers; `C` toggles hull visibility. PageRank exposed
-via node size + tooltip ("imported by 12, central in cluster 3").
+- Pass-1 stays useful before pass-2 resolves
+- MCP answers match the same graph/query model the UI uses
+- At least one moat overlay (blast radius / route map / community overlay) is visibly compelling in-product
 
-**Independent proof**: PageRank values for top-10 symbols on the dextree repo itself
-match the expected centrality intuition (e.g., `initialize`, `replaceFileGraph`,
-`openDatabase` in the top tier); the dextree repo decomposes into ≥3 visually
-distinct communities (parser, storage, webview).
+---
 
-### Phase 3: v0.3 more surfaces
+### Phase 4 — v0.4 surface expansion
 
-**Dependency rule**: only expand surfaces after the shared graph contract and the
-extension-host flow are already dependable.
+**Definition:** add outward-facing surfaces only after the shared graph contract and moat query model are dependable.
 
-#### E1 — Export adapters
+**Required slices:**
 
-**Spec focus**: expand from Mermaid to durable export adapters. Ship in sub-slice
-order to front-load the cheapest credibility win.
-See RESEARCH-SCRATCH.md §7.3 (SCIP-before-Canvas decision).
+- `E1a` — SCIP exporter. Ships **first** in this phase. `sourcegraph/scip` is the de-facto interop format; zero competitors emit it. Unlocks `src` CLI + Sourcegraph Cloud as distribution channels.
+- `E1b` — Canvas exporter
+- `E1c` — PNG / PDF / SVG via `pdf-lib`
+- `E2` — MCP write tools + auto-config installer (extends S10.7 read-only MCP)
+- `E3` — Settings UI webview
+- `S7.5` — PGQ / SQL query console — only if DuckPGQ feasibility is proven on Mac / Linux / Windows against `@duckdb/node-api`. Falls back to SQL-only if PGQ fails on a target.
 
-- **E1a — SCIP exporter** (ship first). `sourcegraph/scip` is the de-facto interop
-  format; zero competitors emit it. Cheap (`scip.proto` protobuf marshalling) once
-  S8 resolves symbol IDs. Unlocks `src` CLI navigation and Sourcegraph Cloud
-  integration as a distribution channel.
-- **E1b — Canvas exporter**.
-- **E1c — PNG / PDF / SVG via `pdf-lib`**.
+**Phase 4 exit gate:**
 
-**Code focus**: serializer adapters per sub-slice, artifact theming reused from S7
-theme picker, export commands.
+- SCIP ships before prettier export work dominates attention
+- Export theming uses one semantic token system
+- Settings UI exists because there are enough real settings to justify it
 
-#### E2 — MCP write tools + auto-config installer
+---
 
-**Spec focus**: extend the v0.2 read-only MCP from S10.7 with write tools and an
-auto-config installer (write MCP entries to Claude/Cursor/Codex config files; emit
-`CLAUDE.md` skill hints). The read-only MCP itself ships earlier in S10.7.
-See RESEARCH-SCRATCH.md §7.4 (MCP sequencing decision).
+### Phase 5 — v0.5 Alfred and lightweight federation
 
-**Code focus**: MCP write tools (re-index, annotate, lens-save); installer command
-`dextree mcp install --target=claude|cursor|codex` writing into each tool's MCP
-config; idempotent re-install.
+**Definition:** Alfred arrives only after the graph is already useful on its own, and multi-repo value appears in a lighter form before full federation.
 
-**Independent proof**: running `dextree mcp install --target=claude` writes a valid
-entry to the user's Claude Code config and the next Claude session sees the Dextree
-MCP server with all read+write tools.
+**Required slices:**
 
-#### E3 — Settings UI webview
+- `S12` — Hello Alfred (one prompt over graph data; explicit opt-in; preview-first)
+- `S13` — Built-in prompt library
+- `S13.5` — Repo groups (read-only federation)
 
-**Spec focus**: move beyond raw VS Code settings for Alfred and export controls.
+**Phase 5 exit gate:**
 
-**Code focus**: settings webview, SecretStorage integration, config preview.
+- Alfred consumes repo-map and graph primitives that already exist
+- Prompt execution stays opt-in, BYOK, and preview-first
+- Repo-group mode proves whether users need more than scoped read-only federation
 
-### Phase 4: v0.4 Alfred
+---
 
-**Dependency rule**: Alfred should come after the graph and query model are useful on
-their own; otherwise the LLM layer will hide core product gaps.
+### Phase 6 — Later expansion
 
-#### S12 — Hello Alfred
+#### v0.6
 
-**Spec focus**: run one prompt over graph data with explicit opt-in and preview.
+- `V1` — Vector search / local embeddings. Only spec this after graph traversal limits are clear from real use. The `embedding FLOAT[1536]` slot is already declared in schema.
+- `V2` — Vite embeddable component. Only spec this after the extension graph and export contract have stabilised.
 
-**Code focus**: provider abstraction, prompt loading, query execution, preview/send
-flow.
+#### v0.7
 
-- **Required prerequisite**: repo-map text view (`Dextree: Show repo-map` command)
-  built from PageRank top-K per file, token-budgeted (default 1024). This is the
-  default system prompt every Alfred prompt consumes — Aider proved this is the
-  only way LLM pair-programming scales to large repos. See RESEARCH-SCRATCH.md
-  §10.2.b G21 + §13.3 (prior art: `aider/repomap.py:368-540`). Also serves users
-  who want a non-LLM text snapshot for `Cmd-F` and copy/paste.
+- `S14` — Workspace federation (merged multi-repo graph, globally addressable symbol IDs)
 
-**Independent proof**: `architecture-overview` generates a markdown result from the
-current graph; the repo-map command produces a token-budgeted text snapshot without
-any network call.
+---
 
-#### S13 — Built-in prompt library
+## 8. Recommended working order
 
-**Spec focus**: make Alfred useful through prompt coverage, not just plumbing.
+This is the practical queue. **Anything below row 4 stays at roadmap level until the active slice above it is nearly merged.**
 
-**Code focus**: prompt packaging, validation, UX for prompt discovery and execution.
+| Priority | Slice                              | State     | Why now                                                 |
+| -------- | ---------------------------------- | --------- | ------------------------------------------------------- |
+| 1        | `016-hello-mermaid` (S7)           | `active`  | Finish the Phase 1 exit gate                            |
+| 2        | `017-toolbar-consolidation` (S7.1) | `next-up` | First mockup-visible win post-S7; small, low-risk       |
+| 3        | `018-framework-detection` (S7.2)   | roadmap   | Phase 0a enrichment — feeds S7.4                        |
+| 4        | `019-node-edge-filters` (S7.3)     | roadmap   | Left + right rails functional                           |
+| 5+       | S7.4 → S7.14                       | roadmap   | In sequence above; each gets its own spec when promoted |
 
-#### S14 — Workspace federation (multi-repo)
+After S7.14 (Phase 2 exit), promote S8 (Hello LSP) as the first Phase 3 slice.
 
-**Spec focus**: multi-folder VS Code workspace → one merged graph; cross-repo symbol
-resolution via globally-addressable symbol IDs. Closes the multi-repo / microservice
-mesh gap that GitNexus monetizes as paid enterprise.
-See RESEARCH-SCRATCH.md §7.5 (multi-repo sequencing — note: audit recommends keeping it _late_, this slice represents a deliberate over-ride if we want the wedge).
+---
 
-**Code focus**: extend S5 cache identity to be globally addressable; merged-graph
-query path; cross-repo edge resolution; UI for switching the active scope between
-"all repos" and a single member.
+## 9. Open questions (block specific slices)
 
-**Independent proof**: open a multi-folder workspace containing 3 microservice repos;
-the graph shows cross-repo `CALLS` edges where an HTTP route in repo A is consumed
-by a client in repo B.
+Numbered globally so slice specs can reference them by stable Q-number.
 
-**Target version**: v0.6 (after v0.5 stabilization, before any further surface work).
+1. _(UI)_ Lens behaviour — dim or hide non-matches? _Tentative: dim._
+2. _(UI)_ Trace route — shortest path or all paths? _Tentative: shortest first; "Show all paths" via `graphology-simple-path.allSimplePaths` as S7.6 follow-up._
+3. _(UI)_ Lens mutual exclusivity? Can lenses stack with node-type filters? _Tentative: one lens; filters compose on top._
+4. _(UI)_ Right rail width — fixed 280px or resizable splitter?
+5. _(UI)_ Inspector empty state — Top-10 leaderboard, empty hint, or hidden?
+6. _(UI)_ Toolbar density at narrow widths — hide labels, keep icons?
+7. _(UI)_ Workspace switcher source — `workspace_cache` only, or also include "recently opened in VS Code"? _Tentative: `workspace_cache` only._
+8. _(UI)_ Legend placement — floating canvas panel (current mockup) or part of Edge Types rail header? _Tentative: keep floating._
+9. _(Data model)_ "Import" as a node type — drop or model as synthetic symbols? _Tentative: drop; imports stay as edges._
+10. _(Data model)_ `Contains` edge — stored or derived? _Tentative: derive client-side (storing would skew PageRank)._
+11. _(Phase 0a)_ Framework detector — extensible registry or hardcoded?
+12. _(Phase 0a)_ Entry-point patterns — bundled or user-configurable for custom routers?
+13. _(Phase 0b)_ Layer classifier — heuristics only, or trainable later (the `embedding` slot exists)?
+14. _(Phase 0b)_ Re-classification cost on incremental updates — whole workspace, or just touched symbols + first-degree neighbors?
+15. _(Phase 0b)_ Display priority when signals conflict (a symbol is top-10 PageRank AND a registered handler AND dead by `fan_in`) — which lens wins?
+16. _(Phase 0c)_ `enclosing_symbol_id` for nested functions / closures — point at directly enclosing function, or skip to nearest named scope? _Tentative: directly enclosing._
+17. _(Mermaid)_ Picker behaviour when no scope is meaningful (no selection, no lens, no trace) — empty state asking for scope, or default to "whole workspace at Folder granularity"? _Tentative: empty state._
+18. _(Phase 3)_ H5 — does DuckPGQ work on Mac + Linux + Windows against `@duckdb/node-api@1.5.2-r.1`? Blocks `S7.5` PGQ query console.
 
-### Phase 5: v0.5 extensions
+---
 
-**Dependency rule**: keep these explicitly deferred until there is real usage data
-showing the core graph and export path are stable.
+## 10. Decisions captured (do not re-litigate)
 
-#### V1 — Vector search / local embeddings
+### Architecture
 
-Only spec this after graph traversal limits are clear from real use.
+- The mockup ([scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html)) IS the spec for Phase 2. Every Phase 2 slice maps to a visible delta in the mockup.
+- Phase 0 enrichment (framework / entry / layer / enclosing_symbol_id) is woven into Phase 2, not a separate phase — each enrichment lands just before the UI slice that consumes it.
+- `GraphView.tsx` is **decomposed**, not rewritten. Sub-components extracted slice by slice.
+- Phase 2 jumps the queue ahead of the legacy Phase 2 backlog (LSP / multi-lang / diagnostics / git / tests / MCP / blast radius / route map / repo-map). Those move to Phase 3.
 
-#### V2 — Vite embeddable component
+### Libraries
 
-Only spec this after the extension graph and export contract have stabilized.
+- Drop `graphology-pagerank`; adopt `graphology-metrics` (subsumes PageRank + adds centrality + modularity + layout-quality).
+- Adopt `graphology-shortest-path`, `graphology-traversal`, `graphology-operators`, `graphology-components`, `graphology-dag`, `graphology-layout`, `graphology-layout-noverlap`, `graphology-communities-louvain` per the slices that need them.
+- Adopt `@sigma/node-square` + `@sigma/node-border` for entry-point styling (S7.9 — ~1 day, not weeks).
+- Keep custom canvas implementation for minimap and cluster hulls (no Sigma plugin for minimap; cluster hulls already work).
 
-## What To Spec Next
+### Mermaid
 
-Recommended near-term order:
+- Supported types: `flowchart`, `classDiagram` (v1 → v2), `sequenceDiagram`. All others dropped (`erDiagram`, `stateDiagram`, `mindmap`, `block-beta` not worth the surface area).
+- `classDiagram` ships v1 (boxes + method-name stubs), labelled "v1 / preview." v2 (UML signatures + visibility) when extractor enrichment lands.
+- Method grouping in `classDiagram` uses `enclosing_symbol_id` (S7.11), not fqn parsing.
+- Picker placement: inline in the preview panel, not a modal.
+- `sequenceDiagram` before trace-route lands — shown as **disabled with explanation**, not hidden.
+- `flowchart` direction auto-inferred from scope (LR for calls, TD for hierarchies, TB for imports); override in Advanced.
+- PNG rendering: canvas-in-webview only. No Puppeteer.
+- `.mmd` round-trip: not supported (source of truth is the index).
+- Click-links: per-format default — off for `.mmd`, on for SVG/PNG/clipboard.
+- Cap policy: soft cap with warning + hard cap with refusal. No best-effort render.
+- No silent whole-graph export. Whole-workspace exports must specify a granularity coarse enough to fit under the cap.
 
-1. Finish or verify `S0` to green.
-2. Write the full `S1` spec.
-3. Clarify and plan `S1`, then implement it.
-4. Move `S2` to full spec only after `S1` is validated.
-5. Keep `S3+` at roadmap granularity until the current active slice is nearly done.
+### UI defaults
 
-## A Good Slice Size For This Repo
+- Minimap default OFF (S7.1).
+- Folder granularity synthesised client-side from file paths — not stored.
+- `INHERITS` renamed to `Extends` in the UI (DB kind stays `INHERITS`).
+- Legend stays as a floating canvas panel (mockup decision).
 
-A slice is probably the right size when:
+### Sequencing
 
-- it has one primary proof point
-- it touches one primary user surface
-- it fits one draft PR
-- it can be validated with one clear demo plus narrow automated checks
-- it does not require speculative abstractions for later slices
+- After S7 lands, the immediate goal is **reaching the mockup**, not the legacy Phase 2 backlog. PageRank / community overlay / blast radius / route map all still ship, but in Phase 3.
+- PageRank value is already partially delivered via S6 node sizing. The dedicated PageRank slice (S11.7) now focuses on persistence + community overlay, not the basic ranking.
 
-A slice is too big when:
+---
 
-- it spans multiple new surfaces at once
-- it mixes pass 1, pass 2, exporters, and Alfred in one spec
-- it cannot be described with one independent test
-- it needs more than one major architectural decision at the same time
+## 11. Promotion gates
 
-## Immediate Next Move
+### Definition of Ready (slice can leave roadmap level)
 
-If you want the fastest path to working software, the next document to write should
-be the full S1 spec: one-file parse, one stored symbol, one visible proof in the
-extension.
+- Slice has one primary proof point
+- Owning package(s) explicit
+- Primary surface explicit
+- Independent validation known
+- Does not mix multiple new surfaces or multiple major architecture decisions
+- Pass 1 vs pass 2 expectations explicit if indexing is involved
+- Privacy and opt-in boundaries explicit if Alfred or remote calls are involved
 
-After that, the next best improvement is not another long-range roadmap rewrite; it
-is keeping the roadmap updated with real slice state as work lands.
+### Definition of Done
+
+- Spec, plan, and tasks committed
+- Code, tests, and validation complete
+- Independent proof demonstrated
+- Draft PR passed review and merged
+- README, changelog, or marketplace docs updated if user-facing
+- This roadmap updated with any scope, ordering, or dependency changes learned from the slice
+
+---
+
+## 12. Near-term plan
+
+Concrete next moves:
+
+1. **Finish S7 (016-hello-mermaid).** Close out the remaining tasks in [specs/016-hello-mermaid/tasks.md](specs/016-hello-mermaid/tasks.md); land the PR.
+2. **Answer open questions 1–6** (UI design — block specs for S7.1 through S7.4).
+3. **Spec S7.1 — Toolbar consolidation.** Smallest first mockup win.
+4. **Spec S7.2 — Framework detection** in parallel (it's a core slice, doesn't conflict with the webview work of S7.1).
+5. **Answer open questions 11–12** (framework detector design) before S7.2 spec finalises.
+
+After S7.1 + S7.2 land, promote S7.3 → S7.14 in sequence.
+
+Per [CLAUDE.md](CLAUDE.md), implementation begins only after a slice's `spec.md` → `plan.md` → `tasks.md` chain is approved.
+
+---
+
+## 13. What was deleted / superseded by this doc
+
+- **Original draft `ROADMAP.md`** at repo root — content absorbed into this file; deleted.
+- **`scratch/ROADMAP.md`** — all 22 GraphView slices folded into Phase 2 (as S7.1–S7.14) and Phase 3 cross-references; deleted.
+- `scratch/graphview-redesign-findings.md` and the original `scratch/graphview-roadmap.md` — archived (deleted) in an earlier consolidation pass.
+- This file was previously named `ROADMAP-v2.md`; renamed to `ROADMAP.md` once it became the only roadmap.
+
+The companion reference docs ([scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html), [scratch/graphview-db-relations.md](scratch/graphview-db-relations.md), [scratch/mermaid-diagram-types-audit.md](scratch/mermaid-diagram-types-audit.md), [RESEARCH-SCRATCH.md](RESEARCH-SCRATCH.md)) are **reference material**, not roadmaps — they're authored once and consulted by spec writers. They are not superseded.

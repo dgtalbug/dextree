@@ -3678,61 +3678,72 @@
         </div>
 
         <div class="roadmap-versions reveal-children">
-          <div class="version-card" data-state="now">
+          <div class="version-card" data-state="done">
             <div class="version-tag">
-              <span>now</span>
-              <span class="badge">in progress</span>
+              <span>done</span>
+              <span class="badge">shipped</span>
             </div>
             <div class="version-num">v0.1</div>
             <ul>
-              <li>graph view (Sigma.js)</li>
-              <li>Tree-sitter indexing</li>
-              <li>Mermaid export</li>
-              <li>dead code signal</li>
+              <li>tree-sitter pass-1 indexing</li>
+              <li>schema-versioned DuckDB cache</li>
+              <li>workspace-scale indexing + auto-sync</li>
+              <li>Sigma.js graph view (PageRank-sized nodes)</li>
+              <li>Mermaid export · baseline</li>
+            </ul>
+          </div>
+          <div class="version-card" data-state="now">
+            <div class="version-tag">
+              <span>now</span>
+              <span class="badge">building</span>
+            </div>
+            <div class="version-num">v0.2</div>
+            <ul>
+              <li>
+                redesigned GraphView · the
+                <a
+                  href="https://github.com/dgtalbug/dextree/blob/main/scratch/graphview-mockup-final.html"
+                  >mockup</a
+                >
+                as spec
+              </li>
+              <li>lenses · god class · most-used · least-used · entry points · architecture</li>
+              <li>trace route · shortest-path between any two symbols</li>
+              <li>framework + entry-point + layer tagging at index time</li>
+              <li>Mermaid v2 · scoped + classDiagram + sequenceDiagram + preview panel</li>
             </ul>
           </div>
           <div class="version-card" data-state="planned">
             <div class="version-tag">
               <span>next</span>
-              <span class="badge">planned</span>
-            </div>
-            <div class="version-num">v0.2</div>
-            <ul>
-              <li>LSP enrichment (pass 2)</li>
-              <li>diagnostics overlay</li>
-              <li>git history fusion</li>
-              <li>⚡ blast radius</li>
-            </ul>
-          </div>
-          <div class="version-card" data-state="planned">
-            <div class="version-tag">
-              <span>soon</span>
-              <span class="badge">planned</span>
+              <span class="badge">queued</span>
             </div>
             <div class="version-num">v0.3</div>
             <ul>
-              <li>Canvas / PNG / PDF / SVG export</li>
-              <li>MCP server</li>
-              <li>CLI parity</li>
-              <li>Vite-embeddable component</li>
+              <li>LSP enrichment (pass-2 semantic resolution)</li>
+              <li>multi-language pass-1 (Python · Go · Rust · JS)</li>
+              <li>diagnostics + git + test linkage overlays</li>
+              <li>⚡ blast radius + framework route map</li>
+              <li>MCP server (read-only) · repo-map text snapshot</li>
             </ul>
           </div>
           <div class="version-card" data-state="planned">
             <div class="version-tag">
               <span>later</span>
-              <span class="badge">planned</span>
+              <span class="badge">queued</span>
             </div>
-            <div class="version-num">v0.4</div>
+            <div class="version-num">v0.4+</div>
             <ul>
-              <li>Alfred LLM reports</li>
-              <li>BYOK providers</li>
-              <li>local model support</li>
-              <li>prompt template library</li>
+              <li>SCIP · Canvas · PNG · PDF · SVG exporters</li>
+              <li>MCP write tools + auto-config installer</li>
+              <li>Alfred · LLM report runner · BYOK · local models</li>
+              <li>vector search · Vite-embeddable component</li>
+              <li>multi-repo federation</li>
             </ul>
           </div>
         </div>
 
-        <div class="ladder-wrap reveal" style="--ladder-progress: 35%">
+        <div class="ladder-wrap reveal" style="--ladder-progress: 50%">
           <div class="ladder-head">
             <div>
               <h3 class="display">The <em>slice ladder.</em></h3>
@@ -3753,31 +3764,17 @@
             <div class="ladder-rung" data-state="done">
               <div class="ladder-rung-mark">
                 <div class="ladder-dot"></div>
-                <span class="ladder-id">S0</span>
-              </div>
-              <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
-              <div>
-                <div class="ladder-rung-title">Monorepo scaffold</div>
-                <div class="ladder-rung-desc">
-                  pnpm workspaces · turbo · tsconfig · vitest · prettier · husky · spec runner
-                </div>
-              </div>
-              <div class="ladder-rung-side"><span class="pill">infrastructure</span></div>
-            </div>
-
-            <div class="ladder-rung" data-state="done">
-              <div class="ladder-rung-mark">
-                <div class="ladder-dot"></div>
                 <span class="ladder-id">S1</span>
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
               <div>
-                <div class="ladder-rung-title">Core graph engine skeleton</div>
+                <div class="ladder-rung-title">Monorepo + extension shell</div>
                 <div class="ladder-rung-desc">
-                  DuckDB embed · DuckPGQ load · base schema (nodes, edges, meta)
+                  pnpm workspaces · turbo · vitest · CI/CD · VS Code extension activation · webview
+                  host
                 </div>
               </div>
-              <div class="ladder-rung-side"><span class="pill">@dextree/core</span></div>
+              <div class="ladder-rung-side"><span class="pill">infrastructure</span></div>
             </div>
 
             <div class="ladder-rung" data-state="done">
@@ -3787,12 +3784,13 @@
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
               <div>
-                <div class="ladder-rung-title">Tree-sitter parse pipeline</div>
+                <div class="ladder-rung-title">Tree-sitter pass-1 + DuckDB storage</div>
                 <div class="ladder-rung-desc">
-                  WASM loader · TS/JS/Python grammars · file walker · symbol extractor
+                  WASM grammars · symbol extractor · ExtractorRegistry · naive CALLS edges ·
+                  idempotent inserts
                 </div>
               </div>
-              <div class="ladder-rung-side"><span class="pill">parser</span></div>
+              <div class="ladder-rung-side"><span class="pill">parser + storage</span></div>
             </div>
 
             <div class="ladder-rung" data-state="done">
@@ -3802,12 +3800,13 @@
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
               <div>
-                <div class="ladder-rung-title">Insert pass 1 into DuckDB</div>
+                <div class="ladder-rung-title">Schema alignment + migrations</div>
                 <div class="ladder-rung-desc">
-                  batched COPY · idempotent inserts · file-hash invalidation
+                  Annotation / Module / Test tables · migration runner · _schema_version registry ·
+                  fan-in recompute
                 </div>
               </div>
-              <div class="ladder-rung-side"><span class="pill">storage</span></div>
+              <div class="ladder-rung-side"><span class="pill">@dextree/core</span></div>
             </div>
 
             <div class="ladder-rung" data-state="done">
@@ -3817,9 +3816,26 @@
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
               <div>
-                <div class="ladder-rung-title">VS Code extension shell</div>
+                <div class="ladder-rung-title">Graph webview · Sigma.js</div>
                 <div class="ladder-rung-desc">
-                  activation · commands · webview host · workspace bus
+                  WebGL render · PageRank node sizing · hover neighborhoods · click-to-jump · edge
+                  legend
+                </div>
+              </div>
+              <div class="ladder-rung-side"><span class="pill">webview</span></div>
+            </div>
+
+            <div class="ladder-rung" data-state="done">
+              <div class="ladder-rung-mark">
+                <div class="ladder-dot"></div>
+                <span class="ladder-id">S5</span>
+              </div>
+              <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
+              <div>
+                <div class="ladder-rung-title">Workspace indexing + cache + watcher</div>
+                <div class="ladder-rung-desc">
+                  full-workspace index with progress · persistent cache across restarts · auto-sync
+                  FS watcher
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">@dextree/extension</span></div>
@@ -3828,13 +3844,14 @@
             <div class="ladder-rung" data-state="now">
               <div class="ladder-rung-mark">
                 <div class="ladder-dot"></div>
-                <span class="ladder-id">S5</span>
+                <span class="ladder-id">S6</span>
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
               <div>
-                <div class="ladder-rung-title">Graph webview · Sigma.js</div>
+                <div class="ladder-rung-title">Mermaid export · baseline</div>
                 <div class="ladder-rung-desc">
-                  WebGL render · click-to-jump · neighborhood expand · filter sidebar
+                  @dextree/exporters package · deterministic .mmd serializer · Light / Dark / Print
+                  themes
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">shipping now</span></div>
@@ -3843,13 +3860,20 @@
             <div class="ladder-rung" data-state="next">
               <div class="ladder-rung-mark">
                 <div class="ladder-dot"></div>
-                <span class="ladder-id">S6</span>
+                <span class="ladder-id">S7</span>
               </div>
-              <div class="ladder-rung-mid"><span class="ver">v0.1</span></div>
+              <div class="ladder-rung-mid"><span class="ver">v0.2</span></div>
               <div>
-                <div class="ladder-rung-title">Mermaid export</div>
+                <div class="ladder-rung-title">Reach the mockup · GraphView v2</div>
                 <div class="ladder-rung-desc">
-                  first export adapter · proves the export contract works
+                  14 sub-slices to the
+                  <a
+                    href="https://github.com/dgtalbug/dextree/blob/main/scratch/graphview-mockup-final.html"
+                    >final-state mockup</a
+                  >
+                  · toolbar · lenses · search · depth · trace · workspace switcher · framework +
+                  entry + layer tagging · layout presets · Mermaid v2 (preview panel · classDiagram
+                  · sequenceDiagram · clickable export)
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">on deck</span></div>
@@ -3858,28 +3882,14 @@
             <div class="ladder-rung" data-state="locked">
               <div class="ladder-rung-mark">
                 <div class="ladder-dot"></div>
-                <span class="ladder-id">S7</span>
-              </div>
-              <div class="ladder-rung-mid"><span class="ver">v0.2</span></div>
-              <div>
-                <div class="ladder-rung-title">LSP enrichment worker</div>
-                <div class="ladder-rung-desc">
-                  debounced executeReferenceProvider · resolve call edges in-place
-                </div>
-              </div>
-              <div class="ladder-rung-side"><span class="pill">queued</span></div>
-            </div>
-
-            <div class="ladder-rung" data-state="locked">
-              <div class="ladder-rung-mark">
-                <div class="ladder-dot"></div>
                 <span class="ladder-id">S8</span>
               </div>
-              <div class="ladder-rung-mid"><span class="ver">v0.2</span></div>
+              <div class="ladder-rung-mid"><span class="ver">v0.3</span></div>
               <div>
-                <div class="ladder-rung-title">Diagnostics &amp; git overlay</div>
+                <div class="ladder-rung-title">LSP enrichment · pass-2</div>
                 <div class="ladder-rung-desc">
-                  fold getDiagnostics + git blame into node properties
+                  debounced executeReferenceProvider · resolve call edges in-place · upgrade pass-1
+                  graph live · multi-language pass-1 (Python · Go · Rust)
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">queued</span></div>
@@ -3890,11 +3900,12 @@
                 <div class="ladder-dot"></div>
                 <span class="ladder-id">S9</span>
               </div>
-              <div class="ladder-rung-mid"><span class="ver">v0.2</span></div>
+              <div class="ladder-rung-mid"><span class="ver">v0.3</span></div>
               <div>
-                <div class="ladder-rung-title">⚡ Blast radius command</div>
+                <div class="ladder-rung-title">Diagnostics + git + tests fusion</div>
                 <div class="ladder-rung-desc">
-                  diff → impacted symbols → DuckPGQ traversal → risk score → viz
+                  fold getDiagnostics · git recency + blame · TESTED_BY edges from jest / vitest /
+                  pytest into node properties
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">queued</span></div>
@@ -3907,9 +3918,10 @@
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.3</span></div>
               <div>
-                <div class="ladder-rung-title">Canvas / PNG / PDF / SVG exporters</div>
+                <div class="ladder-rung-title">⚡ Blast radius + framework route map</div>
                 <div class="ladder-rung-desc">
-                  share-anywhere artifacts · vector-first · narrative PDF
+                  diff → impacted symbols → reverse traversal → risk score · ApiEndpoint nodes for
+                  Express · NestJS · FastAPI · Flask · Spring
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">queued</span></div>
@@ -3922,9 +3934,10 @@
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.3</span></div>
               <div>
-                <div class="ladder-rung-title">MCP server</div>
+                <div class="ladder-rung-title">MCP server (read-only) + repo-map snapshot</div>
                 <div class="ladder-rung-desc">
-                  expose graph as MCP tools · Claude / Cursor / agent-ready
+                  expose graph as MCP tools · same query layer the webview uses · token-budgeted
+                  repo-map text for LLM context
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">queued</span></div>
@@ -3937,9 +3950,26 @@
               </div>
               <div class="ladder-rung-mid"><span class="ver">v0.4</span></div>
               <div>
+                <div class="ladder-rung-title">SCIP · Canvas · PNG / PDF / SVG exporters</div>
+                <div class="ladder-rung-desc">
+                  SCIP first (interop with Sourcegraph + src CLI) · then share-anywhere artifacts ·
+                  vector-first · narrative PDF
+                </div>
+              </div>
+              <div class="ladder-rung-side"><span class="pill">queued</span></div>
+            </div>
+
+            <div class="ladder-rung" data-state="locked">
+              <div class="ladder-rung-mark">
+                <div class="ladder-dot"></div>
+                <span class="ladder-id">S13</span>
+              </div>
+              <div class="ladder-rung-mid"><span class="ver">v0.5+</span></div>
+              <div>
                 <div class="ladder-rung-title">Alfred · LLM report runner</div>
                 <div class="ladder-rung-desc">
-                  markdown prompt templates · BYOK · local model support · prompt library
+                  markdown prompt templates · BYOK · local model support · prompt library · opt-in /
+                  preview-first
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">queued</span></div>

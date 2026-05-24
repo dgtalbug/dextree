@@ -64,6 +64,9 @@
         "arm64"
       ]
     },
+    "overrides": {
+      "qs": "^6.15.2"
+    },
     "onlyBuiltDependencies": [
       "@vscode/vsce-sign",
       "esbuild",

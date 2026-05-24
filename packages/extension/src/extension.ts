@@ -8,6 +8,7 @@ import {
   createClearWorkspaceIndexCommand,
 } from "./commands/clearIndex.js";
 import { createExportSessionSummaryCommand } from "./commands/exportSessionSummary.js";
+import { createExportMermaidCommand } from "./commands/exportMermaid.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import {
   createIndexWorkspaceCommand,
@@ -234,6 +235,10 @@ export async function activate(context: ActivationContext): Promise<void> {
     vscode.commands.registerCommand(
       "dextree.exportSessionSummary",
       createExportSessionSummaryCommand({ getIndexer }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.exportMermaid",
+      createExportMermaidCommand({ getIndexer }),
     ),
   );
 

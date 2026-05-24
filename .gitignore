@@ -26,6 +26,7 @@ test-results.json
 sanity_check.*
 **/sanity_check.*
 **/dev.mjs
+scratch/
 
 # Node / TypeScript build artifacts
 node_modules/
