@@ -23,6 +23,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: "exporters",
+          include: ["packages/exporters/src/**/*.test.ts"],
+          environment: "node",
+          globals: false,
+        },
+      },
+      {
+        test: {
           name: "extension",
           include: ["packages/extension/src/**/*.test.ts"],
           environment: "node",
