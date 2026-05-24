@@ -213,14 +213,14 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `016-hello-mermaid`
+**Branch**: `017-toolbar-consolidation`
 
-- Spec: [`specs/016-hello-mermaid/spec.md`](../specs/016-hello-mermaid/spec.md)
-- Plan: [`specs/016-hello-mermaid/plan.md`](../specs/016-hello-mermaid/plan.md)
-- Research: [`specs/016-hello-mermaid/research.md`](../specs/016-hello-mermaid/research.md)
-- Contracts: [`specs/016-hello-mermaid/contracts/`](../specs/016-hello-mermaid/contracts/)
-- Quickstart: [`specs/016-hello-mermaid/quickstart.md`](../specs/016-hello-mermaid/quickstart.md)
+- Spec: [`specs/017-toolbar-consolidation/spec.md`](../specs/017-toolbar-consolidation/spec.md)
+- Plan: [`specs/017-toolbar-consolidation/plan.md`](../specs/017-toolbar-consolidation/plan.md)
+- Research: [`specs/017-toolbar-consolidation/research.md`](../specs/017-toolbar-consolidation/research.md)
+- Contracts: [`specs/017-toolbar-consolidation/contracts/`](../specs/017-toolbar-consolidation/contracts/)
+- Quickstart: [`specs/017-toolbar-consolidation/quickstart.md`](../specs/017-toolbar-consolidation/quickstart.md)
 
-Review focus for this slice: new `packages/exporters` package scaffold + `packages/exporters/src/mermaid/serializer.ts` (pure serialization function) + `packages/extension/src/commands/exportMermaid.ts` (command handler) + `packages/extension/package.json` (command + setting contributions). No schema or indexing changes.
+Review focus for this slice: new `packages/extension/src/webview/components/GraphToolbar.tsx` + `GraphToolbar.test.tsx`, modified `GraphView.tsx` (toolbar JSX extracted, minimap default OFF), modified `html.ts` (new `.dxt-toolbar` CSS). No schema, indexing, or cross-package changes.
 
 <!-- SPECKIT END -->

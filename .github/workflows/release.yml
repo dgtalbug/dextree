@@ -7,8 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -20,6 +19,13 @@ jobs:
     name: release-please
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      # Narrowed from top-level to job-level per OpenSSF Token-Permissions.
+      # release-please needs contents: write to push the release commit and tag,
+      # and pull-requests: write to open / update the release PR. Sibling jobs
+      # (build-vsix / publish-*) declare their own narrower perms.
+      contents: write
+      pull-requests: write
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
       tag_name: ${{ steps.rp.outputs.tag_name }}

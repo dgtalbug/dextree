@@ -11,14 +11,20 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
 
 jobs:
   analyze:
     name: analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      # Narrowed from top-level to job-level per OpenSSF Token-Permissions.
+      # security-events: write is required so codeql-action/analyze can upload
+      # SARIF results to the Security tab. actions: read lets the action
+      # inspect prior workflow runs for incremental analysis.
+      contents: read
+      security-events: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:

@@ -80,36 +80,85 @@ Honest snapshot from git history + spec task lists:
 
 Renumbered to reflect git reality. Spec dir is the on-disk folder; design slice is the S-number from this roadmap.
 
-| Spec dir                                  | Design slice | State                        | Notes                                                                                 |
-| ----------------------------------------- | ------------ | ---------------------------- | ------------------------------------------------------------------------------------- |
-| `001-hello-symbol`                        | S1           | `done`                       | One-file parse → DuckDB → extension command                                           |
-| `002-hello-tree-view`                     | S2           | `done`                       | Sidebar tree of files → symbols                                                       |
-| `003-hello-webview`                       | S3           | `done`                       | React webview, message bridge, symbol list                                            |
-| `004-cicd-foundation-fixes`               | —            | `done`                       | Lint/typecheck/coverage scripts honest                                                |
-| `005-cicd-github-actions`                 | —            | `done`                       | CI/CD wired                                                                           |
-| `006-hello-graph` (intent)                | S4 (intent)  | superseded                   | Replaced by `010-hello-graph` after schema-alignment                                  |
-| `007-persistent-workspace-cache` (intent) | S5 (intent)  | superseded                   | Replaced by `011-persistent-workspace-cache`                                          |
-| `008-hello-workspace` (intent)            | S6 (intent)  | superseded                   | Replaced by `012-hello-workspace`                                                     |
-| `009-align-schema-migrations`             | S3.5         | `done`                       | Migration runner; `Annotation` / `Module` / `Test` tables; `_schema_version` registry |
-| `010-hello-graph`                         | S4           | `done`                       | `ExtractorRegistry`; pass-1 naive `CALLS`; Sigma webview render                       |
-| `011-persistent-workspace-cache`          | S5           | `done`                       | Cache identity, schema-versioned DB reuse across restarts                             |
-| `012-hello-workspace`                     | S6           | `done`                       | Workspace-scale indexing, progress, PageRank node sizing                              |
-| `013-auto-sync-watcher`                   | S6.5         | `done`                       | Debounced FS watcher + selective reparse                                              |
-| `014-session-summary-export`              | S6.8         | `done` (final tasks pending) | User-pull session summary export                                                      |
-| `015-release-truth-gate`                  | S6.9         | `done` (final tasks pending) | Validation gate before releases                                                       |
-| `016-hello-mermaid`                       | S7           | **`active`**                 | Mermaid serializer + Export button shipped; finalising remaining tasks                |
+> **How to use this board (note to future-self / next SpecKit session):**
+>
+> 1. Find the topmost row whose State is `next-up`. That's the spec to author next.
+> 2. The `Spec dir` column gives the exact folder name to create under `specs/`.
+> 3. The `Notes` column is the seed for the spec's "Scope" section — never invent new scope.
+> 4. When a slice ships, flip its State to `done` and promote the next `next-up` row to `active`.
+> 5. Only ONE row may be `active` at a time (per §1 execution rule).
+>
+> Phase 2 (S7.1 → S7.14) is the path to the [mockup](scratch/graphview-mockup-final.html). Stay on the queue order — the data dependencies (`enclosing_symbol_id`, framework, entry, layer) are the reason for the order.
+
+### 3.1 Shipped + active
+
+| Spec dir                                  | Design slice | State                        | Notes                                                                                                                                                                         |
+| ----------------------------------------- | ------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001-hello-symbol`                        | S1           | `done`                       | One-file parse → DuckDB → extension command                                                                                                                                   |
+| `002-hello-tree-view`                     | S2           | `done`                       | Sidebar tree of files → symbols                                                                                                                                               |
+| `003-hello-webview`                       | S3           | `done`                       | React webview, message bridge, symbol list                                                                                                                                    |
+| `004-cicd-foundation-fixes`               | —            | `done`                       | Lint/typecheck/coverage scripts honest                                                                                                                                        |
+| `005-cicd-github-actions`                 | —            | `done`                       | CI/CD wired                                                                                                                                                                   |
+| `006-hello-graph` (intent)                | S4 (intent)  | superseded                   | Replaced by `010-hello-graph` after schema-alignment                                                                                                                          |
+| `007-persistent-workspace-cache` (intent) | S5 (intent)  | superseded                   | Replaced by `011-persistent-workspace-cache`                                                                                                                                  |
+| `008-hello-workspace` (intent)            | S6 (intent)  | superseded                   | Replaced by `012-hello-workspace`                                                                                                                                             |
+| `009-align-schema-migrations`             | S3.5         | `done`                       | Migration runner; `Annotation` / `Module` / `Test` tables; `_schema_version` registry                                                                                         |
+| `010-hello-graph`                         | S4           | `done`                       | `ExtractorRegistry`; pass-1 naive `CALLS`; Sigma webview render                                                                                                               |
+| `011-persistent-workspace-cache`          | S5           | `done`                       | Cache identity, schema-versioned DB reuse across restarts                                                                                                                     |
+| `012-hello-workspace`                     | S6           | `done`                       | Workspace-scale indexing, progress, PageRank node sizing                                                                                                                      |
+| `013-auto-sync-watcher`                   | S6.5         | `done`                       | Debounced FS watcher + selective reparse                                                                                                                                      |
+| `014-session-summary-export`              | S6.8         | `done` (final tasks pending) | User-pull session summary export                                                                                                                                              |
+| `015-release-truth-gate`                  | S6.9         | `done` (final tasks pending) | Validation gate before releases                                                                                                                                               |
+| `016-hello-mermaid`                       | S7           | `done`                       | Exporters package + `.mmd` serializer + Light/Dark/Print themes; merged via PR #56                                                                                            |
+| `017-toolbar-consolidation`               | S7.1         | **`active`**                 | Spec authored + signed off; implementation has not started. Branch carries the spec + the security/docs commits from the 2026-05-24 session — split or bundle before merging. |
 
 > Specs `006/007/008` exist as folders but their implementations were rewritten under `010/011/012` after the schema-alignment correction. They remain on disk for history.
 
-### Active slice
+### 3.2 Next-up queue (Phase 2 — reach the mockup)
 
-| Field         | Value                                                                                          |
-| ------------- | ---------------------------------------------------------------------------------------------- |
-| Spec dir      | `016-hello-mermaid`                                                                            |
-| Design slice  | `S7 — Hello Mermaid`                                                                           |
-| Branch        | `016-hello-mermaid`                                                                            |
-| Primary proof | Export the current graph as a valid `.mmd` file; theme picker (Light/Dark/Print) live          |
-| Done when     | All 016 tasks marked complete; PR merged; README / changelog reflect the new command + setting |
+These rows ARE the SpecKit handoff. Each has a stable spec-dir name reserved; when ready to author, run the `/speckit-specify` flow against the slice's Notes column. The mockup at [scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html) is the visual contract for every row.
+
+| Spec dir                               | Design slice | State     | Spec when… | Notes (scope seed for `/speckit-specify`)                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------- | ------------ | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `018-framework-detection`              | S7.2         | `next-up` | 017 ships  | Per-workspace + per-file framework detection (Phase 0a). Manifest parser (`package.json`, `pyproject.toml`, `go.mod`); framework registry; new `workspace_framework` table + `file.framework` / `file.framework_role` columns. Drives toolbar workspace chips + later S11.5 route map.                                                                                                                              |
+| `019-node-edge-filters`                | S7.3         | `roadmap` | 018 ships  | Left rail Node Types (8 working types + Folder; Decorator/Import disabled). Right rail Edge Types (Defines, Imports, Calls, Extends, Contains-derived, Implements-stub). Rename `INHERITS` → `Extends` in UI.                                                                                                                                                                                                       |
+| `020-inspector-panel`                  | S7.4         | `roadmap` | 019 ships  | Permanent right-rail Inspector. Signature + docstring + badges (importance, framework, layer, entry). Requires `getWorkspaceSubgraph` to project additional columns. **Drop `graphology-pagerank`; adopt `graphology-metrics`** (subsumes PR + adds centrality + modularity).                                                                                                                                       |
+| `021-lenses-panel`                     | S7.4 (cont.) | `roadmap` | 020 ships  | God class / Most-used / Least-used / Entry points / Architecture lenses. Mutually exclusive. Dim non-matches. Uses `graphology-metrics` + `graphology-components` for orphan exclusion.                                                                                                                                                                                                                             |
+| `022-search-and-focus-depth`           | S7.5         | `roadmap` | 021 ships  | Toolbar search box (matches symbol/file/fqn). Depth slider 1–6 hops. Camera flies to hits via `sigma.getCamera().animate()`. **Adopt `graphology-traversal.bfsFromNode`** — replace hand-rolled `computeDescendantSelection`.                                                                                                                                                                                       |
+| `023-trace-route`                      | S7.6         | `roadmap` | 022 ships  | Toolbar Trace toggle. Two-click state machine (pick start, pick end). Banner at top of canvas. Dashed yellow path with off-path dimming. Inspector "Trace from here". **Adopt `graphology-shortest-path.bidirectional` + `edgePathFromNodePath`**.                                                                                                                                                                  |
+| `024-workspace-switcher`               | S7.7         | `roadmap` | 023 ships  | Toolbar workspace name + popover. Workspaces page (multi-card view with framework chips + architecture-preview strip). New extension command `dextree.switchWorkspace`. Backed by existing `workspace_cache` table. New webview ↔ extension messages: `requestWorkspaceList`, `workspaceList`, `switchWorkspace`.                                                                                                   |
+| `025-layout-presets`                   | S7.8         | `roadmap` | 024 ships  | Toolbar layout dropdown (ForceAtlas2 default / Circular / Hierarchical). **Adopt `graphology-layout.circular` + `graphology-dag.topologicalGenerations` + `graphology-layout-noverlap` anti-collision post-pass**.                                                                                                                                                                                                  |
+| `026-entry-point-tagging-and-layer`    | S7.9         | `roadmap` | 025 ships  | Phase 0b: per-symbol entry-point classifier (runtime / handler / test / public-API → `symbol.entry_kind`) + architectural layer classifier (`symbol.arch_layer`). Square gold-bordered entry nodes via `@sigma/node-square` + `@sigma/node-border`.                                                                                                                                                                 |
+| `027-mermaid-scoped-serializer`        | S7.10        | `roadmap` | 026 ships  | Discriminated-union refactor of [packages/exporters/src/mermaid/serializer.ts](packages/exporters/src/mermaid/serializer.ts). Scope + granularity + direction options. Fail-closed validator. **`graphology-operators.subgraph()` for scope extraction**. Still `.mmd` output.                                                                                                                                      |
+| `028-enclosing-symbol-classdiagram`    | S7.11        | `roadmap` | 027 ships  | Phase 0c: `symbol.enclosing_symbol_id` column; populate during extraction. New `serializeToClassDiagram` (boxes + method-name stubs; labelled "v1 / preview"). Method-grouping via enclosing_symbol_id, not fqn parsing.                                                                                                                                                                                            |
+| `029-mermaid-preview-panel`            | S7.12        | `roadmap` | 028 ships  | New webview tab. Inline picker (scope / granularity / diagram / direction). Rendered SVG. `.mmd` source pane. Format buttons (`.mmd`, `.svg`, `.png`, clipboard image, Markdown snippet). `mermaid` npm package loads in this webview only.                                                                                                                                                                         |
+| `030-mermaid-context-menus-clicklinks` | S7.13        | `roadmap` | 029 ships  | Right-click symbol/file/folder → export with default scope + diagram type inferred from selection. `vscode://` `click` directives in exported diagrams; per-format default (off for `.mmd`, on for SVG/PNG/clipboard); gated by `dextree.exporters.includeClickLinks` setting. New commands: `dextree.exportCallers`, `exportCallees`, `exportClassHierarchy`, `exportPackage`, `exportTrace`, `exportCurrentView`. |
+| `031-sequence-diagram-and-extractors`  | S7.14        | `roadmap` | 030 ships  | `serializeToSequenceDiagram` consuming 023 trace output — enables the previously-disabled picker entry. New `ImplementsExtractor` (class → interface edges, populates Inspector "Implements" group + classDiagram UML implements arrows). New `DecoratorExtractor` (populates `annotation` table, enables "Decorator" node-type filter).                                                                            |
+
+After 031 ships, Phase 2 is complete and the mockup is realised in product. Phase 3 (legacy S8 LSP, S8.5 multi-language, S9 diagnostics, S10 git, S10.5 tests, S10.7 MCP, S11 blast radius, S11.5 route map, S11.7 PageRank/community overlay, S11.8 repo-map text snapshot) starts spec-by-spec in §7's order.
+
+### 3.3 Active slice (most recent `active` row above)
+
+| Field         | Value                                                                                                                                                                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec dir      | `017-toolbar-consolidation`                                                                                                                                                                                                                                                        |
+| Design slice  | `S7.1 — Toolbar consolidation`                                                                                                                                                                                                                                                     |
+| Branch        | `017-toolbar-consolidation`                                                                                                                                                                                                                                                        |
+| Primary proof | Single top toolbar replaces the floating edge-filter pills + minimap toggle + export button + scattered zoom controls. Minimap default OFF. `GraphToolbar` extracted as sub-component.                                                                                             |
+| Done when     | Spec's task list all checked; `pnpm test` + `pnpm lint` + `pnpm typecheck` green; PR merged; mockup's top toolbar visibly matches.                                                                                                                                                 |
+| **Caveat**    | Branch currently carries two out-of-scope commits from the 2026-05-24 session (`chore(docs): wall of honest + roadmap consolidation`, `fix(security): narrow workflow permissions`). Decide before merge: split into separate PRs (cleanest) or bundle in PR description (faster). |
+
+### 3.4 Note to next SpecKit session
+
+When you return to spec the next slice:
+
+1. Read §3.2 top-to-bottom; find the topmost `next-up`. That's your target.
+2. Open the corresponding row's `Notes` cell — that's your scope seed.
+3. Check the open questions in §8 for any that block that slice's spec (the `(Phase 0a)` / `(UI)` / etc. tags map to slice categories).
+4. Author `specs/<Spec dir>/spec.md` using `/speckit-specify`. Use the bundling discipline from §1 — **one primary surface, ≤400 LOC net**.
+5. Update §3.1's table by adding a row + flipping the new slice to `active`; demote the previously-active slice to `done`.
+
+If the slice you're about to spec doesn't appear in §3.2, **stop**. Either it's premature (a Phase 3+ slice that should wait), or §3.2 needs an update first.
 
 ---
 

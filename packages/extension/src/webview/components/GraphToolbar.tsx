@@ -1,0 +1,93 @@
+import type { GraphEdge } from "@dextree/core";
+
+const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
+  DEFINES: "Defines",
+  IMPORTS: "Imports",
+  CALLS: "Calls",
+  INHERITS: "Inherits",
+  INSTANTIATES: "New",
+};
+
+export interface GraphToolbarProps {
+  onExportMermaid: () => void;
+  showMinimap: boolean;
+  onToggleMinimap: () => void;
+  edgeKinds: GraphEdge["kind"][];
+  hiddenEdgeKinds: Set<GraphEdge["kind"]>;
+  onToggleEdgeKind: (kind: GraphEdge["kind"]) => void;
+}
+
+function EdgeFilterBar({
+  edgeKinds,
+  hiddenKinds,
+  onToggle,
+}: {
+  edgeKinds: GraphEdge["kind"][];
+  hiddenKinds: Set<GraphEdge["kind"]>;
+  onToggle: (kind: GraphEdge["kind"]) => void;
+}) {
+  return (
+    <div className="dxt-edge-filter-bar" role="group" aria-label="Edge type filters">
+      {edgeKinds.map((kind) => {
+        const active = !hiddenKinds.has(kind);
+        const label = `${active ? "Hide" : "Show"} ${EDGE_KIND_LABELS[kind]} edges`;
+
+        return (
+          <button
+            key={kind}
+            type="button"
+            className={`dxt-edge-filter-pill${active ? "" : " dxt-edge-filter-pill--disabled"}`}
+            data-kind={kind}
+            onClick={() => onToggle(kind)}
+            aria-label={label}
+            aria-pressed={active}
+            title={label}
+          >
+            <span className="dxt-edge-filter-dot" aria-hidden="true" />
+            {EDGE_KIND_LABELS[kind]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function GraphToolbar({
+  onExportMermaid,
+  showMinimap,
+  onToggleMinimap,
+  edgeKinds,
+  hiddenEdgeKinds,
+  onToggleEdgeKind,
+}: GraphToolbarProps) {
+  return (
+    <div className="dxt-toolbar" role="toolbar" aria-label="Graph toolbar">
+      <button
+        type="button"
+        className="dxt-export-mermaid dxt-toolbar__export"
+        onClick={onExportMermaid}
+        title="Export graph as Mermaid (.mmd)"
+        aria-label="Export as Mermaid"
+      >
+        <span className="codicon codicon-export" aria-hidden="true" />
+      </button>
+      <div className="dxt-toolbar__pills">
+        <EdgeFilterBar
+          edgeKinds={edgeKinds}
+          hiddenKinds={hiddenEdgeKinds}
+          onToggle={onToggleEdgeKind}
+        />
+      </div>
+      <button
+        type="button"
+        className="dxt-minimap-toggle dxt-toolbar__minimap-toggle"
+        onClick={onToggleMinimap}
+        title="Toggle minimap"
+        aria-label="Toggle minimap"
+        aria-pressed={showMinimap}
+      >
+        <span className="codicon codicon-map" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}

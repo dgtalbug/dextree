@@ -83,6 +83,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      # contents: write is required so `gh release create --draft` can mint
+      # a new draft GitHub release and attach the matrix-built .vsix files.
+      # Scoped to this job only; the workflow's top-level perm is `contents: read`.
       contents: write
     steps:
       - name: Harden runner
