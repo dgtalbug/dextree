@@ -28,6 +28,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
   <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: Pre-alpha"/>
   <a href="https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree"><img src="https://api.securityscorecards.dev/projects/github.com/dgtalbug/dextree/badge" alt="OpenSSF Scorecard"/></a>
+  <a href="https://www.bestpractices.dev/projects/12965"><img src="https://www.bestpractices.dev/projects/12965/badge" alt="OpenSSF Best Practices"/></a>
 </p>
 
 ---
