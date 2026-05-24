@@ -85,6 +85,19 @@ export type {
   KnownSymbol,
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
+export {
+  GOD_CLASS_TOP_K,
+  LEAST_USED_FAN_IN_THRESHOLD,
+  LENS_IDS,
+  MOST_USED_TOP_K,
+  STUB_TOOLTIP_REQUIRED_SUBSTRING,
+  selectGodClass,
+  selectLeastUsed,
+  selectMostUsed,
+  type LensId,
+  type LensInputNode,
+  type LensSelector,
+} from "./query/lenses.js";
 
 /**
  * Thrown by `DuckTreeIndexer.initialize` when the persisted schema cannot be

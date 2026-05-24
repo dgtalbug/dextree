@@ -812,4 +812,47 @@ describe("GraphView", () => {
       expect(disabledChip?.textContent).toContain("Decorator");
     });
   });
+
+  describe("lens activation (slice 021)", () => {
+    it("renders the status-bar pill when a lens row is clicked", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      // No lens active initially — status bar must not exist.
+      expect(screen.queryByTestId("lens-status-bar")).toBeNull();
+
+      // Activate God-class lens.
+      const godClassRow = screen.getByTestId("lens-row-god-class");
+      fireEvent.click(godClassRow);
+
+      // Status-bar pill appears with the title.
+      const statusBar = screen.getByTestId("lens-status-bar");
+      expect(statusBar).toBeTruthy();
+      expect(statusBar.textContent).toContain("Lens: God class / function");
+    });
+
+    it("clears the status-bar pill when the active lens is toggled off", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const godClassRow = screen.getByTestId("lens-row-god-class");
+      fireEvent.click(godClassRow);
+      expect(screen.getByTestId("lens-status-bar")).toBeTruthy();
+
+      fireEvent.click(godClassRow);
+      expect(screen.queryByTestId("lens-status-bar")).toBeNull();
+    });
+  });
 });
