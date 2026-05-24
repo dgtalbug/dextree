@@ -86,6 +86,11 @@ export type {
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 
+// NOTE: Lens utilities are NOT re-exported here. They're published via the
+// `@dextree/core/lenses` subpath export so webview bundlers (Rollup/Vite)
+// don't follow the barrel into DuckDB-touching modules. Import them from
+// `@dextree/core/lenses` directly.
+
 /**
  * Thrown by `DuckTreeIndexer.initialize` when the persisted schema cannot be
  * migrated to the current `SCHEMA_VERSION`. The extension activation path catches

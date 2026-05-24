@@ -1,4 +1,5 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { LensId } from "@dextree/core/lenses";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { motion } from "framer-motion";
@@ -8,6 +9,9 @@ import Sigma from "sigma";
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
 import { InspectorPanel } from "./InspectorPanel.js";
+import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
+import lensesPanelStyles from "./LensesPanel.module.css";
+import { dimColor } from "./lensColor.js";
 import { CANONICAL_NODE_FILTER_LIST, type NodeFilterEntry } from "./NodeFilterPanel.js";
 import type {
   FallbackNode,
@@ -1033,6 +1037,8 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
   const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(new Set());
   const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
+  const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
+  const lensMatchSetRef = useRef<ReadonlySet<string> | null>(null);
 
   const toggleEdgeKind = useCallback((kind: GraphEdge["kind"]) => {
     setHiddenEdgeKinds((prev) => {
@@ -1073,6 +1079,43 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
       count: counts.get(template.key) ?? 0,
     }));
   }, [nodes]);
+
+  // Compute counts for all five lenses against the current subgraph. Stub
+  // lenses (selector === null) contribute 0. Runs once per subgraph change.
+  const lensCounts = useMemo<Record<LensId, number>>(() => {
+    const graph = graphRef.current;
+    const empty: Record<LensId, number> = {
+      "god-class": 0,
+      "most-used": 0,
+      "least-used": 0,
+      "entry-points": 0,
+      architecture: 0,
+    };
+    if (graph === null) return empty;
+    const out = { ...empty };
+    for (const id of Object.keys(LENS_REGISTRY) as LensId[]) {
+      const selector = LENS_REGISTRY[id].selector;
+      if (selector !== null) {
+        out[id] = selector(graph, nodes).size;
+      }
+    }
+    return out;
+  }, [nodes]);
+
+  // Compute the set of node IDs the active lens matches. Recomputes when the
+  // user switches lenses or the subgraph changes. `null` means no lens active.
+  const lensMatchSet = useMemo<ReadonlySet<string> | null>(() => {
+    if (activeLensId === null) return null;
+    const graph = graphRef.current;
+    if (graph === null) return null;
+    const selector = LENS_REGISTRY[activeLensId].selector;
+    if (selector === null) return null;
+    return selector(graph, nodes);
+  }, [activeLensId, nodes]);
+
+  const onLensToggle = useCallback((id: LensId) => {
+    setActiveLensId((current) => (current === id ? null : id));
+  }, []);
 
   useEffect(() => {
     setSelectedNodeId(null);
@@ -1249,6 +1292,17 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
                 ...data,
                 size: Number(data.baseSize ?? data.size) * 1.28,
                 zIndex: 2,
+              };
+            }
+
+            // No hover/selection focus — apply lens dimming if a lens is active
+            // and this node isn't in the match set. User focus always wins over
+            // lens (FR-014 spirit).
+            const matchSet = lensMatchSetRef.current;
+            if (activeFocus === null && matchSet !== null && !matchSet.has(node)) {
+              return {
+                ...data,
+                color: dimColor(String(data.color)),
               };
             }
 
@@ -1452,6 +1506,17 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
       refreshSigma(sigma);
     }
   }, [hiddenNodeKinds]);
+
+  // Sync lens-match-set ref so the nodeReducer reads the active lens's matches
+  // without being recreated. Refresh Sigma to re-run reducers.
+  useEffect(() => {
+    lensMatchSetRef.current = lensMatchSet;
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [lensMatchSet]);
+
   if (fallbackGraph !== null) {
     return <StaticGraphFallback fallbackGraph={fallbackGraph} onNavigate={onNavigate} />;
   }
@@ -1515,6 +1580,11 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
 
   return (
     <div className="dxt-graph-view dxt-graph-stage" data-testid="graph-view-shell">
+      <LensesPanel
+        activeLensId={activeLensId}
+        lensCounts={lensCounts}
+        onLensToggle={onLensToggle}
+      />
       <div className="dxt-graph-surface">
         <canvas className="dxt-cluster-layer" ref={clusterCanvasRef} />
         <div id="dxt-graph-container" data-testid="graph-view" ref={containerRef} />
@@ -1637,6 +1707,21 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
           width={128}
           height={96}
         />
+        {activeLensId !== null && (
+          <footer
+            className={lensesPanelStyles.lensStatusBar}
+            data-testid="lens-status-bar"
+            role="contentinfo"
+          >
+            <span className={lensesPanelStyles.lensPill}>
+              <span
+                className={`codicon codicon-${LENS_REGISTRY[activeLensId].iconKey}`}
+                aria-hidden="true"
+              />
+              {`Lens: ${LENS_REGISTRY[activeLensId].title}`}
+            </span>
+          </footer>
+        )}
       </div>
       <InspectorPanel
         selectedNode={

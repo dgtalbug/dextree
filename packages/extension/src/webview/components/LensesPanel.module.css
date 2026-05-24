@@ -1,0 +1,167 @@
+/* LensesPanel — left-rail Lenses section (slice 021). */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+}
+
+.headerTitle {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hint {
+  margin: 0 0 4px 0;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lensRow {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: 1px solid transparent;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lensRow:hover:not(.disabled) {
+  background: var(--vscode-toolbar-hoverBackground, transparent);
+}
+
+.lensRow:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.lensRow[aria-pressed="true"] {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  border-color: var(--vscode-focusBorder, transparent);
+}
+
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  color: var(--vscode-disabledForeground);
+}
+
+.lensIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+}
+
+.lensText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lensTitle {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lensDesc {
+  display: block;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lensRow[aria-pressed="true"] .lensDesc {
+  color: var(--vscode-list-activeSelectionForeground);
+  opacity: 0.85;
+}
+
+.lensCount {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  opacity: 0.85;
+  min-width: 14px;
+  text-align: center;
+}
+
+.lensCount:empty {
+  background: transparent;
+  padding: 0;
+}
+
+/* Status-bar footer — rendered conditionally by GraphView when a lens is active.
+   Absolutely positioned at the bottom of dxt-graph-surface so it overlays the
+   canvas without disturbing the existing grid layout. */
+.lensStatusBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+  background: var(--vscode-statusBar-background, transparent);
+  color: var(--vscode-statusBar-foreground);
+  font-size: 11px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.lensStatusBar .lensPill {
+  pointer-events: auto;
+}
+
+.lensPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: 11px;
+}

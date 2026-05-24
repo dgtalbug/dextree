@@ -39,6 +39,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./lenses": {
+      "types": "./dist/query/lenses.d.ts",
+      "import": "./dist/query/lenses.js",
+      "require": "./dist/query/lenses.cjs"
     }
   },
   "scripts": {
@@ -50,6 +55,7 @@
   "dependencies": {
     "@duckdb/node-api": "^1.5.2-r.1",
     "graphology": "^0.26.0",
+    "graphology-components": "^1.5.4",
     "graphology-metrics": "^2.4.0",
     "ignore": "^7.0.5",
     "picomatch": "^4.0.4",
