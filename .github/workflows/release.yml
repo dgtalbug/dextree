@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: read
+      contents: write
       # Required for actions/attest-build-provenance to mint a keyless
       # Sigstore signature via OIDC. Provenance is attached to the GitHub
       # release attestations endpoint — verifiable with `gh attestation verify`.
@@ -77,6 +77,19 @@ jobs:
           persist-credentials: false
       - name: Setup workspace
         uses: ./.github/actions/setup
+      - name: Stamp extension version
+        # release-please updates root package.json; stamp the same version
+        # into packages/extension/package.json so the vsix is built correctly.
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          pnpm --filter @dextree/extension exec \
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
+              pkg.version = '$VERSION';
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+              console.log('Stamped version', '$VERSION', 'into extension/package.json');
+            "
       - name: Package .vsix (${{ matrix.target }})
         env:
           VSCE_TARGET: ${{ matrix.target }}
@@ -92,6 +105,15 @@ jobs:
           path: packages/extension/*.vsix
           if-no-files-found: error
           retention-days: 30
+      - name: Attach .vsix to GitHub Release
+        # Attaching the vsix to the release makes the artifact discoverable
+        # via the Releases page and satisfies the OpenSSF Scorecard Packaging check.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            packages/extension/*.vsix \
+            --clobber
 
   publish-marketplace:
     name: publish-marketplace (${{ matrix.target }})
