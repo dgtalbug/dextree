@@ -1,0 +1,14 @@
+{
+  "name": "dextree-like-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "dependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

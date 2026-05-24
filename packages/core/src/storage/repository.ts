@@ -2,8 +2,19 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import { v4 as uuidv4 } from "uuid";
 
 import type { EdgeRow } from "../extractors/types.js";
-import type { ExtractedImportRef, ExtractedIndexData, StoredSymbol } from "../types.js";
+import type {
+  ExtractedImportRef,
+  ExtractedIndexData,
+  FrameworkDetectionSource,
+  StoredSymbol,
+} from "../types.js";
 import { runInTransaction } from "./db.js";
+
+export interface DetectedFrameworkRow {
+  frameworkName: string;
+  detectionSource: FrameworkDetectionSource;
+  confidence: number;
+}
 
 function rangeParams(symbol: StoredSymbol): Record<string, number> {
   return {
@@ -513,5 +524,61 @@ export async function resolveWorkspaceCrossFileEdges(
         )
     `,
     params,
+  );
+}
+
+/**
+ * Replace all workspace_framework rows with the supplied list, atomically.
+ * Mirrors the replaceFileGraph pattern: DELETE all, INSERT new, in one transaction.
+ * Empty input clears the table (workspace has no detected frameworks).
+ */
+export async function replaceWorkspaceFrameworks(
+  connection: DuckDBConnection,
+  rows: readonly DetectedFrameworkRow[],
+): Promise<void> {
+  await runInTransaction(connection, async () => {
+    await connection.run("DELETE FROM workspace_framework");
+    for (const row of rows) {
+      await connection.run(
+        `
+          INSERT INTO workspace_framework (
+            id, framework_name, detection_source, confidence, detected_at
+          ) VALUES (
+            $id, $framework_name, $detection_source, $confidence, CURRENT_TIMESTAMP
+          )
+        `,
+        {
+          id: uuidv4(),
+          framework_name: row.frameworkName,
+          detection_source: row.detectionSource,
+          confidence: row.confidence,
+        },
+      );
+    }
+  });
+}
+
+/**
+ * Update a single file row's framework attribution. NULL values are valid
+ * (file does not belong to any detected framework). Re-applying the same
+ * values is a no-op at the DB level.
+ */
+export async function setFileFramework(
+  connection: DuckDBConnection,
+  fileId: string,
+  framework: string | null,
+  role: string | null,
+): Promise<void> {
+  await connection.run(
+    `
+      UPDATE file
+      SET framework = $framework, framework_role = $framework_role
+      WHERE id = $id
+    `,
+    {
+      id: fileId,
+      framework,
+      framework_role: role,
+    },
   );
 }

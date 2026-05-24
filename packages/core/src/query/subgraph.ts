@@ -1,7 +1,14 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { MultiDirectedGraph } from "graphology";
 
-import type { GraphEdge, GraphNode, SymbolRange, WorkspaceSubgraph } from "../types.js";
+import type {
+  FrameworkDetectionSource,
+  FrameworkInfo,
+  GraphEdge,
+  GraphNode,
+  SymbolRange,
+  WorkspaceSubgraph,
+} from "../types.js";
 import { computeNodeImportance } from "./pagerank.js";
 
 function workspaceParams(workspaceRoot: string) {
@@ -34,7 +41,9 @@ export async function getWorkspaceSubgraph(
         SELECT
           id,
           relative_path AS label,
-          path AS filePath
+          path AS filePath,
+          framework,
+          framework_role AS frameworkRole
         FROM file
         WHERE path = $workspace_root OR path LIKE $workspace_prefix
         ORDER BY relative_path ASC
@@ -42,6 +51,22 @@ export async function getWorkspaceSubgraph(
       params,
     )
   ).getRowObjectsJS();
+
+  const frameworkRows = await (
+    await connection.run(
+      `
+        SELECT framework_name, detection_source, confidence
+        FROM workspace_framework
+        ORDER BY framework_name ASC
+      `,
+    )
+  ).getRowObjectsJS();
+
+  const frameworks: FrameworkInfo[] = frameworkRows.map((row) => ({
+    name: String(row.framework_name),
+    detectionSource: String(row.detection_source) as FrameworkDetectionSource,
+    confidence: Number(row.confidence ?? 1),
+  }));
 
   const symbolRows = await (
     await connection.run(
@@ -182,6 +207,8 @@ export async function getWorkspaceSubgraph(
       const filePath = String(row.filePath);
       const relativePath = String(row.label);
       const basename = relativePath.split("/").pop() ?? relativePath;
+      const framework = typeof row.framework === "string" ? row.framework : undefined;
+      const frameworkRole = typeof row.frameworkRole === "string" ? row.frameworkRole : undefined;
 
       return {
         id: String(row.id),
@@ -189,6 +216,8 @@ export async function getWorkspaceSubgraph(
         label: basename,
         filePath,
         startLine: 1,
+        ...(framework === undefined ? {} : { framework }),
+        ...(frameworkRole === undefined ? {} : { frameworkRole }),
       };
     }),
     ...symbolRows.map((row) => {
@@ -243,7 +272,7 @@ export async function getWorkspaceSubgraph(
 
   enrichWithImportance(nodes, edges);
 
-  return { nodes, edges };
+  return { nodes, edges, frameworks };
 }
 
 function enrichWithImportance(nodes: GraphNode[], edges: GraphEdge[]): void {

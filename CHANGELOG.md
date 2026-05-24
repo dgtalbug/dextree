@@ -2,10 +2,9 @@
 
 ## [1.0.1](https://github.com/dgtalbug/dextree/compare/v1.0.0...v1.0.1) (2026-05-24)
 
-
 ### Bug Fixes
 
-* **ci:** compile fuzz targets with tsup before running Jazzer.js ([#64](https://github.com/dgtalbug/dextree/issues/64)) ([29dbc48](https://github.com/dgtalbug/dextree/commit/29dbc48ffbc6e951e9ed116ff02a04035f35b06d))
+- **ci:** compile fuzz targets with tsup before running Jazzer.js ([#64](https://github.com/dgtalbug/dextree/issues/64)) ([29dbc48](https://github.com/dgtalbug/dextree/commit/29dbc48ffbc6e951e9ed116ff02a04035f35b06d))
 
 ## 1.0.0 (2026-05-24)
 
@@ -18,12 +17,12 @@
 - **core,extension:** S010 extractor registry + pass-1 CALLS edges + legend wiring ([#49](https://github.com/dgtalbug/dextree/issues/49)) ([02992cb](https://github.com/dgtalbug/dextree/commit/02992cb029a6a2a4738b19e8f7510f44926823d9))
 - **core:** s5 persistent workspace cache - migration 004 plus integration tests ([#50](https://github.com/dgtalbug/dextree/issues/50)) ([d061823](https://github.com/dgtalbug/dextree/commit/d0618238f393e172f4698583c4bac29cd7dbff34))
 - **core:** schema alignment + migration scaffolding (slice 009 — S3.5) ([#48](https://github.com/dgtalbug/dextree/issues/48)) ([50a54b1](https://github.com/dgtalbug/dextree/commit/50a54b1b59b574d9792034ffd976270f71a3377c))
-- enhance LoadingState component to accept custom labels ([99a46ba](https://github.com/dgtalbug/dextree/commit/99a46ba6070f1a34106211dd92740704e3962b4a))
+- enhance LoadingState component to accept custom labels ([99a46ba6070](https://github.com/dgtalbug/dextree/commit/99a46ba6070f1a34106211dd92740704e3962b4a))
 - **exporters:** s7 hello export workspace graph as .mmd ([#56](https://github.com/dgtalbug/dextree/issues/56)) ([78cdd96](https://github.com/dgtalbug/dextree/commit/78cdd964e026f985db85dbfdfe0d7b5765520681))
 - **extension,core:** workspace-scale indexing + hover highlight + PageRank node sizing (slice 008) ([#46](https://github.com/dgtalbug/dextree/issues/46)) ([47be49c](https://github.com/dgtalbug/dextree/commit/47be49cf9db6db3d2c6ba75d43d06a6fb746625e))
 - **extension:** persistent workspace cache + graph render fixes (slice 007) ([#31](https://github.com/dgtalbug/dextree/issues/31)) ([8f8c943](https://github.com/dgtalbug/dextree/commit/8f8c943285f1b2d14af6915c5b18bad534d5b9fa))
 - **extension:** render pass-1 subgraph with Sigma.js (spec 006) ([81b0e14](https://github.com/dgtalbug/dextree/commit/81b0e148f1b83ebe440249d976f5d08e7347c4ec))
-- implement graph visualization with Sigma and Graphology ([99a46ba](https://github.com/dgtalbug/dextree/commit/99a46ba6070f1a34106211dd92740704e3962b4a))
+- implement graph visualization with Sigma and Graphology ([99a46ba6070](https://github.com/dgtalbug/dextree/commit/99a46ba6070f1a34106211dd92740704e3962b4a))
 - initialize project structure with core and extension packages, add configuration files, and set up TypeScript and ESLint ([40cc652](https://github.com/dgtalbug/dextree/commit/40cc652e8fad927bd8658c50b363ccd9d7af5657))
 - update .gitignore and add initial ROADMAP.md ([604fb1c](https://github.com/dgtalbug/dextree/commit/604fb1c7a2def37104b821dccbcc7f28ee675b46))
 - update pnpm workspace configuration and add TypeScript compiler options ([f78f832](https://github.com/dgtalbug/dextree/commit/f78f832d2dfabeb99e78ca4d4c2e107a4fc14592))
@@ -43,7 +42,7 @@
 - **rulesets:** use 2-level check names (workflow/job, not file/workflow/job) ([ad778ae](https://github.com/dgtalbug/dextree/commit/ad778ae68785f6cfe43822c6e8c8610fcfd01b3f))
 - standardize table formatting in CONTRIBUTING.md and SECURITY.md ([2226421](https://github.com/dgtalbug/dextree/commit/2226421061e2843e1af57dd4b3f0ce057629fae3))
 - update test:coverage script to ensure build runs before coverage ([e6474c3](https://github.com/dgtalbug/dextree/commit/e6474c318a87e2b79f4ee8b99cb3022801b821bd))
-- update WebviewPanelManager to handle graph messages and caching ([99a46ba](https://github.com/dgtalbug/dextree/commit/99a46ba6070f1a34106211dd92740704e3962b4a))
+- update WebviewPanelManager to handle graph messages and caching ([99a46ba6070](https://github.com/dgtalbug/dextree/commit/99a46ba6070f1a34106211dd92740704e3962b4a))
 
 ### Reverts
 

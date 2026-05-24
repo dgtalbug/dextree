@@ -3,6 +3,10 @@ import { dirname } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
 
+import { detectFrameworks } from "./extractors/frameworks/detector.js";
+import { createNodeFsIO } from "./extractors/frameworks/fsIO.js";
+import { resolveFileFramework } from "./extractors/frameworks/resolveFileFramework.js";
+import type { DetectedFramework } from "./extractors/frameworks/types.js";
 import { buildBaselineFileRecord, createDefaultExtractorRegistry } from "./extractors/index.js";
 import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
@@ -14,7 +18,12 @@ import { getWorkspaceSubgraph } from "./query/subgraph.js";
 import { getSymbolsForFile } from "./query/symbols.js";
 import { clearAll, clearFile, clearWorkspace } from "./storage/clear.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
-import { replaceFileGraph, resolveWorkspaceCrossFileEdges } from "./storage/repository.js";
+import {
+  replaceFileGraph,
+  replaceWorkspaceFrameworks,
+  resolveWorkspaceCrossFileEdges,
+  setFileFramework,
+} from "./storage/repository.js";
 import { applyMigrations } from "./storage/migrations/runner.js";
 import { initializeSchema } from "./storage/schema.js";
 import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./storage/workspaceCache.js";
@@ -23,6 +32,7 @@ import {
   type ClearAllSummary,
   type ClearFileSummary,
   type ClearWorkspaceSummary,
+  type FrameworkInfo,
   type IndexResult,
   type Indexer,
   type SessionSummary,
@@ -40,6 +50,8 @@ export type {
   ExtractedFileRecord,
   ExtractedIndexData,
   FileRecord,
+  FrameworkDetectionSource,
+  FrameworkInfo,
   GraphEdge,
   GraphEdgeKind,
   GraphNode,
@@ -99,6 +111,7 @@ class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;
   private initializationPromise: Promise<void> | null = null;
   private readonly registry: ExtractorRegistry = createDefaultExtractorRegistry();
+  private readonly frameworkCache = new Map<string, readonly DetectedFramework[]>();
 
   constructor(
     private readonly dbPath: string,
@@ -177,6 +190,20 @@ class DuckTreeIndexer implements Indexer {
 
       await replaceFileGraph(database.connection, extracted, extraEdges);
 
+      // Per-file framework attribution (slice 018). Runs against the cached
+      // detection list populated by `detectWorkspaceFrameworks` — no work if
+      // detection was never invoked or returned nothing.
+      const detected = this.frameworkCache.get(workspaceRoot) ?? [];
+      if (detected.length > 0) {
+        const attribution = resolveFileFramework(extracted.file.relativePath, source, detected);
+        await setFileFramework(
+          database.connection,
+          extracted.file.id,
+          attribution?.framework ?? null,
+          attribution?.role ?? null,
+        );
+      }
+
       const files = await getAllFilesQuery(database.connection);
       const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
 
@@ -204,6 +231,26 @@ class DuckTreeIndexer implements Indexer {
     } finally {
       tree?.delete();
     }
+  }
+
+  async detectWorkspaceFrameworks(workspaceRoot: string): Promise<readonly FrameworkInfo[]> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    const detected = await detectFrameworks(createNodeFsIO(workspaceRoot));
+    this.frameworkCache.set(workspaceRoot, detected);
+    await replaceWorkspaceFrameworks(
+      database.connection,
+      detected.map((row) => ({
+        frameworkName: row.frameworkName,
+        detectionSource: row.detectionSource,
+        confidence: row.confidence,
+      })),
+    );
+    return detected.map((row) => ({
+      name: row.frameworkName,
+      detectionSource: row.detectionSource,
+      confidence: row.confidence,
+    }));
   }
 
   async finalizeWorkspace(workspaceRoot: string): Promise<void> {
@@ -251,6 +298,7 @@ class DuckTreeIndexer implements Indexer {
   async clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary> {
     await this.initialize();
     const database = this.requireDatabaseHandle();
+    this.frameworkCache.delete(workspaceRoot);
     return clearWorkspace(database.connection, workspaceRoot);
   }
 

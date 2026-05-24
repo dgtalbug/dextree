@@ -72,10 +72,17 @@
       "esbuild",
       "keytar",
       "vue-demi"
-    ]
+    ],
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "react": "*",
+        "react-dom": "*",
+        "@types/react": "*"
+      }
+    }
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.27.0",
     "@jazzer.js/core": "^4.0.0",
     "@nolebase/vitepress-plugin-breadcrumbs": "^2.18.2",
     "@nolebase/vitepress-plugin-git-changelog": "^2.18.2",

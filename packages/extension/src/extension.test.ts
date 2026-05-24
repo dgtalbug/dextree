@@ -222,6 +222,7 @@ describe("activate", () => {
           },
         ],
         edges: [],
+        frameworks: [],
       }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
       dispose: vi.fn(),
@@ -265,6 +266,7 @@ describe("activate", () => {
           },
         ],
         edges: [],
+        frameworks: [],
         presentEdgeKinds: ["DEFINES"],
       });
     });
@@ -308,6 +310,7 @@ describe("activate", () => {
           },
         ],
         edges: [],
+        frameworks: [],
       }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
       clearWorkspace: vi
@@ -315,6 +318,7 @@ describe("activate", () => {
         .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
       clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
       finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
+      detectWorkspaceFrameworks: vi.fn().mockResolvedValue([]),
       getSessionSummary: vi.fn().mockResolvedValue({}),
       dispose: vi.fn(),
     };
@@ -367,6 +371,7 @@ describe("activate", () => {
           },
         ],
         edges: [],
+        frameworks: [],
         presentEdgeKinds: ["DEFINES"],
       });
       expect(pushIndexing).toHaveBeenCalledWith({

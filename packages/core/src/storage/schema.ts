@@ -8,6 +8,7 @@ export const REQUIRED_TABLES = [
   "edge",
   "diagnostic",
   "workspace_cache",
+  "workspace_framework",
   "_schema_version",
   "annotation",
   "module",
@@ -31,7 +32,9 @@ export const SCHEMA_STATEMENTS = [
       is_core BOOLEAN NOT NULL DEFAULT FALSE,
       tags VARCHAR[] DEFAULT [],
       labels VARCHAR[] DEFAULT [],
-      metadata JSON DEFAULT '{}'
+      metadata JSON DEFAULT '{}',
+      framework VARCHAR,
+      framework_role VARCHAR
     )
   `,
   `
@@ -100,6 +103,17 @@ export const SCHEMA_STATEMENTS = [
       version UINTEGER PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       description VARCHAR NOT NULL
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS workspace_framework (
+      id VARCHAR PRIMARY KEY,
+      framework_name VARCHAR NOT NULL UNIQUE,
+      detection_source VARCHAR NOT NULL CHECK (
+        detection_source IN ('manifest', 'structural', 'manifest+structural')
+      ),
+      confidence FLOAT NOT NULL DEFAULT 1.0,
+      detected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `,
   `
@@ -177,6 +191,8 @@ export const SCHEMA_STATEMENTS = [
   "CREATE INDEX IF NOT EXISTS idx_module_fqn ON module(fqn)",
   "CREATE INDEX IF NOT EXISTS idx_test_file ON test(file_id)",
   "CREATE INDEX IF NOT EXISTS idx_test_target ON test(target_symbol_id)",
+  "CREATE INDEX IF NOT EXISTS idx_workspace_framework_name ON workspace_framework(framework_name)",
+  "CREATE INDEX IF NOT EXISTS idx_file_framework ON file(framework)",
 ] as const;
 
 export async function initializeSchema(connection: DuckDBConnection): Promise<void> {

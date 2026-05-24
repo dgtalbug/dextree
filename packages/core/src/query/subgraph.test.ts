@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { ExtractedIndexData } from "../types.js";
 import { openDatabase } from "../storage/db.js";
-import { replaceFileGraph } from "../storage/repository.js";
+import {
+  replaceFileGraph,
+  replaceWorkspaceFrameworks,
+  setFileFramework,
+} from "../storage/repository.js";
+import { applyMigrations } from "../storage/migrations/runner.js";
 import { initializeSchema } from "../storage/schema.js";
 import { getWorkspaceSubgraph } from "./subgraph.js";
 
@@ -147,7 +152,7 @@ describe("getWorkspaceSubgraph", () => {
 
       const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
 
-      expect(graph).toEqual({ nodes: [], edges: [] });
+      expect(graph).toEqual({ nodes: [], edges: [], frameworks: [] });
     } finally {
       database.close();
     }
@@ -233,6 +238,35 @@ describe("getWorkspaceSubgraph", () => {
           },
         ]),
       );
+    } finally {
+      database.close();
+    }
+  });
+
+  it("projects workspace_framework rows and per-file framework attribution (slice 018)", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("App"));
+      await replaceWorkspaceFrameworks(database.connection, [
+        { frameworkName: "react", detectionSource: "manifest+structural", confidence: 1.0 },
+        { frameworkName: "vitest", detectionSource: "manifest+structural", confidence: 1.0 },
+      ]);
+      await setFileFramework(database.connection, "file-App", "react", "component");
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+
+      expect(graph.frameworks).toEqual([
+        { name: "react", detectionSource: "manifest+structural", confidence: 1 },
+        { name: "vitest", detectionSource: "manifest+structural", confidence: 1 },
+      ]);
+
+      const fileNode = graph.nodes.find((n) => n.id === "file-App");
+      expect(fileNode).toBeDefined();
+      expect(fileNode?.framework).toBe("react");
+      expect(fileNode?.frameworkRole).toBe("component");
     } finally {
       database.close();
     }
