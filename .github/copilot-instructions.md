@@ -213,14 +213,14 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `019-node-edge-filters`
+**Branch**: `022-search-and-focus-depth`
 
-- Spec: [`specs/019-node-edge-filters/spec.md`](../specs/019-node-edge-filters/spec.md)
-- Plan: [`specs/019-node-edge-filters/plan.md`](../specs/019-node-edge-filters/plan.md)
-- Research: [`specs/019-node-edge-filters/research.md`](../specs/019-node-edge-filters/research.md)
-- Contracts: [`specs/019-node-edge-filters/contracts/`](../specs/019-node-edge-filters/contracts/)
-- Quickstart: [`specs/019-node-edge-filters/quickstart.md`](../specs/019-node-edge-filters/quickstart.md)
+- Spec: [`specs/022-search-and-focus-depth/spec.md`](../specs/022-search-and-focus-depth/spec.md)
+- Plan: [`specs/022-search-and-focus-depth/plan.md`](../specs/022-search-and-focus-depth/plan.md)
+- Research: [`specs/022-search-and-focus-depth/research.md`](../specs/022-search-and-focus-depth/research.md)
+- Contracts: [`specs/022-search-and-focus-depth/contracts/`](../specs/022-search-and-focus-depth/contracts/)
+- Quickstart: [`specs/022-search-and-focus-depth/quickstart.md`](../specs/022-search-and-focus-depth/quickstart.md)
 
-Review focus for this slice: new `packages/extension/src/webview/components/NodeFilterPanel.tsx` + `NodeFilterPanel.test.tsx` + `NodeFilterPanel.module.css`; modified `GraphToolbar.tsx` (Extends label, Implements stub, node filter props); modified `GraphView.tsx` (hiddenNodeKinds state + nodeReducer extension). No schema, indexing, or cross-package changes.
+Review focus for this slice: new `SearchBar.tsx` + `SearchBar.test.tsx` + `SearchBar.module.css`; new `DepthSlider.tsx` + `DepthSlider.test.tsx` + `DepthSlider.module.css`; modified `GraphToolbar.tsx` (search + depth props); modified `GraphView.tsx` (search/depth state + nodeReducer, replace `computeDescendantSelection` with `graphology-traversal.bfsFromNode`); updated `graphViewTypes.ts` (new types). No schema, indexing, or cross-package changes.
 
 <!-- SPECKIT END -->

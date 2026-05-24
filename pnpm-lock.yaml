@@ -156,6 +156,9 @@ importers:
       graphology:
         specifier: ^0.26.0
         version: 0.26.0(graphology-types@0.24.8)
+      graphology-traversal:
+        specifier: ^0.3.1
+        version: 0.3.1(graphology-types@0.24.8)
       graphology-types:
         specifier: ^0.24.8
         version: 0.24.8
@@ -2943,6 +2946,11 @@ packages:
 
   graphology-shortest-path@2.1.0:
     resolution: {integrity: sha512-KbT9CTkP/u72vGEJzyRr24xFC7usI9Es3LMmCPHGwQ1KTsoZjxwA9lMKxfU0syvT/w+7fZUdB/Hu2wWYcJBm6Q==}
+    peerDependencies:
+      graphology-types: '>=0.20.0'
+
+  graphology-traversal@0.3.1:
+    resolution: {integrity: sha512-lGLrLKEDKtNgAKgHVhVftKf3cb/nuWwuVPQZHXRnN90JWn0RSjco/s+NB2ARSlMapEMlbnPgv6j++427yTnU3Q==}
     peerDependencies:
       graphology-types: '>=0.20.0'
 
@@ -7632,6 +7640,12 @@ snapshots:
       graphology-types: 0.24.8
       graphology-utils: 2.5.2(graphology-types@0.24.8)
       mnemonist: 0.39.8
+
+  graphology-traversal@0.3.1(graphology-types@0.24.8):
+    dependencies:
+      graphology-indices: 0.17.0(graphology-types@0.24.8)
+      graphology-types: 0.24.8
+      graphology-utils: 2.5.2(graphology-types@0.24.8)
 
   graphology-types@0.24.8: {}
 

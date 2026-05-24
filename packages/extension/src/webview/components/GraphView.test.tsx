@@ -855,4 +855,54 @@ describe("GraphView", () => {
       expect(screen.queryByTestId("lens-status-bar")).toBeNull();
     });
   });
+
+  describe("search + depth (slice 022)", () => {
+    it("renders the toolbar search input and depth slider", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("combobox", { name: "Search graph" })).toBeTruthy();
+      expect(screen.getByRole("slider", { name: "Hop depth" })).toBeTruthy();
+    });
+
+    it("disables the depth slider when no node is selected and no search is active", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const slider = screen.getByRole("slider", { name: "Hop depth" }) as HTMLInputElement;
+      expect(slider.disabled).toBe(true);
+    });
+
+    it("clears search state when Escape is pressed in the search box", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const input = screen.getByRole("combobox", { name: "Search graph" }) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "greet" } });
+      act(() => {
+        vi.advanceTimersByTime(160);
+      });
+
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(input.value).toBe("");
+    });
+  });
 });
