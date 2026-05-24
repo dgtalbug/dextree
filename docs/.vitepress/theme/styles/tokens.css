@@ -1,0 +1,102 @@
+/**
+ * Dextree design tokens — ported verbatim from docs/dextree-indigo.html
+ * (lines 28-120). DO NOT manually rewrite these; if the indigo palette
+ * changes, re-copy from the source.
+ *
+ * Two themes: dark (warm-night, default) and light (warm-paper). The
+ * theme bridge in theme/index.ts keeps [data-theme="..."] in lock-step
+ * with VitePress's isDark, so all [data-theme="light"] selectors in
+ * styles/home/* keep working unmodified.
+ */
+
+/* ── theme: dark (warm-night) ────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg: #0a0a0f;
+  --bg-2: #0f0f15;
+  --bg-3: #18181f;
+  --bg-elev: #1a1a22;
+  --bg-deep: #050508;
+  --ink: #e5e7eb;
+  --ink-warm: #d1d5db;
+  --ink-mute: #9ca3af;
+  --ink-faint: #6b7280;
+  --line: #27272e;
+  --line-strong: #3f3f48;
+  --line-hot: #525260;
+  --amber: #818cf8;
+  --amber-soft: #a5b4fc;
+  --amber-deep: #4f46e5;
+  --cyan: #38bdf8;
+  --rose: #f472b6;
+  --danger: #f87171;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --amber-glow: rgba(129, 140, 248, 0.45);
+  --amber-tint: rgba(129, 140, 248, 0.1);
+  --cyan-glow: rgba(56, 189, 248, 0.32);
+  --cyan-tint: rgba(56, 189, 248, 0.06);
+  --paper: #0f0f15;
+  --grain-opacity: 0.04;
+  --shadow-card:
+    0 1px 0 rgba(165, 180, 252, 0.05) inset, 0 14px 40px -20px rgba(0, 0, 0, 0.8),
+    0 4px 10px -6px rgba(0, 0, 0, 0.65);
+  --shadow-pop: 0 28px 60px -22px rgba(129, 140, 248, 0.5), 0 4px 14px -4px rgba(0, 0, 0, 0.7);
+}
+
+/* ── theme: light (warm-paper) ───────────────────────────── */
+[data-theme="light"] {
+  --bg: #fafbff;
+  --bg-2: #f4f5ff;
+  --bg-3: #eef0fc;
+  --bg-elev: #ffffff;
+  --bg-deep: #f8f9ff;
+  --ink: #111827;
+  --ink-warm: #1f2937;
+  --ink-mute: #6b7280;
+  --ink-faint: #9ca3af;
+  --line: #e5e7eb;
+  --line-strong: #d1d5db;
+  --line-hot: #a1a4ad;
+  --amber: #4f46e5;
+  --amber-soft: #6366f1;
+  --amber-deep: #3730a3;
+  --cyan: #0ea5e9;
+  --rose: #db2777;
+  --danger: #dc2626;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --amber-glow: rgba(79, 70, 229, 0.22);
+  --amber-tint: rgba(79, 70, 229, 0.07);
+  --cyan-glow: rgba(14, 165, 233, 0.2);
+  --cyan-tint: rgba(14, 165, 233, 0.05);
+  --paper: #ffffff;
+  --grain-opacity: 0.03;
+  --shadow-card:
+    0 1px 0 rgba(255, 255, 255, 1) inset, 0 14px 40px -22px rgba(30, 27, 75, 0.18),
+    0 4px 10px -6px rgba(30, 27, 75, 0.12);
+  --shadow-pop: 0 28px 60px -22px rgba(79, 70, 229, 0.4), 0 4px 14px -4px rgba(30, 27, 75, 0.15);
+}
+
+/* ── universal tokens (typography stack, radii, timings, layout) ── */
+:root {
+  --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --r-2: 4px;
+  --r-3: 6px;
+  --r-4: 10px;
+  --r-5: 14px;
+  --r-6: 20px;
+  --r-7: 28px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-fast: 180ms;
+  --t-med: 320ms;
+  --t-slow: 600ms;
+  --t-glacial: 1200ms;
+  --max: 1240px;
+  --gutter: clamp(20px, 4vw, 56px);
+}

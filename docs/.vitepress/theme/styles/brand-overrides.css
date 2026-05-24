@@ -1,0 +1,64 @@
+/**
+ * Map VitePress's --vp-* variables onto the indigo design tokens so the
+ * default theme (sidebar, nav, doc pages, search box, etc.) picks up the
+ * Dextree look without forking any VitePress component.
+ *
+ * If VitePress renames a variable in a future major version, this is the
+ * only file that needs updating — the tokens themselves stay stable.
+ */
+:root {
+  /* Brand accent — indigo on dark, deeper indigo on light. */
+  --vp-c-brand-1: var(--amber);
+  --vp-c-brand-2: var(--amber-soft);
+  --vp-c-brand-3: var(--amber-deep);
+  --vp-c-brand-soft: var(--amber-tint);
+
+  /* Surfaces */
+  --vp-c-bg: var(--bg);
+  --vp-c-bg-alt: var(--bg-2);
+  --vp-c-bg-elv: var(--bg-elev);
+  --vp-c-bg-soft: var(--bg-3);
+
+  /* Dividers */
+  --vp-c-divider: var(--line);
+  --vp-c-gutter: var(--bg-deep);
+
+  /* Text */
+  --vp-c-text-1: var(--ink);
+  --vp-c-text-2: var(--ink-mute);
+  --vp-c-text-3: var(--ink-faint);
+
+  /* Buttons */
+  --vp-button-brand-border: var(--amber-deep);
+  --vp-button-brand-text: #ffffff;
+  --vp-button-brand-bg: var(--amber);
+  --vp-button-brand-hover-bg: var(--amber-soft);
+  --vp-button-brand-hover-border: var(--amber);
+  --vp-button-alt-bg: var(--bg-3);
+  --vp-button-alt-text: var(--ink);
+
+  /* Home-hero specific */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(145deg, var(--ink) 40%, var(--ink-warm) 100%);
+  --vp-home-hero-image-background-image: radial-gradient(
+    circle at 50% 50%,
+    var(--amber-glow),
+    transparent 70%
+  );
+  --vp-home-hero-image-filter: blur(44px);
+
+  /* Code blocks */
+  --vp-code-block-bg: var(--bg-2);
+  --vp-code-bg: var(--bg-3);
+
+  /* Custom block tip / warning / danger */
+  --vp-custom-block-tip-border: var(--amber-deep);
+  --vp-custom-block-tip-text: var(--amber-soft);
+  --vp-custom-block-tip-bg: var(--amber-tint);
+  --vp-custom-block-warning-border: var(--warn);
+  --vp-custom-block-warning-text: var(--warn);
+  --vp-custom-block-warning-bg: rgba(251, 191, 36, 0.08);
+  --vp-custom-block-danger-border: var(--danger);
+  --vp-custom-block-danger-text: var(--danger);
+  --vp-custom-block-danger-bg: rgba(248, 113, 113, 0.08);
+}

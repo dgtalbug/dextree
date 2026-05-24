@@ -1,0 +1,23 @@
+{
+  "// docs": "TypeScript program for the VitePress docs site only. Inherits the workspace base but overrides moduleResolution to 'bundler' so Vite's CSS / .vue / virtual: side-effect imports type-check correctly via the env.d.ts shims.",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "types": ["node", "vite/client", "vitepress/client"],
+    "noEmit": true,
+    "allowImportingTsExtensions": false,
+    "skipLibCheck": true,
+    "isolatedModules": true
+  },
+  "include": [
+    ".vitepress/**/*.ts",
+    ".vitepress/**/*.mts",
+    ".vitepress/**/*.vue",
+    ".vitepress/env.d.ts"
+  ],
+  "exclude": ["node_modules", ".vitepress/dist", ".vitepress/cache"]
+}

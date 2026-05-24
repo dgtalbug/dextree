@@ -1,0 +1,131 @@
+name: Docs site
+
+# Build the VitePress docs site on every PR that touches docs sources, and
+# build + deploy to GitHub Pages on push to main. Splitting build / deploy
+# into separate jobs keeps the deploy permissions narrow (only `deploy`
+# needs pages:write + id-token:write) and gives PR builds a cheap guard
+# rail without touching production.
+#
+# Pages mode: this repo's GitHub Pages is configured for "GitHub Actions"
+# as the source (Settings → Pages → Source = GitHub Actions), so the
+# `deploy-pages` action publishes the artifact directly — no `gh-pages`
+# branch involved.
+#
+# Deployed URL: https://dgtalbug.github.io/dextree/
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/docs-deploy.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/docs-deploy.yml"
+  workflow_dispatch:
+
+# Cancel in-progress PR runs so rapid pushes don't pile up. Main runs are
+# serialized (cancel-in-progress: false) so each deploy completes before
+# the next starts — important because deploy-pages locks the Pages env.
+concurrency:
+  group: docs-deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build docs site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Reuses the shared setup composite: pnpm 11.1.2 + Node 22 + frozen
+      # lockfile install. Turbo cache disabled here — vitepress build does
+      # not run via turbo, so the cache wouldn't help.
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          turbo-cache: "false"
+
+      # Configure GitHub Pages so we get the right base path injected as
+      # an output. `static_site_generator: vitepress` makes the action set
+      # the correct outputs (base_path, origin) for VitePress's convention.
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        with:
+          static_site_generator: vitepress
+
+      # Build with the project-page base path. configure-pages emits the
+      # base via `steps.pages.outputs.base_path` on main, but on PR builds
+      # we hardcode `/dextree/` so the build matches what production sees
+      # (catches base-path bugs in PR review). The DOCS_BASE env is wired
+      # in docs/.vitepress/config.mts.
+      - name: Build docs site
+        env:
+          DOCS_BASE: ${{ steps.pages.outputs.base_path || '/dextree/' }}
+        run: pnpm docs:build
+
+      # On main, upload the built artifact so the deploy job can publish it.
+      # On PRs, skip the upload — we only want to verify the build succeeds.
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # Skip deploy entirely on PRs — only main pushes (or manual dispatch
+    # from the Actions tab) reach Pages.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    # The deploy job is the only one that gets write permissions on Pages.
+    # id-token:write is required by deploy-pages to produce a deployment
+    # provenance token (GitHub's Pages deployment uses OIDC).
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+      # Print the deployment URL to the run summary so it's discoverable
+      # without clicking into the environment. The url comes from the
+      # deploy-pages action's `page_url` output (set by the action).
+      - name: Write deployment summary
+        run: |
+          {
+            echo "## 📚 Docs deployed"
+            echo ""
+            echo "**URL:** ${{ steps.deployment.outputs.page_url }}"
+            echo ""
+            echo "Triggered by \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` (\`${{ github.sha }}\`)."
+          } >> "$GITHUB_STEP_SUMMARY"
