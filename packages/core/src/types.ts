@@ -72,6 +72,11 @@ export interface GraphNode {
   importance?: number;
   framework?: string;
   frameworkRole?: string;
+  fanIn?: number;
+  isCore?: boolean;
+  flags?: readonly string[];
+  signature?: string;
+  docstring?: string;
 }
 
 export interface GraphEdge {

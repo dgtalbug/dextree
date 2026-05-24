@@ -224,10 +224,15 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
 
      .dxt-graph-view {
        height: 100%;
+       display: flex;
+       flex-direction: row;
+       align-items: stretch;
      }
 
      .dxt-graph-surface {
        position: relative;
+       flex: 1 1 auto;
+       min-width: 0;
        height: 100%;
        min-height: 240px;
        border-radius: 8px;

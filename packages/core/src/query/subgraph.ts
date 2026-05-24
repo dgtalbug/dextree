@@ -29,6 +29,19 @@ function normalizeRange(value: unknown): SymbolRange {
   };
 }
 
+/**
+ * DuckDB returns `VARCHAR[]` columns as JS arrays. NULL maps to undefined so
+ * downstream "is this defined?" checks behave correctly. An empty array stays
+ * as `[]` — meaningful distinct from undefined (slice 020 FR-010).
+ */
+function normalizeStringArray(value: unknown): readonly string[] | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v));
+  }
+  return undefined;
+}
+
 export async function getWorkspaceSubgraph(
   connection: DuckDBConnection,
   workspaceRoot: string,
@@ -43,7 +56,8 @@ export async function getWorkspaceSubgraph(
           relative_path AS label,
           path AS filePath,
           framework,
-          framework_role AS frameworkRole
+          framework_role AS frameworkRole,
+          is_core AS isCore
         FROM file
         WHERE path = $workspace_root OR path LIKE $workspace_prefix
         ORDER BY relative_path ASC
@@ -76,7 +90,12 @@ export async function getWorkspaceSubgraph(
           s.name AS label,
           f.path AS filePath,
           s.kind AS symbolKind,
-          s.range AS range
+          s.range AS range,
+          s.fan_in AS fanIn,
+          s.is_core AS isCore,
+          s.flags AS flags,
+          s.signature AS signature,
+          s.docstring AS docstring
         FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
         WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix
@@ -209,6 +228,7 @@ export async function getWorkspaceSubgraph(
       const basename = relativePath.split("/").pop() ?? relativePath;
       const framework = typeof row.framework === "string" ? row.framework : undefined;
       const frameworkRole = typeof row.frameworkRole === "string" ? row.frameworkRole : undefined;
+      const isCore = typeof row.isCore === "boolean" ? row.isCore : undefined;
 
       return {
         id: String(row.id),
@@ -218,6 +238,7 @@ export async function getWorkspaceSubgraph(
         startLine: 1,
         ...(framework === undefined ? {} : { framework }),
         ...(frameworkRole === undefined ? {} : { frameworkRole }),
+        ...(isCore === undefined ? {} : { isCore }),
       };
     }),
     ...symbolRows.map((row) => {
@@ -226,6 +247,12 @@ export async function getWorkspaceSubgraph(
         typeof row.symbolKind === "string"
           ? (row.symbolKind as GraphNode["symbolKind"])
           : undefined;
+      const fanIn = typeof row.fanIn === "number" ? row.fanIn : undefined;
+      const isCore = typeof row.isCore === "boolean" ? row.isCore : undefined;
+      const flags = normalizeStringArray(row.flags);
+      const signature = typeof row.signature === "string" ? row.signature : undefined;
+      const docstring = typeof row.docstring === "string" ? row.docstring : undefined;
+
       return {
         id: String(row.id),
         type: "symbol" as const,
@@ -233,6 +260,11 @@ export async function getWorkspaceSubgraph(
         filePath: String(row.filePath),
         startLine: range.startLine + 1,
         ...(symbolKind === undefined ? {} : { symbolKind }),
+        ...(fanIn === undefined ? {} : { fanIn }),
+        ...(isCore === undefined ? {} : { isCore }),
+        ...(flags === undefined ? {} : { flags }),
+        ...(signature === undefined ? {} : { signature }),
+        ...(docstring === undefined ? {} : { docstring }),
       };
     }),
   ];
