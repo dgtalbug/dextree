@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/dgtalbug/dextree/compare/v1.1.0...v1.2.0) (2026-05-24)
+
+
+### Features
+
+* **extension:** node-type + edge-type filter chips (slice 019) ([#83](https://github.com/dgtalbug/dextree/issues/83)) ([9cba564](https://github.com/dgtalbug/dextree/commit/9cba5645e608cc9ec8a556eb2853437d2e95cabb))
+
 ## [1.1.0](https://github.com/dgtalbug/dextree/compare/v1.0.1...v1.1.0) (2026-05-24)
 
 ### Features
