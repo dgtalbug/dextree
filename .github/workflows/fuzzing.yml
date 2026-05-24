@@ -55,11 +55,24 @@ jobs:
       - name: Build exporters (and its workspace dependencies)
         run: pnpm turbo build --filter=@dextree/exporters...
 
+      - name: Compile fuzz targets
+        # Jazzer.js resolves targets as plain .js; use tsup (already used by
+        # this package) to bundle each fuzz target to dist/__fuzz__/ so that
+        # module aliases and workspace deps resolve correctly.
+        run: |
+          pnpm --filter @dextree/exporters exec tsup \
+            src/__fuzz__/serializer.fuzz.ts \
+            --format esm --out-dir dist/__fuzz__ --no-dts --target node22
+
       - name: Run fuzzer (${{ matrix.target }})
         # --timeout limits each individual input; --fuzz_time limits the total
         # corpus exploration run so CI does not block indefinitely.
+        # Map matrix target (packages/PKG/src/__fuzz__/FOO.ts) to compiled JS
+        # (packages/PKG/dist/__fuzz__/FOO.js).
         run: |
-          npx jazzer ${{ matrix.target }} \
+          COMPILED=$(echo "${{ matrix.target }}" \
+            | sed 's|^\(packages/[^/]*/\)src/__fuzz__/\(.*\)\.ts$|\1dist/__fuzz__/\2.js|')
+          npx jazzer "$COMPILED" \
             --timeout=5000 \
             -- \
             -max_total_time=30 \
