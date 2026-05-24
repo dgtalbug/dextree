@@ -213,14 +213,14 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `017-toolbar-consolidation`
+**Branch**: `019-node-edge-filters`
 
-- Spec: [`specs/017-toolbar-consolidation/spec.md`](../specs/017-toolbar-consolidation/spec.md)
-- Plan: [`specs/017-toolbar-consolidation/plan.md`](../specs/017-toolbar-consolidation/plan.md)
-- Research: [`specs/017-toolbar-consolidation/research.md`](../specs/017-toolbar-consolidation/research.md)
-- Contracts: [`specs/017-toolbar-consolidation/contracts/`](../specs/017-toolbar-consolidation/contracts/)
-- Quickstart: [`specs/017-toolbar-consolidation/quickstart.md`](../specs/017-toolbar-consolidation/quickstart.md)
+- Spec: [`specs/019-node-edge-filters/spec.md`](../specs/019-node-edge-filters/spec.md)
+- Plan: [`specs/019-node-edge-filters/plan.md`](../specs/019-node-edge-filters/plan.md)
+- Research: [`specs/019-node-edge-filters/research.md`](../specs/019-node-edge-filters/research.md)
+- Contracts: [`specs/019-node-edge-filters/contracts/`](../specs/019-node-edge-filters/contracts/)
+- Quickstart: [`specs/019-node-edge-filters/quickstart.md`](../specs/019-node-edge-filters/quickstart.md)
 
-Review focus for this slice: new `packages/extension/src/webview/components/GraphToolbar.tsx` + `GraphToolbar.test.tsx`, modified `GraphView.tsx` (toolbar JSX extracted, minimap default OFF), modified `html.ts` (new `.dxt-toolbar` CSS). No schema, indexing, or cross-package changes.
+Review focus for this slice: new `packages/extension/src/webview/components/NodeFilterPanel.tsx` + `NodeFilterPanel.test.tsx` + `NodeFilterPanel.module.css`; modified `GraphToolbar.tsx` (Extends label, Implements stub, node filter props); modified `GraphView.tsx` (hiddenNodeKinds state + nodeReducer extension). No schema, indexing, or cross-package changes.
 
 <!-- SPECKIT END -->

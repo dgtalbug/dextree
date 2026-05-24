@@ -27,7 +27,7 @@ concurrency:
 jobs:
   validate:
     name: validate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Harden runner
@@ -44,7 +44,7 @@ jobs:
   build-vsix:
     name: build-vsix (${{ matrix.target }})
     needs: validate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -80,7 +80,7 @@ jobs:
   draft-release:
     name: draft-release
     needs: build-vsix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       # contents: write is required so `gh release create --draft` can mint

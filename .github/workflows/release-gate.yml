@@ -37,7 +37,7 @@ jobs:
     name: summary
     needs: [static-checks, test, package]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Write release gate report
         run: |

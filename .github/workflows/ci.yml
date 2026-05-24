@@ -22,22 +22,29 @@ permissions:
   pull-requests: write
 
 jobs:
+  # static-checks and link-check only run on PRs — they already passed before
+  # merge, re-running them on push-to-main wastes ~2 min of runner time per merge.
   static-checks:
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/_static-checks.yml
 
-  # build, test, and package all run in parallel. Each invokes `pnpm build`
-  # via turbo, which shares outputs across jobs through the turbo remote cache
-  # (see .github/actions/setup). Whichever job's build finishes first warms
-  # the cache for the others — a cold cache pays one real build, every
-  # subsequent run is a near-noop.
+  # build, test, and package wait for static-checks so a formatting/lint/tsc
+  # failure fast-fails the pipeline before spinning up expensive runners.
+  # On push-to-main static-checks is skipped (already passed on the PR) and
+  # GitHub treats a skipped job as success, so these jobs still run normally.
+  # All three run in parallel once unblocked. Each invokes `pnpm build` via
+  # turbo — whichever finishes first warms the remote cache for the others.
   build:
+    needs: static-checks
     uses: ./.github/workflows/_build.yml
 
   test:
+    needs: static-checks
     uses: ./.github/workflows/_test.yml
     secrets: inherit
 
   package:
+    needs: static-checks
     uses: ./.github/workflows/_package.yml
 
   dependency-review:
@@ -48,4 +55,5 @@ jobs:
     uses: ./.github/workflows/_spell-check.yml
 
   link-check:
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/_link-check.yml
