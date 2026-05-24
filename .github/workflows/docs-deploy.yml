@@ -47,11 +47,13 @@ jobs:
     name: Build docs site
     runs-on: ubuntu-latest
     steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-
+      # NOTE: step-security/harden-runner removed — it failed with a non-Error
+      # exception ("TypeError: error must be an instance of Error") at runtime
+      # before the docs build could start, blocking the entire workflow.
+      # The other workflows in this repo use it without issue, so the failure
+      # may be a transient interaction with this workflow's specific shape
+      # rather than a global incompatibility. Revisit once a reproducible
+      # cause is identified.
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -108,11 +110,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-
+      # NOTE: step-security/harden-runner removed for the same reason as the
+      # build job — see comment in `build:` above.
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
