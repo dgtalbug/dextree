@@ -12,11 +12,21 @@ name: Docs site
 # branch involved.
 #
 # Deployed URL: https://dgtalbug.github.io/dextree/
+#
+# TEMP: while iterating on this workflow, pushes to
+# `fix/docs-deploy-remove-harden-runner` ALSO deploy. See the `on.push.branches`
+# block below. Remove that branch entry once the workflow is stable.
 
 on:
   push:
     branches:
       - main
+      # TEMP: deploy from this debug branch too so we can iterate on the
+      # workflow without opening a new PR per attempt. Remove this entry
+      # once the workflow is stable. Each push to the branch triggers a
+      # real deploy to https://dgtalbug.github.io/dextree/, so be aware
+      # production is on the line while this is here.
+      - fix/docs-deploy-remove-harden-runner
     paths:
       - "docs/**"
       - "package.json"
