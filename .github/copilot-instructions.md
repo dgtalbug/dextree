@@ -213,14 +213,14 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `015-release-truth-gate`
+**Branch**: `016-hello-mermaid`
 
-- Spec: [`specs/015-release-truth-gate/spec.md`](../specs/015-release-truth-gate/spec.md)
-- Plan: [`specs/015-release-truth-gate/plan.md`](../specs/015-release-truth-gate/plan.md)
-- Research: [`specs/015-release-truth-gate/research.md`](../specs/015-release-truth-gate/research.md)
-- Contracts: [`specs/015-release-truth-gate/contracts/`](../specs/015-release-truth-gate/contracts/)
-- Quickstart: [`specs/015-release-truth-gate/quickstart.md`](../specs/015-release-truth-gate/quickstart.md)
+- Spec: [`specs/016-hello-mermaid/spec.md`](../specs/016-hello-mermaid/spec.md)
+- Plan: [`specs/016-hello-mermaid/plan.md`](../specs/016-hello-mermaid/plan.md)
+- Research: [`specs/016-hello-mermaid/research.md`](../specs/016-hello-mermaid/research.md)
+- Contracts: [`specs/016-hello-mermaid/contracts/`](../specs/016-hello-mermaid/contracts/)
+- Quickstart: [`specs/016-hello-mermaid/quickstart.md`](../specs/016-hello-mermaid/quickstart.md)
 
-Review focus for this slice: `.github/workflows/release-gate.yml` (new sequential gate workflow) + `vitest.config.ts` (coverage thresholds) + root `package.json` (`release:check` script). No `packages/` source code changes.
+Review focus for this slice: new `packages/exporters` package scaffold + `packages/exporters/src/mermaid/serializer.ts` (pure serialization function) + `packages/extension/src/commands/exportMermaid.ts` (command handler) + `packages/extension/package.json` (command + setting contributions). No schema or indexing changes.
 
 <!-- SPECKIT END -->
