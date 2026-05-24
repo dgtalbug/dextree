@@ -4517,7 +4517,7 @@
             <span class="gaps-stat-value" data-tone="warn">5.8<span style="font-size: 18px; color: var(--ink-mute)">/10</span></span>
             <span class="gaps-stat-meta">
               <a href="https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree" target="_blank" rel="noopener">live report ↗</a><br />
-              CI-Tests · Pinned-Deps · License: 10/10
+              Token-Permissions fix queued · next scan Mon 07:00 UTC
             </span>
           </div>
           <div class="gaps-stat">
@@ -4552,20 +4552,21 @@
             <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
           </div>
           <div class="gap-row">
-            <span class="gap-sev" data-sev="critical">critical</span>
+            <span class="gap-sev" data-sev="medium">in flight</span>
             <div class="gap-text">
-              <strong>OpenSSF Token-Permissions: 0/10</strong>
+              <strong>OpenSSF Token-Permissions: 0/10 → fix queued</strong>
               <p>
-                5 workflows hold write-level permissions where read suffices:
+                All top-level write permissions narrowed to job-level with inline justification
+                comments:
                 <code style="font-family: var(--mono); color: var(--amber)">auto-merge-dependabot</code>,
-                <code style="font-family: var(--mono); color: var(--amber)">codeql</code> security-events,
-                <code style="font-family: var(--mono); color: var(--amber)">osv-scanner</code> security-events,
-                <code style="font-family: var(--mono); color: var(--amber)">pre-release</code>,
+                <code style="font-family: var(--mono); color: var(--amber)">codeql</code>,
                 <code style="font-family: var(--mono); color: var(--amber)">release</code>,
                 <code style="font-family: var(--mono); color: var(--amber)">sbom</code>.
+                Remaining job-level writes (osv-scanner SARIF, pre-release draft) are documented
+                as legitimate. Score updates on next scheduled scan.
               </p>
             </div>
-            <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
+            <div class="gap-fix">queued · <span class="ver">next scan</span></div>
           </div>
           <div class="gap-row">
             <span class="gap-sev" data-sev="high">high</span>
@@ -4600,9 +4601,10 @@
             <div class="gap-text">
               <strong>Branch protection is incomplete</strong>
               <p>
-                Scorecard 5/10 on Branch-Protection: required-approvers = 1, no CODEOWNERS, "apply
-                to administrators" disabled, "last push approval" disabled. Tightens with the
-                Code-Review fix above.
+                Scorecard 5/10 on Branch-Protection. CODEOWNERS file exists; the remaining gaps
+                are GitHub Settings → Branches toggles: "Require review from Code Owners",
+                "Include administrators", "Require approval of the most recent push", and
+                raising the required-approvers count above 1. Out-of-band fix (UI, not code).
               </p>
             </div>
             <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
