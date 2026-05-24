@@ -173,7 +173,14 @@ export function App({ vscodeApi }: AppProps) {
     <div className={`dxt-app-shell${showLoadingOverlay ? " dxt-app-shell-indexing" : ""}`}>
       <div className="dxt-graph-layer">
         {hasGraph ? (
-          <GraphView nodes={displayNodes} edges={displayEdges} onNavigate={handleNavigate} />
+          <GraphView
+            nodes={displayNodes}
+            edges={displayEdges}
+            onNavigate={handleNavigate}
+            onExportMermaid={() => {
+              handleCommand("export-mermaid");
+            }}
+          />
         ) : (
           <div
             className="dxt-graph-scaffold dxt-graph-stage"

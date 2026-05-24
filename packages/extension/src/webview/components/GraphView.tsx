@@ -30,6 +30,7 @@ interface GraphViewProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   onNavigate: (filePath: string, line: number) => void;
+  onExportMermaid: () => void;
 }
 
 interface GraphNodeAttributes {
@@ -1122,7 +1123,7 @@ function centerCameraOnNode(graph: MultiDirectedGraph, sigma: Sigma, nodeId: str
   );
 }
 
-export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
+export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MultiDirectedGraph | null>(null);
   const sigmaRef = useRef<Sigma | null>(null);
@@ -1705,6 +1706,15 @@ export function GraphView({ nodes, edges, onNavigate }: GraphViewProps) {
           aria-label="Toggle mini-map"
         >
           <span className="codicon codicon-map" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="dxt-export-mermaid"
+          onClick={onExportMermaid}
+          title="Export graph as Mermaid (.mmd)"
+          aria-label="Export as Mermaid"
+        >
+          <span className="codicon codicon-export" aria-hidden="true" />
         </button>
       </div>
     </div>

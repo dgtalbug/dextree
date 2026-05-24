@@ -876,6 +876,24 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        opacity: 1;
      }
 
+     .dxt-export-mermaid {
+       position: absolute;
+       top: 46px;
+       left: 14px;
+       z-index: 11;
+       background: transparent;
+       border: 1px solid var(--vscode-panel-border, transparent);
+       border-radius: 4px;
+       padding: 4px;
+       cursor: pointer;
+       color: var(--vscode-foreground);
+       opacity: 0.6;
+     }
+
+     .dxt-export-mermaid:hover {
+       opacity: 1;
+     }
+
      .dxt-edge-filter-bar {
        position: absolute;
        top: 14px;

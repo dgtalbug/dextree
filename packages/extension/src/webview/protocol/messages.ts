@@ -75,7 +75,8 @@ export type GraphCommandId =
   | "index-workspace"
   | "cancel-indexing"
   | "clear-workspace"
-  | "clear-all";
+  | "clear-all"
+  | "export-mermaid";
 
 export interface CommandMessage {
   type: "command";

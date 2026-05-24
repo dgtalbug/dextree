@@ -183,7 +183,14 @@ describe("GraphView", () => {
   });
 
   it("renders the graph container and initializes Sigma", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     expect(screen.getByTestId("graph-view")).toBeTruthy();
     expect(sigmaConstructor).toHaveBeenCalledTimes(1);
@@ -193,7 +200,14 @@ describe("GraphView", () => {
   });
 
   it("assigns distinct node size and color attributes for file and symbol nodes", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
 
@@ -207,7 +221,14 @@ describe("GraphView", () => {
   });
 
   it("seeds numeric coordinates for every node before Sigma initialization", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
 
@@ -218,7 +239,14 @@ describe("GraphView", () => {
   });
 
   it("assigns distinct colors for DEFINES, IMPORTS, and CALLS edges", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
 
@@ -239,7 +267,14 @@ describe("GraphView", () => {
       kind: "CUSTOM_X" as never,
     };
     expect(() => {
-      render(<GraphView nodes={baseNodes} edges={[customEdge]} onNavigate={vi.fn()} />);
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={[customEdge]}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
     }).not.toThrow();
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
@@ -250,7 +285,14 @@ describe("GraphView", () => {
 
   it("selects a node on single click without navigating immediately", () => {
     const onNavigate = vi.fn();
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={onNavigate}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
     clickNodeHandler?.({ node: "symbol-1" });
@@ -264,7 +306,14 @@ describe("GraphView", () => {
 
   it("navigates on double click", () => {
     const onNavigate = vi.fn();
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={onNavigate}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const doubleClickNodeHandler = mockSigma.on.mock.calls.find(
       (call) => call[0] === "doubleClickNode",
@@ -275,7 +324,14 @@ describe("GraphView", () => {
   });
 
   it("re-applies theme-derived colors when the VS Code body class changes", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
     mockSigma.setSetting.mockClear();
 
     document.body.className = "vscode-light";
@@ -293,7 +349,14 @@ describe("GraphView", () => {
       throw new Error("layout unavailable");
     });
 
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     expect(sigmaConstructor).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("graph-view")).toBeTruthy();
@@ -309,7 +372,14 @@ describe("GraphView", () => {
     });
 
     const onNavigate = vi.fn();
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={onNavigate}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     expect(sigmaConstructor).not.toHaveBeenCalled();
     expect(screen.getByTestId("graph-view-fallback")).toBeTruthy();
@@ -334,7 +404,14 @@ describe("GraphView", () => {
     });
 
     const onNavigate = vi.fn();
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={onNavigate} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={onNavigate}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     expect(screen.getByTestId("graph-view-fallback")).toBeTruthy();
     expect(screen.getByRole("img", { name: /symbol graph/i })).toBeTruthy();
@@ -347,7 +424,14 @@ describe("GraphView", () => {
   });
 
   it("registers nodeReducer and edgeReducer Sigma settings", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const settings = sigmaConstructor.mock.calls[0]?.[2] as Record<string, unknown>;
     expect(typeof settings.nodeReducer).toBe("function");
@@ -355,7 +439,14 @@ describe("GraphView", () => {
   });
 
   it("registers enterNode and leaveNode event listeners on Sigma", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const events = mockSigma.on.mock.calls.map((call) => call[0]);
     expect(events).toContain("enterNode");
@@ -371,7 +462,14 @@ describe("GraphView", () => {
       { ...baseNodes[2]!, importance: 0.5 },
     ];
 
-    render(<GraphView nodes={nodesWithImportance} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={nodesWithImportance}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
 
@@ -386,7 +484,14 @@ describe("GraphView", () => {
   });
 
   it("falls back to uniform node sizes when importance is not provided", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
 
@@ -396,7 +501,14 @@ describe("GraphView", () => {
   });
 
   it("fades non-neighbor nodes and edges when a node is hovered", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const settings = sigmaConstructor.mock.calls[0]?.[2] as {
       nodeReducer: (node: string, data: Record<string, unknown>) => Record<string, unknown>;
@@ -423,7 +535,14 @@ describe("GraphView", () => {
   });
 
   it("emphasizes descendant edges after a node is selected", () => {
-    render(<GraphView nodes={baseNodes} edges={baseEdges} onNavigate={vi.fn()} />);
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+      />,
+    );
 
     const settings = sigmaConstructor.mock.calls[0]?.[2] as {
       edgeReducer: (edge: string, data: Record<string, unknown>) => Record<string, unknown>;
