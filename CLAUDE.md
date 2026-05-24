@@ -181,6 +181,7 @@ If you're not Claude Code, follow the same shape conceptually: plan first, imple
 
 - **Branch:** `feature/slice-<N>-<short>`, `fix/<issue>-<short>`, `refactor/<scope>-<short>`
 - **Commits:** Conventional Commits — `feat(core):`, `fix(extension):`, `test(core):`, etc.
+- **No co-author trailers:** Never add `Co-authored-by:` lines to commit messages. This applies to all agents (Claude, Copilot, any automation).
 - **PR title:** `[slice S<N>] <short description>`
 - **PR:** open as draft. Fill every section of `.github/PULL_REQUEST_TEMPLATE.md`. Link spec and issue.
 - **Mark ready:** only after CI green and self-review passes.
