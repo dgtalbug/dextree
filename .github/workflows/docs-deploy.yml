@@ -1,32 +1,12 @@
 name: Docs site
 
-# Build the VitePress docs site on every PR that touches docs sources, and
-# build + deploy to GitHub Pages on push to main. Splitting build / deploy
-# into separate jobs keeps the deploy permissions narrow (only `deploy`
-# needs pages:write + id-token:write) and gives PR builds a cheap guard
-# rail without touching production.
-#
-# Pages mode: this repo's GitHub Pages is configured for "GitHub Actions"
-# as the source (Settings → Pages → Source = GitHub Actions), so the
-# `deploy-pages` action publishes the artifact directly — no `gh-pages`
-# branch involved.
-#
+# Build on PRs touching docs/**, deploy to GitHub Pages on push to main.
 # Deployed URL: https://dgtalbug.github.io/dextree/
-#
-# TEMP: while iterating on this workflow, pushes to
-# `fix/docs-deploy-remove-harden-runner` ALSO deploy. See the `on.push.branches`
-# block below. Remove that branch entry once the workflow is stable.
 
 on:
   push:
     branches:
       - main
-      # TEMP: deploy from this debug branch too so we can iterate on the
-      # workflow without opening a new PR per attempt. Remove this entry
-      # once the workflow is stable. Each push to the branch triggers a
-      # real deploy to https://dgtalbug.github.io/dextree/, so be aware
-      # production is on the line while this is here.
-      - fix/docs-deploy-remove-harden-runner
     paths:
       - "docs/**"
       - "package.json"
@@ -42,9 +22,6 @@ on:
       - ".github/workflows/docs-deploy.yml"
   workflow_dispatch:
 
-# Cancel in-progress PR runs so rapid pushes don't pile up. Main runs are
-# serialized (cancel-in-progress: false) so each deploy completes before
-# the next starts — important because deploy-pages locks the Pages env.
 concurrency:
   group: docs-deploy-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -57,39 +34,22 @@ jobs:
     name: Build docs site
     runs-on: ubuntu-latest
     steps:
-      # NOTE: step-security/harden-runner removed — it failed with a non-Error
-      # exception ("TypeError: error must be an instance of Error") at runtime
-      # before the docs build could start, blocking the entire workflow.
-      # The other workflows in this repo use it without issue, so the failure
-      # may be a transient interaction with this workflow's specific shape
-      # rather than a global incompatibility. Revisit once a reproducible
-      # cause is identified.
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Reuses the shared setup composite: pnpm 11.1.2 + Node 22 + frozen
-      # lockfile install. Turbo cache disabled here — vitepress build does
-      # not run via turbo, so the cache wouldn't help.
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
           turbo-cache: "false"
 
-      # Build with a hardcoded project-page base path. Originally this
-      # workflow used actions/configure-pages to derive the base path
-      # dynamically, but that action throws `TypeError: error must be an
-      # instance of Error` during its own initialization on this runner —
-      # before it can make any API call. Since this is a project page
-      # deployed at the known path /dextree/, hardcoding is safe and
-      # avoids the broken action entirely. Revisit if/when configure-pages
-      # is fixed (https://github.com/actions/configure-pages/issues).
+      # DOCS_BASE hardcoded instead of derived via actions/configure-pages —
+      # that action throws TypeError on startup on this runner (broken in
+      # v6.0.0; revisit if upstream fixes it).
       - name: Build docs site
         env:
           DOCS_BASE: /dextree/
         run: pnpm docs:build
 
-      # On main, upload the built artifact so the deploy job can publish it.
-      # On PRs, skip the upload — we only want to verify the build succeeds.
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
@@ -98,14 +58,9 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    # Skip deploy entirely on PRs — only main pushes (or manual dispatch
-    # from the Actions tab) reach Pages.
     if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
-    # The deploy job is the only one that gets write permissions on Pages.
-    # id-token:write is required by deploy-pages to produce a deployment
-    # provenance token (GitHub's Pages deployment uses OIDC).
     permissions:
       pages: write
       id-token: write
@@ -113,15 +68,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # NOTE: step-security/harden-runner removed for the same reason as the
-      # build job — see comment in `build:` above.
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
-      # Print the deployment URL to the run summary so it's discoverable
-      # without clicking into the environment. The url comes from the
-      # deploy-pages action's `page_url` output (set by the action).
       - name: Write deployment summary
         run: |
           {
