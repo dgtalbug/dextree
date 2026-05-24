@@ -11,6 +11,7 @@ function makeInput(overrides: Partial<ExtractInput> = {}): ExtractInput {
     source: "",
     tree: null,
     fileId: "file-x",
+    knownSymbols: [],
     ...overrides,
   };
 }

@@ -48,6 +48,7 @@ describe("BaselineTsJsExtractor", () => {
         source,
         tree,
         fileId: "test-file-id",
+        knownSymbols: [],
       };
       const result = await extractor.extract(input);
 
@@ -79,6 +80,7 @@ describe("BaselineTsJsExtractor", () => {
       source: "# hello",
       tree: null,
       fileId: "md-file-id",
+      knownSymbols: [],
     };
     const result = await extractor.extract(input);
 

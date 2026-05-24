@@ -3,6 +3,25 @@ import type { Tree } from "web-tree-sitter";
 import type { ExtractedFileRecord, ExtractedImportRef, StoredSymbol } from "../types.js";
 
 /**
+ * Minimal symbol descriptor forwarded from earlier extractors so that later
+ * extractors (e.g. NaiveCallExtractor) can resolve symbol IDs without minting
+ * their own. Populated by the registry after each extractor runs.
+ */
+export interface KnownSymbol {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  /** 0-based start row from tree-sitter (matches `node.startPosition.row`). */
+  readonly startLine: number;
+  /** 0-based start column from tree-sitter (matches `node.startPosition.column`). */
+  readonly startCol: number;
+  /** 0-based end row. */
+  readonly endLine: number;
+  /** 0-based end column. */
+  readonly endCol: number;
+}
+
+/**
  * Input handed to each extractor by the registry. Read-only by contract; extractors
  * MUST NOT mutate `tree`, `source`, or any other field. `tree` is shared across
  * every extractor invocation for the same file — no extractor re-parses.
@@ -10,6 +29,10 @@ import type { ExtractedFileRecord, ExtractedImportRef, StoredSymbol } from "../t
  * `fileId` is determined by the indexer before dispatch (re-used from a prior
  * indexing run when the file is already known, freshly minted otherwise) so that
  * every extractor agrees on which file id to use as a foreign-key target.
+ *
+ * `knownSymbols` is populated by the registry after each extractor finishes, so
+ * later extractors see the symbol IDs that the baseline already committed to.
+ * It is empty for the first extractor in the chain.
  */
 export interface ExtractInput {
   readonly absolutePath: string;
@@ -18,6 +41,8 @@ export interface ExtractInput {
   readonly source: string;
   readonly tree: Tree | null;
   readonly fileId: string;
+  /** Symbols accumulated from all previously-run extractors in this chain. */
+  readonly knownSymbols: readonly KnownSymbol[];
 }
 
 /**

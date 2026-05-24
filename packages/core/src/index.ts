@@ -14,7 +14,7 @@ import { getWorkspaceSubgraph } from "./query/subgraph.js";
 import { getSymbolsForFile } from "./query/symbols.js";
 import { clearAll, clearFile, clearWorkspace } from "./storage/clear.js";
 import { openDatabase, type DatabaseHandle } from "./storage/db.js";
-import { replaceFileGraph } from "./storage/repository.js";
+import { replaceFileGraph, resolveWorkspaceCrossFileEdges } from "./storage/repository.js";
 import { applyMigrations } from "./storage/migrations/runner.js";
 import { initializeSchema } from "./storage/schema.js";
 import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./storage/workspaceCache.js";
@@ -70,6 +70,7 @@ export type {
   ExtractInput,
   ExtractionResult,
   ExtractorRegistry,
+  KnownSymbol,
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 
@@ -150,6 +151,7 @@ class DuckTreeIndexer implements Indexer {
         source,
         tree,
         fileId,
+        knownSymbols: [],
       });
 
       // Registry contract invariant 6: if no extractor populated `file`, build
@@ -202,6 +204,12 @@ class DuckTreeIndexer implements Indexer {
     } finally {
       tree?.delete();
     }
+  }
+
+  async finalizeWorkspace(workspaceRoot: string): Promise<void> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    await resolveWorkspaceCrossFileEdges(database.connection, workspaceRoot);
   }
 
   async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {

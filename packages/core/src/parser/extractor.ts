@@ -97,23 +97,108 @@ async function resolveImportPath(
   workspaceRoot: string,
   specifier: string,
 ): Promise<string | null> {
-  if (!specifier.startsWith(".")) {
+  if (specifier.startsWith(".")) {
+    for (const candidate of importCandidates(importerAbsolutePath, specifier)) {
+      if (!(await fileExists(candidate))) continue;
+      if (!isWithinWorkspace(workspaceRoot, candidate)) continue;
+      return toPosixRelativePath(workspaceRoot, candidate);
+    }
     return null;
   }
 
-  for (const candidate of importCandidates(importerAbsolutePath, specifier)) {
-    if (!(await fileExists(candidate))) {
-      continue;
+  // Non-relative: try tsconfig path alias expansion (e.g. @/* → src/*).
+  const aliases = await loadPathAliases(workspaceRoot);
+  for (const [prefix, targets] of aliases) {
+    // prefix is e.g. "@/*"; strip trailing "*" to get the alias stem.
+    const stem = prefix.endsWith("/*") ? prefix.slice(0, -2) : prefix;
+    if (!specifier.startsWith(stem)) continue;
+    const remainder = specifier.slice(stem.length);
+    for (const target of targets) {
+      // target is e.g. "src/*" or "./src/*"
+      const targetBase = target.endsWith("/*") ? target.slice(0, -2) : target;
+      const expanded = join(workspaceRoot, targetBase) + remainder;
+      for (const candidate of expandedCandidates(expanded)) {
+        if (!(await fileExists(candidate))) continue;
+        if (!isWithinWorkspace(workspaceRoot, candidate)) continue;
+        return toPosixRelativePath(workspaceRoot, candidate);
+      }
     }
-
-    if (!isWithinWorkspace(workspaceRoot, candidate)) {
-      continue;
-    }
-
-    return toPosixRelativePath(workspaceRoot, candidate);
   }
 
   return null;
+}
+
+/** Candidates when we have an already-resolved absolute base path (no extension). */
+function expandedCandidates(basePath: string): string[] {
+  if (extname(basePath) !== "") return [basePath];
+  return [
+    ...IMPORT_EXTENSIONS.map((ext) => `${basePath}${ext}`),
+    ...IMPORT_EXTENSIONS.map((ext) => join(basePath, `index${ext}`)),
+  ];
+}
+
+/** Per-workspace-root cache of tsconfig `compilerOptions.paths` alias mappings. */
+const pathAliasCache = new Map<string, Map<string, string[]>>();
+
+/** Candidate tsconfig filenames to probe, in preference order. */
+const TSCONFIG_CANDIDATES = ["tsconfig.json", "tsconfig.base.json", "tsconfig.webview.json"];
+
+type TsConfigShape = {
+  compilerOptions?: { paths?: Record<string, string[]>; baseUrl?: string };
+  extends?: string;
+};
+
+async function parseTsConfigFile(filePath: string): Promise<TsConfigShape | null> {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    // Strip single-line comments before parsing (tsconfig allows them).
+    const stripped = raw.replace(/\/\/[^\n]*/g, "");
+    return JSON.parse(stripped) as TsConfigShape;
+  } catch {
+    return null;
+  }
+}
+
+async function loadPathAliases(workspaceRoot: string): Promise<Map<string, string[]>> {
+  if (pathAliasCache.has(workspaceRoot)) {
+    return pathAliasCache.get(workspaceRoot)!;
+  }
+  const result = new Map<string, string[]>();
+
+  for (const candidate of TSCONFIG_CANDIDATES) {
+    const tsconfigPath = join(workspaceRoot, candidate);
+    const parsed = await parseTsConfigFile(tsconfigPath);
+    if (parsed === null) continue;
+
+    // Follow `extends` chain (one level) to pick up base configs.
+    if (typeof parsed.extends === "string") {
+      const parentPath = resolve(dirname(tsconfigPath), parsed.extends);
+      const parentCandidates = [parentPath, `${parentPath}.json`];
+      for (const p of parentCandidates) {
+        const parent = await parseTsConfigFile(p);
+        if (parent?.compilerOptions?.paths) {
+          for (const [alias, targets] of Object.entries(parent.compilerOptions.paths)) {
+            if (Array.isArray(targets) && !result.has(alias)) {
+              result.set(alias, targets as string[]);
+            }
+          }
+        }
+      }
+    }
+
+    const paths = parsed?.compilerOptions?.paths;
+    if (paths !== null && typeof paths === "object") {
+      for (const [alias, targets] of Object.entries(paths)) {
+        if (Array.isArray(targets)) result.set(alias, targets as string[]);
+      }
+    }
+
+    // Stop at the first tsconfig that exists (even if it has no paths).
+    break;
+  }
+
+  pathAliasCache.set(workspaceRoot, result);
+  return result;
 }
 
 async function extractImportRefs(
@@ -208,6 +293,47 @@ function buildTopLevelSymbol(
   };
 }
 
+/**
+ * Extracts method symbols from a class_declaration node's class_body.
+ * Each public/protected/private method_definition becomes its own symbol with
+ * fqn = `relativePath:ClassName.methodName`.
+ */
+function buildMethodSymbols(
+  classNode: Node,
+  className: string,
+  relativePath: string,
+  fileId: string,
+): StoredSymbol[] {
+  const symbols: StoredSymbol[] = [];
+  const classBody = classNode.childForFieldName("body");
+  if (classBody === null) return symbols;
+
+  for (const member of classBody.namedChildren) {
+    if (member.type !== "method_definition") continue;
+    const nameNode =
+      member.childForFieldName("name") ??
+      member.namedChildren.find(
+        (c) => c.type === "property_identifier" || c.type === "identifier",
+      ) ??
+      null;
+    if (nameNode === null) continue;
+    const methodName = nameNode.text;
+    // Skip private fields (#name) — they're not meaningful across files.
+    if (methodName.startsWith("#")) continue;
+    symbols.push({
+      id: uuidv4(),
+      fqn: `${relativePath}:${className}.${methodName}`,
+      name: `${className}.${methodName}`,
+      kind: "method",
+      fileId,
+      range: toRange(member),
+      language: "typescript",
+    });
+  }
+
+  return symbols;
+}
+
 function buildVariableSymbols(node: Node, relativePath: string, fileId: string): StoredSymbol[] {
   const symbols: StoredSymbol[] = [];
 
@@ -281,6 +407,11 @@ export async function extractTypeScriptFromTree(
 
     if (symbol !== null) {
       symbols.push(symbol);
+      // Also extract methods for class declarations so method-level nodes
+      // appear in the graph (mirrors GitNexus symbol density).
+      if (declaration.type === "class_declaration") {
+        symbols.push(...buildMethodSymbols(declaration, symbol.name, relativePath, fileId));
+      }
     }
   }
 

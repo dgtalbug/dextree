@@ -1,3 +1,4 @@
+import { relative, sep } from "node:path";
 import { v4 as uuidv4 } from "uuid";
 
 import type { Node } from "web-tree-sitter";
@@ -5,20 +6,14 @@ import type { Node } from "web-tree-sitter";
 import type { EdgeRow, Extractor, ExtractInput, ExtractionResult } from "./types.js";
 
 /**
- * Named symbol node types that the baseline extractor emits — used to identify
- * the nearest enclosing named scope when walking up the AST to find source_id.
- * Must stay in sync with `DECLARATION_KIND_BY_TYPE` in `parser/extractor.ts`.
+ * Node types that represent a named callable or class scope — used to find
+ * the enclosing function name when computing `source_fqn` for CALLS edges.
+ * Subset of `NAMED_SCOPE_TYPES`; only types that carry a meaningful call-source name.
  */
-const NAMED_SCOPE_TYPES = new Set([
+const CALLABLE_SCOPE_TYPES = new Set([
   "function_declaration",
   "class_declaration",
-  "interface_declaration",
-  "type_alias_declaration",
-  "enum_declaration",
   "method_definition",
-  "variable_declarator",
-  "lexical_declaration",
-  "variable_declaration",
 ]);
 
 /** TS/JS languages this extractor runs on — must match BaselineTsJsExtractor. */
@@ -36,11 +31,13 @@ function emptyResult(): ExtractionResult {
   };
 }
 
+function toPosixRelativePath(workspaceRoot: string, absolutePath: string): string {
+  return relative(workspaceRoot, absolutePath).split(sep).join("/");
+}
+
 /**
  * Extract the callee identifier text from a `call_expression` node.
- * For `foo()` → "foo"; for `x.foo()` → "foo"; for `getFoo().bar()` this is
- * called once per call_expression, returning the outermost identifier in that
- * particular node.
+ * For `foo()` → "foo"; for `x.foo()` → "foo".
  */
 function extractCalleeName(callNode: Node): string | null {
   const fnChild = callNode.childForFieldName("function");
@@ -62,27 +59,13 @@ function extractCalleeName(callNode: Node): string | null {
 }
 
 /**
- * Look up a symbol by name in the symbols the baseline extractor produced for
- * this file. Returns the symbol's id, or `null` if not found or ambiguous.
- */
-function resolveTargetId(calleeName: string, symbols: SymbolRef[]): string | null {
-  // Only match symbols that represent directly-callable declarations
-  // (functions, methods, classes). Variable declarators (const cb = fn) are
-  // excluded so that indirect calls via variable references return null target.
-  const matches = symbols.filter((s) => s.name === calleeName && s.callable);
-  return matches.length === 1 ? matches[0]!.id : null;
-}
-
-/**
- * Recursively collect all `call_expression` descendant nodes of `root`.
- * Returns them in source order.
+ * Recursively collect all `call_expression` descendant nodes of `root`,
+ * returned in source order.
  */
 function collectCallExpressions(root: Node): Node[] {
   const results: Node[] = [];
   function walk(node: Node): void {
-    if (node.type === "call_expression") {
-      results.push(node);
-    }
+    if (node.type === "call_expression") results.push(node);
     for (let i = 0; i < node.childCount; i++) {
       const child = node.child(i);
       if (child) walk(child);
@@ -93,19 +76,86 @@ function collectCallExpressions(root: Node): Node[] {
 }
 
 /**
- * Pass-1 naive CALLS extractor. Walks tree-sitter `call_expression` nodes,
- * identifies nearest enclosing named symbol as `source_id`, and resolves
- * same-file callee symbols as `target_id`. Cross-file / indirect / unresolved
- * callees produce `target_id = null` (deferred to pass-2 in S8).
+ * Walk up the AST from `callNode` to find the name of the nearest enclosing
+ * callable scope (function, method, or class). Returns
+ * `"${relativePath}:${name}"` when a scope is found, or just `relativePath`
+ * for module-scope calls.
  *
- * Emits only `edges`; `file`, `symbols`, and `imports` are always empty —
- * those fields belong to `BaselineTsJsExtractor`.
+ * For methods, returns `relativePath:ClassName.methodName` to match the FQN
+ * format produced by `buildMethodSymbols` in extractor.ts.
+ */
+function resolveSourceFqn(callNode: Node, relativePath: string): string {
+  let candidate: Node | null = callNode.parent;
+  while (candidate !== null) {
+    if (candidate.parent === null) break; // reached source_file root
+
+    if (CALLABLE_SCOPE_TYPES.has(candidate.type)) {
+      const nameNode =
+        candidate.childForFieldName("name") ??
+        candidate.children.find(
+          (c) => c.type === "identifier" || c.type === "property_identifier",
+        ) ??
+        null;
+      if (!nameNode) {
+        candidate = candidate.parent;
+        continue;
+      }
+
+      if (candidate.type === "method_definition") {
+        // Walk up further to find the enclosing class so we can build
+        // `ClassName.methodName` to match the FQN in buildMethodSymbols.
+        let classCandidate: Node | null = candidate.parent;
+        while (classCandidate !== null) {
+          if (classCandidate.type === "class_declaration") {
+            const classNameNode =
+              classCandidate.childForFieldName("name") ??
+              classCandidate.children.find((c) => c.type === "type_identifier") ??
+              null;
+            if (classNameNode) {
+              return `${relativePath}:${classNameNode.text}.${nameNode.text}`;
+            }
+            break;
+          }
+          classCandidate = classCandidate.parent;
+        }
+        // No enclosing class found (shouldn't happen) — fall back.
+        return `${relativePath}:${nameNode.text}`;
+      }
+
+      return `${relativePath}:${nameNode.text}`;
+    }
+    candidate = candidate.parent;
+  }
+  return relativePath;
+}
+
+/**
+ * Pass-1 naive CALLS extractor. Walks tree-sitter `call_expression` nodes and
+ * emits one `CALLS` edge per call site.
  *
- * See `.dextree/design.md` §8.6 for the broader plugin-contract story.
+ * **ID strategy (post-fix):** `source_id` and `target_id` are left as
+ * placeholder/null values here. The real symbol IDs are resolved by the SQL
+ * post-pass `resolveCallEdgeSymbols` in `repository.ts` after all symbol rows
+ * for this file have been written. This avoids the mismatch between the random
+ * UUIDs this extractor would otherwise mint and the IDs BaselineTsJsExtractor
+ * writes.
+ *
+ * Edge metadata carries:
+ *   - `source_fqn`  — `"${relativePath}:${enclosingFn}"` (or just relativePath
+ *                     for module-scope calls); used for source_id resolution.
+ *   - `callee_name` — raw identifier of the called symbol; used for
+ *                     same-file target_id resolution.
+ *   - `call_site_range`, `language` — informational.
+ *
+ * Cross-file / indirect / unresolved callees remain `target_id = null` after
+ * the post-pass. Pass-2 LSP (S8) will fill those in.
+ *
+ * Emits only `edges`; `file`, `symbols`, and `imports` always empty — those
+ * belong to `BaselineTsJsExtractor`.
  */
 export class NaiveCallExtractor implements Extractor {
   readonly name = "naive-call";
-  readonly version = "0.1.0";
+  readonly version = "0.2.0";
 
   supports(language: string): boolean {
     return SUPPORTED.has(language);
@@ -116,17 +166,7 @@ export class NaiveCallExtractor implements Extractor {
       return emptyResult();
     }
 
-    // Symbols are populated by BaselineTsJsExtractor earlier in the same run()
-    // invocation. The registry merges them into `merged.symbols` before this
-    // extractor runs — but we receive `input` which has no merged symbols.
-    // The registry contract says extractors receive the original `input`; we
-    // therefore cannot access baseline symbols from `input`. Instead we walk
-    // the tree directly for source_id resolution.
-    //
-    // For target_id resolution we rely on the same approach: walk the root for
-    // named top-level declarations to build a quick name→id lookup.
-    const fileSymbols = buildSymbolMap(input.tree.rootNode, input.fileId);
-
+    const relativePath = toPosixRelativePath(input.workspaceRoot, input.absolutePath);
     const callNodes = collectCallExpressions(input.tree.rootNode);
     const edges: EdgeRow[] = [];
 
@@ -134,20 +174,22 @@ export class NaiveCallExtractor implements Extractor {
       const calleeName = extractCalleeName(callNode);
       if (!calleeName) continue;
 
-      const sourceId = resolveSourceIdFromNode(callNode, fileSymbols, input.fileId);
-      const targetId = resolveTargetId(calleeName, fileSymbols);
+      const sourceFqn = resolveSourceFqn(callNode, relativePath);
 
       edges.push({
         id: uuidv4(),
-        sourceId,
-        targetId,
+        // Placeholder: SQL post-pass in resolveCallEdgeSymbols resolves this to
+        // the actual symbol id once BaselineTsJsExtractor's rows are committed.
+        sourceId: input.fileId,
+        targetId: null,
         kind: "CALLS",
         weight: null,
         metadata: {
+          source_fqn: sourceFqn,
           callee_name: calleeName,
           call_site_range: {
-            start_line: callNode.startPosition.row + 1, // 1-based
-            start_col: callNode.startPosition.column, // 0-based
+            start_line: callNode.startPosition.row + 1,
+            start_col: callNode.startPosition.column,
             end_line: callNode.endPosition.row + 1,
             end_col: callNode.endPosition.column,
           },
@@ -158,134 +200,4 @@ export class NaiveCallExtractor implements Extractor {
 
     return { ...emptyResult(), edges };
   }
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers for name → id resolution independent of baseline
-// ---------------------------------------------------------------------------
-
-interface SymbolRef {
-  id: string;
-  name: string;
-  startLine: number;
-  startCol: number;
-  endLine: number;
-  endCol: number;
-  /** True for function-like declarations that can be directly invoked by name. */
-  callable: boolean;
-}
-
-/**
- * Build a lightweight symbol table from top-level and class-member declarations
- * in the tree, assigning stable ids by combining fileId + position. This mirrors
- * the baseline's own id strategy (uuidv4) but we mint our own per-run ids that
- * are consistent within a single extract() call.
- *
- * We mint position-stable UUIDs using a deterministic hash so that source_id in
- * edges corresponds to the same symbols the baseline will write. Because both
- * extractors share `input.fileId`, the symbols are keyed by name match only.
- *
- * NOTE: In the registry run() loop, BaselineTsJsExtractor runs first (registration
- * order), producing symbol ids based on uuidv4(). NaiveCallExtractor runs second.
- * The two extractors do NOT share symbol ids because the registry does not expose
- * merged results to later extractors. This is a known limitation of the naive
- * pass-1 approach — target_id will match same-file names only; source_id uses
- * file-scoped position matching.
- *
- * For the purposes of this slice, source_id falls back to fileId when no exact
- * symbol match is found — which is the spec-correct behavior for calls at module
- * scope or inside anonymous callbacks.
- */
-function buildSymbolMap(root: Node, _fileId: string): SymbolRef[] {
-  const symbols: SymbolRef[] = [];
-  const seen = new Set<string>();
-
-  function addSymbol(node: Node, name: string, callable: boolean): void {
-    const key = `${name}:${node.startPosition.row}:${node.startPosition.column}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    symbols.push({
-      id: uuidv4(),
-      name,
-      startLine: node.startPosition.row,
-      startCol: node.startPosition.column,
-      endLine: node.endPosition.row,
-      endCol: node.endPosition.column,
-      callable,
-    });
-  }
-
-  function visit(node: Node): void {
-    switch (node.type) {
-      case "function_declaration":
-      case "class_declaration":
-      case "interface_declaration":
-      case "type_alias_declaration":
-      case "enum_declaration": {
-        const nameNode =
-          node.childForFieldName("name") ??
-          node.children.find((c) => c.type === "identifier" || c.type === "type_identifier") ??
-          null;
-        if (nameNode)
-          addSymbol(
-            node,
-            nameNode.text,
-            node.type === "function_declaration" || node.type === "class_declaration",
-          );
-        break;
-      }
-      case "method_definition": {
-        const nameNode =
-          node.childForFieldName("name") ??
-          node.children.find((c) => c.type === "property_identifier") ??
-          null;
-        if (nameNode) addSymbol(node, nameNode.text, true);
-        break;
-      }
-      case "variable_declarator": {
-        const nameNode = node.childForFieldName("name") ?? node.children[0] ?? null;
-        if (nameNode?.type === "identifier") addSymbol(node, nameNode.text, false);
-        break;
-      }
-      default:
-        break;
-    }
-
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i);
-      if (child) visit(child);
-    }
-  }
-
-  visit(root);
-  return symbols;
-}
-
-/**
- * Resolve `source_id` using the local symbol table built from the tree.
- * Walks up the AST to find the nearest enclosing named scope, then looks up
- * that scope in `fileSymbols` by range. Falls back to `fileId`.
- */
-function resolveSourceIdFromNode(callNode: Node, fileSymbols: SymbolRef[], fileId: string): string {
-  let candidate: Node | null = callNode.parent;
-  while (candidate !== null) {
-    if (candidate.parent === null) {
-      // Reached program/source_file root
-      return fileId;
-    }
-    if (NAMED_SCOPE_TYPES.has(candidate.type)) {
-      const r = candidate.startPosition;
-      const e = candidate.endPosition;
-      const match = fileSymbols.find(
-        (s) =>
-          s.startLine === r.row &&
-          s.startCol === r.column &&
-          s.endLine === e.row &&
-          s.endCol === e.column,
-      );
-      if (match) return match.id;
-    }
-    candidate = candidate.parent;
-  }
-  return fileId;
 }

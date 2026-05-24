@@ -129,6 +129,54 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
+  // INHERITS: class → base class (resolved source + target symbols, cross-file included)
+  const inheritsRows = await (
+    await connection.run(
+      `
+        SELECT
+          MIN(e.id) AS id,
+          e.source_id AS source,
+          e.target_id AS target
+        FROM edge e
+        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
+        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
+        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
+        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
+        WHERE e.kind = 'INHERITS'
+          AND e.target_id IS NOT NULL
+          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
+          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
+        GROUP BY e.source_id, e.target_id
+        ORDER BY source ASC, target ASC
+      `,
+      params,
+    )
+  ).getRowObjectsJS();
+
+  // INSTANTIATES: symbol/file → class (resolved source + target)
+  const instantiatesRows = await (
+    await connection.run(
+      `
+        SELECT
+          MIN(e.id) AS id,
+          e.source_id AS source,
+          e.target_id AS target
+        FROM edge e
+        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
+        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
+        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
+        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
+        WHERE e.kind = 'INSTANTIATES'
+          AND e.target_id IS NOT NULL
+          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
+          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
+        GROUP BY e.source_id, e.target_id
+        ORDER BY source ASC, target ASC
+      `,
+      params,
+    )
+  ).getRowObjectsJS();
+
   const nodes: GraphNode[] = [
     ...fileRows.map((row) => {
       const filePath = String(row.filePath);
@@ -178,6 +226,18 @@ export async function getWorkspaceSubgraph(
       source: String(row.source),
       target: String(row.target),
       kind: "CALLS" as const,
+    })),
+    ...inheritsRows.map((row) => ({
+      id: String(row.id),
+      source: String(row.source),
+      target: String(row.target),
+      kind: "INHERITS" as const,
+    })),
+    ...instantiatesRows.map((row) => ({
+      id: String(row.id),
+      source: String(row.source),
+      target: String(row.target),
+      kind: "INSTANTIATES" as const,
     })),
   ];
 

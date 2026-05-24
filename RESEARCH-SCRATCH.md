@@ -604,3 +604,263 @@ The current `ROADMAP.md` still cites section numbers from the older scratch doc.
 | old `§11` theme token spec                | `§3b`                                |
 | old `§13.2` GitNexus prior art            | `§2a` reference list + `§6 GitNexus` |
 | old `§13.3` Aider RepoMap prior art       | `§2c` row `(b)` + `§6 Aider RepoMap` |
+
+---
+
+## Option B — Graph Cluster + Flow View Scratch (2026-05-23)
+
+> **Constraint: no library replacements.** We stay on Sigma.js + graphology + ForceAtlas2 + framer-motion + React. Everything below adds visual layers on top of the existing stack.
+
+### What we have today (baseline)
+
+- `MultiDirectedGraph` (graphology) — holds nodes (`file` / `symbol`) + edges (`DEFINES` / `IMPORTS` / `CALLS`)
+- Sigma.js WebGL renderer — handles node/edge drawing, camera, zoom
+- ForceAtlas2 layout — 50 iterations at mount, then static
+- SVG overlay (`dxt-selection-overlay`) — framer-motion animated dashes + traveler circles on hover/selection
+- `nodeReducer` / `edgeReducer` — Sigma hooks that apply per-frame fading (`FADE_ALPHA = 0.06`)
+- `computeDescendantSelection` BFS — walks DEFINES then CALLS from the clicked node
+- `computeHoverNeighborhood` — immediate neighbours on hover
+
+### Four features to add
+
+---
+
+#### B1 — Convex Hull Cluster Blobs
+
+**Problem:** symbols from the same file scatter across the canvas with no grouping cue.  
+**Solution:** a Canvas2D layer behind Sigma's WebGL canvas draws a translucent polygon per file, enclosing all its child symbols.
+
+**How it fits in the existing code:**
+
+- After `sigma = new Sigma(...)` and layout, insert a new `<canvas id="dxt-cluster-layer">` as a sibling of Sigma's canvas inside `#dxt-graph-container`. Give it `position: absolute; inset: 0; pointer-events: none; z-index: 0`.
+- Sigma's canvas sits at `z-index: 1`.
+- On `sigma.on("afterRender", drawHulls)` re-run the hull renderer. This event fires every time Sigma redraws (camera pan/zoom).
+- `drawHulls` uses `sigma.graphToViewport(nodeId)` — already a public Sigma 3 method — to convert graph coordinates → pixel coordinates for each symbol node.
+- Group symbol nodes by `filePath`. For each group with ≥ 3 points compute a convex hull (inline ~35-line Graham scan — no new npm dep needed).
+- Draw: `ctx.fillStyle` = file-node color at 8% opacity; `ctx.strokeStyle` at 28% opacity, 1.5px dashed `[4, 6]`.
+- On hover/selection: hovered file hull fills to 14%, others dim to 30% fill.
+- Reduced motion: no fill fade-in transition, just instant draw.
+
+**Sigma API used (already available in Sigma 3):**
+
+```ts
+sigma.graphToViewport(nodeId: string): { x: number; y: number }
+sigma.on("afterRender", handler)
+```
+
+**Edge cases:**
+
+- File with 0–2 symbols: skip hull (convex hull of < 3 points is degenerate).
+- Canvas resize: `ResizeObserver` already watches the container; call `canvas.width = container.clientWidth` etc. in the existing resize handler.
+
+---
+
+#### B2 — Execution-Flow Highlight (call chain pulse)
+
+**Problem:** selecting a node shows its descendants but all edges look the same — there's no sense of "flow order" or depth.  
+**Solution:** the existing BFS (`computeDescendantSelection`) is extended to return edges grouped by hop depth. The framer-motion overlay delays each hop's animation by `hopIndex × 0.18 s` creating a visible waterfall pulse.
+
+**How it fits:**
+
+- Change `computeDescendantSelection` return type to add `hopLayers: string[][]` (array of arrays of edge IDs per BFS depth, max `FLOW_MAX_DEPTH = 4`).
+- In the JSX, pass `transition.delay = hopIndex * 0.18` to each `motion.line` based on which layer the edge belongs to.
+- No new Sigma API needed — purely a change to the React overlay.
+- Traveler circles already exist; add `delay: hopIndex * 0.22` to them too.
+
+```ts
+// current return
+{ selectedNodeId, nodeIds, edgeIds, orderedEdgeIds }
+// new return — backwards compatible
+{ selectedNodeId, nodeIds, edgeIds, orderedEdgeIds, hopLayers: string[][] }
+```
+
+**Reduced motion:** skip delays and animation entirely — render static highlighted lines (same as current no-motion path).
+
+---
+
+#### B3 — Caller/Callee Sidebar Panel
+
+**Problem:** you can see selected-node edges highlighted on canvas but there's no readable list of "who calls this" or "what does this call."  
+**Solution:** when a node is selected, a collapsible panel (right side, same position as existing `dxt-graph-panel`) lists direct callers and callees.
+
+**How it fits:**
+
+- Read `selectedNodeId` (already in React state).
+- Call `graph.inNeighbors(selectedNodeId)` filtered to edges with `edgeKind === "CALLS"` for callers; `graph.outNeighbors()` for callees.
+- Render as two sections inside the existing `dxt-graph-panel` div (or replace the stats block when a node is selected).
+- Each row: symbol name + file badge. Click → `onNavigate(filePath, startLine)` (same callback already used by double-click).
+- Cap at 8 entries per section; show "+ N more" if overflow.
+- Zero new state — reads directly from `graphRef.current`.
+
+---
+
+#### B4 — Mini-Map
+
+**Problem:** on large graphs the user loses orientation after panning.  
+**Solution:** a small 128 × 96 px thumbnail in the bottom-right corner of the graph stage.
+
+**Approach — custom Canvas2D thumbnail (no new dep):**
+
+- A second `<canvas id="dxt-minimap">` sits at `position: absolute; bottom: 14px; right: 14px; z-index: 10; pointer-events: auto`.
+- On `afterRender`: iterate `graph.forEachNode()`, project with `graphToViewport()`, scale to 128 × 96, draw dots at 1–2 px each in node color.
+- Draw a viewport rectangle using `sigma.getCamera().getState()` (ratio → zoom level → rectangle size).
+- Mouse drag on the mini-map calls `camera.setState({ x, y })`.
+- Hidden when `graph.order <= 20`.
+- A toggle button `⊞` in the top-left toolbar shows/hides it (`useState<boolean>`).
+
+> Note: `@sigma/layer-minimap` npm package is an option if the custom canvas feels flaky. It's < 4 KB and has no native deps. Decide at planning time after checking bundle impact on `.vsix` size.
+
+---
+
+### Implementation order (suggested)
+
+1. **B2 first** — purely internal change to `computeDescendantSelection` + framer-motion delay prop. Zero new DOM, zero new canvas. Smallest blast radius. Tests are easy to write.
+2. **B3** — React JSX only, reads existing graph state. No Sigma interaction.
+3. **B1** — new canvas element + `afterRender` hook. Medium complexity.
+4. **B4** — second canvas + camera interaction. Most complex; also least critical.
+
+### Files that will change
+
+| File                                                           | What changes                                                   |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| `packages/extension/src/webview/components/GraphView.tsx`      | B1 canvas init, B2 hop layers, B3 panel JSX, B4 minimap canvas |
+| `packages/extension/src/webview/html.ts`                       | CSS for cluster canvas, panel layout, minimap                  |
+| `packages/extension/src/webview/components/GraphView.test.tsx` | tests for hop layers, sidebar entries, hull grouping           |
+
+No new packages. No new top-level `packages/` workspace entries. No library swaps.
+
+### Open questions before planning
+
+1. B3 panel — replace stats block on selection or stack below? (Stack below keeps stats always visible.)
+2. B1 convex hull — inline Graham scan (zero dep) or `convex-hull` npm (< 2 KB, no native)? Preference: inline unless the polygon looks wrong at edge cases.
+3. B4 minimap — custom canvas or `@sigma/layer-minimap`? Need to check `.vsix` size budget first.
+4. B2 hop depth — cap at 4 or make it user-configurable via a slider in the panel?
+
+---
+
+## Scratch: Graph Edges CALLS ID mismatch + IMPORTS alias resolutionGap
+
+_Branch: 015-release-truth-gate_
+
+### Diagnosis
+
+**Problem 1: CALLS edges written with wrong symbol IDs**
+
+`NaiveCallExtractor.buildSymbolMap()` mints fresh `uuidv4()` IDs for symbols by walking
+the AST independently. `BaselineTsJsExtractor` also mints fresh `uuidv4()` IDs for the
+same symbols via `extractTypeScriptFromTree`. Both run from the same `input.fileId` but
+they **never share the registry does not expose one extractor's outputs to another.IDs**
+
+Result: CALLS edges ARE written to the `edge` table (pipeline is correct), but
+`source_id` / `target_id` point to ephemeral IDs that no `symbol` row has. The SQL JOIN
+in `getWorkspaceSubgraph` (`INNER JOIN symbol src ON src.id = e.source_id`) returns zero
+CALLS edges are invisible in the graph.
+
+**Problem 2: IMPORTS alias resolution returns null for `@/*` imports**
+
+`resolveImportPath()` in `extractor.ts` returns `null` immediately for any specifier that
+`src/*` mapping in `tsconfig.json` is never consulted.
+Result: all `@/` imports silently dropped.
+
+### Fix Plan
+
+#### Fix A: CALLS share symbol IDs across extractors (minimal change)edges
+
+The `ExtractInput` interface already has `fileId`. We need it to also carry the symbols the
+baseline wrote. Two approaches:
+
+**Option A1 ( minimal surface change):**chosen
+
+- Add optional `knownSymbols?: ReadonlyArray<{ id: string; name: string; kind: string; startLine: number }>` to `ExtractInput`.
+- After `BaselineTsJsExtractor` runs in the registry, inject `result.symbols` into `input` for subsequent extractors.
+- `NaiveCallExtractor` uses `input.knownSymbols` for `resolveTargetId` and `resolveSourceIdFromNode` instead of building its own symbol table.
+- Zero schema changes; zero new npm deps.
+
+**Option A2 ( skip NaiveCallExtractor's own symbol map entirely):**alternative
+
+- The registry merges results in order. After baseline runs, pass merged `symbols` back into later `extract()` calls.
+- Requires making the registry stateful within a `run()` slightly more invasive.call
+
+#### Fix B: resolve `@/*` path aliasesIMPORTS
+
+- In `extractImportRefs()`, before checking `!specifier.startsWith(".")`, try to load
+  `tsconfig.json` from the workspace root and expand path aliases.
+- Cache the parsed tsconfig per workspace root (module-level Map) to avoid repeated FS reads.
+- Only resolve `paths` mappings; ignore `baseUrl` for now (keep scope small).
+- If tsconfig is absent or parse fails, fall back to current behavior (relative-only).
+
+### Implementation Notes
+
+- `knownSymbols` on `ExtractInput` must be `readonly` and optional (backward compat).
+- The registry `run()` loop: after each extractor, accumulate `symbols` into a running list,
+  inject into the _next_ extractor's input as `knownSymbols`.
+- `NaiveCallExtractor.resolveTargetId` already has the right just change source toshape
+  `input.knownSymbols` instead of `fileSymbols`.
+- `NaiveCallExtractor.resolveSourceIdFromNode`: keep the AST-walk fallback but match against
+  `input.knownSymbols` by `startLine` / `startCol` from node position (same heuristic, better IDs).
+- For tsconfig alias expansion: use `JSON.parse` only (no `ts.parseJsonConfigFileContent`
+  to avoid pulling TypeScript as a runtime dep). Parse `compilerOptions.paths` key.
+
+---
+
+## Option B Re-scratch (Round 2): SQL-side FQN resolution for CALLS edges
+
+**Date**: Current session
+
+### Problem diagnosis
+
+`NaiveCallExtractor.buildSymbolMap()` generates fresh `uuidv4()` IDs for symbols.
+These IDs do not match the symbol IDs written by `BaselineTsJsExtractor` (also random uuids).
+So CALLS edges land in the `edge` table with `source_id`/`target_id` pointing to IDs that
+do not exist in the `symbol` table.
+
+CALLS
+never appear in the graph.
+
+### Fix: two- extractor metadata + SQL post-passphase
+
+#### Phase 1: NaiveCallExtractor emits FQNs in metadata
+
+- `sourceId` = `input.fileId` (stable placeholder; not phantom UUID)
+- `targetId` = `null` (always; resolved by SQL)
+- Metadata gains: `source_fqn = "${relativePath}:${enclosingFunctionName}"` (or just
+  `relativePath` for module-scope calls)
+- `callee_name` stays (already used for same-file target resolutionpresent)
+
+#### Phase 2: `resolveCallEdgeSymbols` SQL UPDATE in `replaceFileGraph`
+
+Runs inside the same transaction, after symbols + edges are written:
+
+```sql
+ actual symbol
+UPDATE edge
+SET source_id = COALESCE(
+  (SELECT s.id FROM symbol s
+   WHERE s.file_id = $file_id
+     AND s.fqn = json_extract_string(edge.metadata, '$.source_fqn')
+   LIMIT 1),
+  source_id
+)
+WHERE kind = 'CALLS'
+  AND source_id = $file_id;
+
+ same-file symbol by callee_name
+UPDATE edge
+SET target_id = COALESCE(
+  (SELECT s.id FROM symbol s
+   WHERE s.file_id = $file_id
+     AND s.name = json_extract_string(edge.metadata, '$.callee_name')
+     AND s.kind IN ('function', 'method', 'class')
+   LIMIT 1),
+  target_id
+)
+WHERE kind = 'CALLS'
+  AND target_id IS NULL
+  AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id);
+```
+
+#### Files changed
+
+1. `packages/core/src/extractors/NaiveCallExtractor. simplify; add FQN metadatats`
+2. `packages/core/src/storage/repository. add `resolveCallEdgeSymbols`; call after `insertExtraEdges`ts`
+3. `packages/core/src/extractors/NaiveCallExtractor.test. update assertionsts`

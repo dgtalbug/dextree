@@ -40,11 +40,18 @@ export interface WorkspaceCacheLoadResult {
   shouldHydrateFromCache: boolean;
 }
 
-export type SymbolKind = "function" | "class" | "interface" | "type" | "enum" | "variable";
+export type SymbolKind =
+  | "function"
+  | "class"
+  | "interface"
+  | "type"
+  | "enum"
+  | "variable"
+  | "method";
 
 export type GraphNodeType = "file" | "symbol";
 
-export type GraphEdgeKind = "DEFINES" | "IMPORTS" | "CALLS";
+export type GraphEdgeKind = "DEFINES" | "IMPORTS" | "CALLS" | "INHERITS" | "INSTANTIATES";
 
 export interface SymbolRange {
   startLine: number;
@@ -181,6 +188,16 @@ export interface Indexer {
     workspaceRoot: string,
     cacheIdentity?: WorkspaceCacheIdentity,
   ): Promise<IndexResult>;
+  /**
+   * Run after all files in a workspace have been indexed.
+   *
+   * Resolves cross-file CALLS / INHERITS / INSTANTIATES edges whose
+   * `target_id` remained NULL after the per-file SQL post-pass (because the
+   * target symbol lives in a different file that was indexed separately).
+   * Safe to call after a partial index (cancelled or errored) — it will
+   * resolve whatever cross-file edges it can find.
+   */
+  finalizeWorkspace(workspaceRoot: string): Promise<void>;
   validateWorkspaceCache(identity: WorkspaceCacheIdentity): Promise<WorkspaceCacheValidation>;
   getSymbols(relativePath: string): Promise<StoredSymbol[]>;
   getAllFiles(): Promise<StoredFile[]>;

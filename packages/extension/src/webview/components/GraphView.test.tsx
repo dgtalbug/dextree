@@ -197,8 +197,10 @@ describe("GraphView", () => {
 
     const graph = sigmaConstructor.mock.calls[0]?.[0];
 
-    expect(graph.getNodeAttribute("file-1", "size")).toBe(16);
-    expect(graph.getNodeAttribute("symbol-1", "size")).toBe(7);
+    // file-1 has degree 2 (DEFINES + IMPORTS outgoing) → base 16 + (2-1)*0.35 = 16.35
+    expect(graph.getNodeAttribute("file-1", "size")).toBeCloseTo(16.35, 2);
+    // symbol-1 has degree 2 (DEFINES incoming + CALLS outgoing) → base 7 + 0.35 = 7.35
+    expect(graph.getNodeAttribute("symbol-1", "size")).toBeCloseTo(7.35, 2);
     expect(graph.getNodeAttribute("file-1", "color")).not.toBe(
       graph.getNodeAttribute("symbol-1", "color"),
     );

@@ -50,6 +50,7 @@ function createMockIndexer() {
     clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
     getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
     getSessionSummary: vi.fn().mockResolvedValue(null),
+    finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
   };
 }
