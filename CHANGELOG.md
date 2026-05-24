@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/dgtalbug/dextree/compare/v1.0.0...v1.0.1) (2026-05-24)
+
+
+### Bug Fixes
+
+* **ci:** compile fuzz targets with tsup before running Jazzer.js ([#64](https://github.com/dgtalbug/dextree/issues/64)) ([29dbc48](https://github.com/dgtalbug/dextree/commit/29dbc48ffbc6e951e9ed116ff02a04035f35b06d))
+
 ## 1.0.0 (2026-05-24)
 
 ### Features
