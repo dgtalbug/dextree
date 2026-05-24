@@ -98,6 +98,7 @@ jobs:
     needs:
       - release-please
       - build-vsix
+      - publish-openvsx
     if: needs.release-please.outputs.release_created == 'true'
     strategy:
       fail-fast: false
