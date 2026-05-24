@@ -21,10 +21,34 @@ export async function openDatabase(dbPath: string): Promise<DatabaseHandle> {
   };
 }
 
+/**
+ * Runs `operation` inside a BEGIN TRANSACTION / COMMIT block.
+ *
+ * Resilience contract:
+ * - A defensive ROLLBACK is issued before BEGIN TRANSACTION to clear any
+ *   aborted state left by a previous failed transaction (e.g. if the prior
+ *   ROLLBACK threw due to a DuckDB Node API quirk). Errors from this
+ *   pre-flight ROLLBACK are silently ignored — the only two outcomes are
+ *   "no active transaction" (normal) or "aborted state cleared" (desired).
+ * - On operation failure, ROLLBACK is attempted and any error it throws is
+ *   swallowed so the original error always propagates to the caller.
+ *
+ * NOTE: `runInTransaction` must never be called from inside another
+ * `runInTransaction` block. The defensive ROLLBACK would silently undo the
+ * outer transaction. All call sites in this codebase use it at the top level.
+ */
 export async function runInTransaction<T>(
   connection: DuckDBConnection,
   operation: () => Promise<T>,
 ): Promise<T> {
+  // Pre-flight: clear any lingering aborted transaction from a previous call.
+  // "No active transaction" is expected on a clean connection and not an error.
+  try {
+    await connection.run("ROLLBACK");
+  } catch {
+    // Normal path — no active transaction to roll back.
+  }
+
   await connection.run("BEGIN TRANSACTION");
 
   try {
@@ -32,7 +56,12 @@ export async function runInTransaction<T>(
     await connection.run("COMMIT");
     return result;
   } catch (error) {
-    await connection.run("ROLLBACK");
+    // Wrap ROLLBACK so a failing rollback doesn't replace the original error.
+    try {
+      await connection.run("ROLLBACK");
+    } catch {
+      // Best-effort only — the pre-flight on the next call will clean this up.
+    }
     throw error;
   }
 }
