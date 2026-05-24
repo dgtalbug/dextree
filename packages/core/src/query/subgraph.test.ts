@@ -243,6 +243,87 @@ describe("getWorkspaceSubgraph", () => {
     }
   });
 
+  it("projects fan_in / is_core / flags / signature / docstring onto symbol nodes (slice 020)", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("foo"));
+
+      // Seed slice-020 columns directly. These columns are pass-2 / quality-pipeline
+      // outputs (S8 / S11.7) that aren't populated by pass-1 extraction, so test
+      // setup writes them with raw UPDATEs.
+      await database.connection.run(
+        `UPDATE symbol
+         SET fan_in = 7,
+             is_core = TRUE,
+             flags = ['hot-path'],
+             signature = 'function foo(): void',
+             docstring = 'Does the foo.'
+         WHERE id = $id`,
+        { id: "symbol-foo" },
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const symbolNode = graph.nodes.find((n) => n.id === "symbol-foo");
+
+      expect(symbolNode).toBeDefined();
+      expect(symbolNode?.fanIn).toBe(7);
+      expect(symbolNode?.isCore).toBe(true);
+      expect(symbolNode?.flags).toEqual(["hot-path"]);
+      expect(symbolNode?.signature).toBe("function foo(): void");
+      expect(symbolNode?.docstring).toBe("Does the foo.");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("maps NULL signature/docstring to undefined, never null literal (slice 020 FR-010)", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("bar"));
+
+      // No explicit UPDATE — signature/docstring stay NULL by default.
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const symbolNode = graph.nodes.find((n) => n.id === "symbol-bar");
+
+      expect(symbolNode).toBeDefined();
+      expect(symbolNode?.signature).toBeUndefined();
+      expect(symbolNode?.docstring).toBeUndefined();
+      // Important: not the string "null"
+      expect(symbolNode?.signature).not.toBe("null");
+      expect(symbolNode?.docstring).not.toBe("null");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("does not project symbol-only columns onto file nodes (slice 020)", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("baz"));
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const fileNode = graph.nodes.find((n) => n.id === "file-baz");
+
+      expect(fileNode).toBeDefined();
+      // File rows never have these columns — they should be undefined on file-type GraphNodes
+      expect(fileNode?.fanIn).toBeUndefined();
+      expect(fileNode?.signature).toBeUndefined();
+      expect(fileNode?.docstring).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
   it("projects workspace_framework rows and per-file framework attribution (slice 018)", async () => {
     const database = await openDatabase(":memory:");
 

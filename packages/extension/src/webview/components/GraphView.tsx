@@ -7,6 +7,7 @@ import Sigma from "sigma";
 
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
+import { InspectorPanel } from "./InspectorPanel.js";
 import { CANONICAL_NODE_FILTER_LIST, type NodeFilterEntry } from "./NodeFilterPanel.js";
 import type {
   FallbackNode,
@@ -1637,6 +1638,11 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
           height={96}
         />
       </div>
+      <InspectorPanel
+        selectedNode={
+          selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
+        }
+      />
     </div>
   );
 }

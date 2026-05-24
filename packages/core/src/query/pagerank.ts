@@ -1,9 +1,14 @@
 import { DirectedGraph, type MultiDirectedGraph } from "graphology";
-import pagerank from "graphology-pagerank";
+import { centrality } from "graphology-metrics";
 
-// graphology-pagerank refuses MultiGraph inputs (parallel-edge ranking is
-// ambiguous). Collapse parallel edges into a simple DirectedGraph so the
-// caller can keep its MultiDirectedGraph for rendering distinct edge kinds.
+const pagerank = centrality.pagerank;
+
+// `graphology-metrics` exposes a richer surface than the old `graphology-pagerank`
+// dep (PageRank + centrality + HITS + modularity). PageRank itself is API-equivalent:
+// same option keys (alpha / tolerance / maxIterations), same `Record<string, number>`
+// return shape. We keep `toSimpleDirected` because parallel-edge ranking is ambiguous —
+// converting to a simple graph gives deterministic scores regardless of how the caller
+// builds the underlying MultiDirectedGraph.
 function toSimpleDirected(graph: MultiDirectedGraph): DirectedGraph {
   const simple = new DirectedGraph();
   graph.forEachNode((node) => {
@@ -37,6 +42,9 @@ export function computeNodeImportance(graph: MultiDirectedGraph): Map<string, nu
 
   try {
     const raw = pagerank(simple, {
+      // `getEdgeWeight: null` = unweighted, matching the legacy graphology-pagerank
+      // default. Required field in graphology-metrics' typed options.
+      getEdgeWeight: null,
       alpha: 0.85,
       tolerance: 1e-6,
       maxIterations: 100,
