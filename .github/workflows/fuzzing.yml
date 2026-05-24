@@ -6,7 +6,7 @@ name: Fuzzing
 # completes in well under the 10-minute timeout.
 #
 # OpenSSF Scorecard "Fuzzing" check detects @jazzer.js/core in package.json
-# *and* a workflow that exercises it — both are present after this commit.
+# *and* a workflow that exercises  both are present after this commit.it
 
 on:
   push:
@@ -55,11 +55,22 @@ jobs:
       - name: Build exporters (and its workspace dependencies)
         run: pnpm turbo build --filter=@dextree/exporters...
 
+      - name: Compile fuzz targets
+        # tsup only bundles src/index.ts; compile fuzz files with tsc so
+        # Jazzer.js gets a plain .js file it can load directly.
+        working-directory: packages/exporters
+        run: |
+          node_modules/.bin/tsc \
+            --module commonjs --moduleResolution node \
+            --target es2022 --outDir dist/__fuzz__ \
+            --rootDir src --skipLibCheck --esModuleInterop \
+            src/__fuzz__/serializer.fuzz.ts
+
       - name: Run fuzzer (${{ matrix.target }})
         # --timeout limits each individual input; --fuzz_time limits the total
         # corpus exploration run so CI does not block indefinitely.
         run: |
-          npx jazzer ${{ matrix.target }} \
+          npx jazzer packages/exporters/dist/__fuzz__/serializer.fuzz.js \
             --timeout=5000 \
             -- \
             -max_total_time=30 \
