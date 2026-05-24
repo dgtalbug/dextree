@@ -253,7 +253,7 @@ describe("getWorkspaceSubgraph", () => {
 
       // Seed slice-020 columns directly. These columns are pass-2 / quality-pipeline
       // outputs (S8 / S11.7) that aren't populated by pass-1 extraction, so test
-      // setup writes them with raw UPDATEs.
+      // setup writes them with raw SQL UPDATE statements.
       await database.connection.run(
         `UPDATE symbol
          SET fan_in = 7,
