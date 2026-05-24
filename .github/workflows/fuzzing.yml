@@ -52,8 +52,8 @@ jobs:
         with:
           turbo-cache: "false"
 
-      - name: Build exporters
-        run: pnpm --filter @dextree/exporters build
+      - name: Build exporters (and its workspace dependencies)
+        run: pnpm turbo build --filter=@dextree/exporters...
 
       - name: Run fuzzer (${{ matrix.target }})
         # --timeout limits each individual input; --fuzz_time limits the total
