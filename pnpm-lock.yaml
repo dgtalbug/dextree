@@ -93,6 +93,12 @@ importers:
         specifier: ^0.26.8
         version: 0.26.8
 
+  packages/exporters:
+    dependencies:
+      '@dextree/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/extension:
     dependencies:
       graphology:
@@ -108,6 +114,9 @@ importers:
       '@dextree/core':
         specifier: workspace:*
         version: link:../core
+      '@dextree/exporters':
+        specifier: workspace:*
+        version: link:../exporters
       '@duckdb/node-api':
         specifier: ^1.5.2-r.1
         version: 1.5.2-r.1
