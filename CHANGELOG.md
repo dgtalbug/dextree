@@ -2,10 +2,9 @@
 
 ## [1.3.0](https://github.com/dgtalbug/dextree/compare/v1.2.0...v1.3.0) (2026-05-24)
 
-
 ### Features
 
-* **extension,core:** inspector panel + graphology-metrics swap (slice 020) ([#86](https://github.com/dgtalbug/dextree/issues/86)) ([9e9a842](https://github.com/dgtalbug/dextree/commit/9e9a84290c004cd04c03dea9af884373ca17f81c))
+- **extension,core:** inspector panel + graphology-metrics swap (slice 020) ([#86](https://github.com/dgtalbug/dextree/issues/86)) ([9e9a842](https://github.com/dgtalbug/dextree/commit/9e9a84290c004cd04c03dea9af884373ca17f81c))
 
 ## [1.2.0](https://github.com/dgtalbug/dextree/compare/v1.1.0...v1.2.0) (2026-05-24)
 

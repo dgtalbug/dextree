@@ -16,8 +16,8 @@ on:
         type: string
     secrets:
       VSCE_PAT:
-        description: Azure DevOps PAT for the marketplace publisher.
-        required: true
+        description: Azure DevOps PAT for the marketplace publisher. Optional — job skips gracefully when not set.
+        required: false
 
 permissions:
   contents: read
@@ -33,25 +33,30 @@ jobs:
         with:
           egress-policy: audit
       - name: Secrets guard
+        id: guard
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           if [ -z "${VSCE_PAT:-}" ]; then
-            echo "::error::VSCE_PAT secret is empty. Configure it in repo secrets before publishing."
-            exit 1
+            echo "::warning::VSCE_PAT secret is not set — skipping VS Code Marketplace publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Checkout
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: Setup workspace
+        if: steps.guard.outputs.skip != 'true'
         uses: ./.github/actions/setup
       - name: Download .vsix artifact
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ inputs.vsix-artifact-name }}
           path: packages/extension
       - name: Publish to VS Code Marketplace
+        if: steps.guard.outputs.skip != 'true'
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         working-directory: packages/extension
