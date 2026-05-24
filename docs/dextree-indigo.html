@@ -4506,7 +4506,9 @@
         <div class="gaps-stats reveal">
           <div class="gaps-stat">
             <span class="gaps-stat-label">test coverage</span>
-            <span class="gaps-stat-value" data-tone="good">80.3<span style="font-size: 18px; color: var(--ink-mute)">%</span></span>
+            <span class="gaps-stat-value" data-tone="good"
+              >80.3<span style="font-size: 18px; color: var(--ink-mute)">%</span></span
+            >
             <span class="gaps-stat-meta">
               statements · core + exporters<br />
               threshold 70% · vitest v8
@@ -4514,18 +4516,33 @@
           </div>
           <div class="gaps-stat">
             <span class="gaps-stat-label">openssf scorecard</span>
-            <span class="gaps-stat-value" data-tone="warn">5.8<span style="font-size: 18px; color: var(--ink-mute)">/10</span></span>
+            <span class="gaps-stat-value" data-tone="warn"
+              >5.8<span style="font-size: 18px; color: var(--ink-mute)">/10</span></span
+            >
             <span class="gaps-stat-meta">
-              <a href="https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree" target="_blank" rel="noopener">live report ↗</a><br />
+              <a
+                href="https://scorecard.dev/viewer/?uri=github.com/dgtalbug/dextree"
+                target="_blank"
+                rel="noopener"
+                >live report ↗</a
+              ><br />
               Token-Permissions fix queued · next scan Mon 07:00 UTC
             </span>
           </div>
           <div class="gaps-stat">
             <span class="gaps-stat-label">slices merged</span>
-            <span class="gaps-stat-value">16<span style="font-size: 18px; color: var(--ink-mute)">/22</span></span>
+            <span class="gaps-stat-value"
+              >16<span style="font-size: 18px; color: var(--ink-mute)">/22</span></span
+            >
             <span class="gaps-stat-meta">
               Phase 1 done · S7 Hello Mermaid landed<br />
-              Phase 2 (mockup) next — <a href="https://github.com/dgtalbug/dextree/blob/main/ROADMAP.md" target="_blank" rel="noopener">roadmap ↗</a>
+              Phase 2 (mockup) next —
+              <a
+                href="https://github.com/dgtalbug/dextree/blob/main/ROADMAP.md"
+                target="_blank"
+                rel="noopener"
+                >roadmap ↗</a
+              >
             </span>
           </div>
           <div class="gaps-stat">
@@ -4544,9 +4561,8 @@
             <div class="gap-text">
               <strong>OpenSSF Code-Review check: 0/10</strong>
               <p>
-                0 of 17 changesets had approving review before merge — solo committer, no
-                CODEOWNERS file, no PR-review enforcement. Single largest item dragging the
-                Scorecard from 6→8.
+                0 of 17 changesets had approving review before merge — solo committer, no CODEOWNERS
+                file, no PR-review enforcement. Single largest item dragging the Scorecard from 6→8.
               </p>
             </div>
             <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
@@ -4558,12 +4574,13 @@
               <p>
                 All top-level write permissions narrowed to job-level with inline justification
                 comments:
-                <code style="font-family: var(--mono); color: var(--amber)">auto-merge-dependabot</code>,
-                <code style="font-family: var(--mono); color: var(--amber)">codeql</code>,
+                <code style="font-family: var(--mono); color: var(--amber)"
+                  >auto-merge-dependabot</code
+                >, <code style="font-family: var(--mono); color: var(--amber)">codeql</code>,
                 <code style="font-family: var(--mono); color: var(--amber)">release</code>,
-                <code style="font-family: var(--mono); color: var(--amber)">sbom</code>.
-                Remaining job-level writes (osv-scanner SARIF, pre-release draft) are documented
-                as legitimate. Score updates on next scheduled scan.
+                <code style="font-family: var(--mono); color: var(--amber)">sbom</code>. Remaining
+                job-level writes (osv-scanner SARIF, pre-release draft) are documented as
+                legitimate. Score updates on next scheduled scan.
               </p>
             </div>
             <div class="gap-fix">queued · <span class="ver">next scan</span></div>
@@ -4574,10 +4591,13 @@
               <strong>2 known dependency vulnerabilities</strong>
               <p>
                 Scorecard flags
-                <code style="font-family: var(--mono); color: var(--amber)">GHSA-67mh-4wv8-2f99</code>
+                <code style="font-family: var(--mono); color: var(--amber)"
+                  >GHSA-67mh-4wv8-2f99</code
+                >
                 and
-                <code style="font-family: var(--mono); color: var(--amber)">GHSA-4w7w-66w2-5vf9</code>.
-                Dependabot is on; tracked for the next batch update.
+                <code style="font-family: var(--mono); color: var(--amber)"
+                  >GHSA-4w7w-66w2-5vf9</code
+                >. Dependabot is on; tracked for the next batch update.
               </p>
             </div>
             <div class="gap-fix">fix · <span class="ver">v0.1.1</span></div>
@@ -4590,7 +4610,8 @@
                 The exporters package's own files are at 100%, but vitest's
                 <code style="font-family: var(--mono); color: var(--amber)">coverage.include</code>
                 scans the whole monorepo, producing a misleading "2.42% statements" headline that
-                fails the per-package <code style="font-family: var(--mono); color: var(--amber)">--coverage</code>
+                fails the per-package
+                <code style="font-family: var(--mono); color: var(--amber)">--coverage</code>
                 threshold. Headline number is wrong; real coverage is fine.
               </p>
             </div>
@@ -4601,10 +4622,10 @@
             <div class="gap-text">
               <strong>Branch protection is incomplete</strong>
               <p>
-                Scorecard 5/10 on Branch-Protection. CODEOWNERS file exists; the remaining gaps
-                are GitHub Settings → Branches toggles: "Require review from Code Owners",
-                "Include administrators", "Require approval of the most recent push", and
-                raising the required-approvers count above 1. Out-of-band fix (UI, not code).
+                Scorecard 5/10 on Branch-Protection. CODEOWNERS file exists; the remaining gaps are
+                GitHub Settings → Branches toggles: "Require review from Code Owners", "Include
+                administrators", "Require approval of the most recent push", and raising the
+                required-approvers count above 1. Out-of-band fix (UI, not code).
               </p>
             </div>
             <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
