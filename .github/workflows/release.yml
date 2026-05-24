@@ -17,7 +17,7 @@ concurrency:
 jobs:
   release-please:
     name: release-please
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       # Narrowed from top-level to job-level per OpenSSF Token-Permissions.
@@ -49,7 +49,7 @@ jobs:
     name: build-vsix (${{ matrix.target }})
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read

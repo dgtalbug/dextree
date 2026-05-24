@@ -16,7 +16,7 @@ permissions:
 jobs:
   generate:
     name: cyclonedx
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       # Narrowed from top-level to job-level per OpenSSF Token-Permissions.

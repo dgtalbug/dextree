@@ -22,7 +22,10 @@ permissions:
   pull-requests: write
 
 jobs:
+  # static-checks and link-check only run on PRs — they already passed before
+  # merge, re-running them on push-to-main wastes ~2 min of runner time per merge.
   static-checks:
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/_static-checks.yml
 
   # build, test, and package all run in parallel. Each invokes `pnpm build`
@@ -48,4 +51,5 @@ jobs:
     uses: ./.github/workflows/_spell-check.yml
 
   link-check:
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/_link-check.yml
