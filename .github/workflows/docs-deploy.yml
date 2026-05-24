@@ -56,6 +56,12 @@ jobs:
   build:
     name: Build docs site
     runs-on: ubuntu-latest
+    # `pages: write` is needed by actions/configure-pages with enablement:true
+    # so it can bootstrap the Pages site on first run. Once Pages is provisioned
+    # we can drop this permission and rely on the deploy job's grant.
+    permissions:
+      contents: read
+      pages: write
     steps:
       # NOTE: step-security/harden-runner removed — it failed with a non-Error
       # exception ("TypeError: error must be an instance of Error") at runtime
@@ -78,12 +84,17 @@ jobs:
       # Configure GitHub Pages so we get the right base path injected as
       # an output. `static_site_generator: vitepress` makes the action set
       # the correct outputs (base_path, origin) for VitePress's convention.
+      # `enablement: true` lets the action (re-)enable Pages via the API if
+      # the site hasn't been provisioned yet — without it, the action throws
+      # `TypeError: error must be an instance of Error` when Pages exists
+      # in the repo settings but no deployment has ever succeeded.
       - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         with:
           static_site_generator: vitepress
+          enablement: true
 
       # Build with the project-page base path. configure-pages emits the
       # base via `steps.pages.outputs.base_path` on main, but on PR builds
