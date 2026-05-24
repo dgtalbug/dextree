@@ -8,6 +8,7 @@
  * Run locally:
  *   npx jazzer packages/exporters/dist/__fuzz__/serializer.fuzz.js
  */
+import { DEFAULT_MERMAID_THEME } from "../mermaid/theme.js";
 import { serializeToMermaid } from "../mermaid/serializer.js";
 import type { WorkspaceSubgraph } from "@dextree/core";
 
@@ -22,12 +23,13 @@ export function fuzz(data: Buffer): void {
         label: text,
         type: "file",
         filePath: "/fuzz/test.ts",
+        startLine: 1,
       },
     ],
     edges: [],
   };
 
-  const result = serializeToMermaid(subgraph, { theme: "default" });
+  const result = serializeToMermaid(subgraph, { theme: DEFAULT_MERMAID_THEME });
 
   if (typeof result !== "string" || result.length === 0) {
     throw new Error("serializer returned empty or non-string output");
