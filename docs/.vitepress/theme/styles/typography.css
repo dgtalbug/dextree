@@ -1,0 +1,93 @@
+/**
+ * Typography rules for the Dextree docs site — applied site-wide.
+ *
+ * The Google Fonts links in config.mts head load Fraunces (display),
+ * Inter (body), and JetBrains Mono (mono). Tokens in tokens.css declare
+ * the stacks. These rules apply them to the actual elements.
+ *
+ * We use the :root selector (or html) for high enough specificity to
+ * override VitePress's default theme rules without resorting to
+ * !important on every declaration.
+ */
+
+html,
+body,
+.Layout,
+.VPHome,
+.VPDoc,
+.VPSidebar,
+.VPNav {
+  font-family: var(--body);
+  font-feature-settings: "kern", "ss01", "cv11";
+}
+
+body {
+  line-height: 1.55;
+}
+
+code,
+kbd,
+pre,
+.vp-doc code,
+.vp-doc pre {
+  font-family: var(--mono);
+}
+
+/* Doc page headings — Fraunces display font on h1/h2, Inter on h3/h4 */
+.VPDoc h1,
+.vp-doc h1 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(2rem, 3.5vw, 2.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+.VPDoc h2,
+.vp-doc h2 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(1.5rem, 2.5vw, 1.875rem);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin-top: 3rem;
+}
+
+.VPDoc h3,
+.vp-doc h3 {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin-top: 2rem;
+  letter-spacing: -0.005em;
+}
+
+.VPDoc h4,
+.vp-doc h4 {
+  font-family: var(--body);
+  font-weight: 600;
+}
+
+/* Body prose comfort */
+.VPDoc p,
+.VPDoc li,
+.vp-doc p,
+.vp-doc li {
+  font-size: 1rem;
+}
+
+/* Nav + sidebar use Inter mono-tracking like the indigo nav */
+.VPNav,
+.VPNavBar,
+.VPSidebar {
+  font-family: var(--body);
+}
+
+/* Smooth theme-color transitions when toggling */
+html {
+  transition:
+    background var(--t-med) var(--ease),
+    color var(--t-med) var(--ease);
+  /* Prevent horizontal scrollbars from 100vw full-bleed sections on the home */
+  overflow-x: clip;
+}
