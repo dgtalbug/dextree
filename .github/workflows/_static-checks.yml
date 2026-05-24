@@ -9,6 +9,10 @@ name: static-checks
 on:
   workflow_call:
 
+# Least-privilege default — overridden per-job only when a job needs more.
+permissions:
+  contents: read
+
 jobs:
   static-checks:
     name: static-checks
