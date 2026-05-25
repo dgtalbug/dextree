@@ -23,7 +23,11 @@ export interface ClassifySymbolInput {
 const UNCLASSIFIED_ENTRY: EntryKind = "unclassified";
 const UNKNOWN_LAYER: ArchitecturalLayer = "unknown";
 
-const TEST_PATH_RX = /(?:^|\/)(?:__tests__|__test__|tests?)\/|\.(?:test|spec)\.[mc]?[jt]sx?$/;
+// Each branch is wrapped so the trailing `$` on the file-extension branch
+// cannot be misread as also anchoring the directory-segment branch
+// (CodeQL js/regex/missing-regexp-anchor).
+const TEST_PATH_RX =
+  /(?:(?:^|\/)(?:__tests__|__test__|tests?)\/)|(?:\.(?:test|spec)\.[mc]?[jt]sx?$)/;
 
 const HANDLER_NAME_RX = /^(?:handle|on)[A-Z0-9]\w*$|^[A-Za-z_]\w*Handler$/;
 const HANDLER_PATH_RX = /(?:^|\/)(?:routes?|handlers?|api|controllers?|webhooks?)\//;
