@@ -1,0 +1,169 @@
+/* TraceInspector — slice 023 right-rail trace details panel */
+
+.panel {
+  width: 280px;
+  flex: 0 0 280px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px;
+  border-left: 1px solid var(--vscode-panel-border, transparent);
+  background: var(--vscode-sideBar-background, transparent);
+  color: var(--vscode-foreground);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+}
+
+.headerTitle {
+  flex: 1;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summaryRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.arrow {
+  color: var(--vscode-descriptionForeground);
+}
+
+.metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.boundaryBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border-radius: 8px;
+  font-size: 11px;
+  width: fit-content;
+}
+
+.sectionTitle {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+}
+
+.layers,
+.steps {
+  display: flex;
+  flex-direction: column;
+}
+
+.layerList,
+.stepList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layerRow {
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: var(--vscode-list-inactiveSelectionBackground, transparent);
+  font-size: 11px;
+}
+
+.stepRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stepRow:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.stepRow:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.stepIndex {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 18px;
+}
+
+.stepLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noPath {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--vscode-inputValidation-warningBackground, transparent);
+  color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, transparent);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.disabledAction {
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--vscode-button-border, transparent);
+  color: var(--vscode-disabledForeground);
+  border-radius: 3px;
+  font: inherit;
+  cursor: not-allowed;
+  opacity: 0.65;
+}

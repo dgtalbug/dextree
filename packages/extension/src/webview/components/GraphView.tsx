@@ -2,6 +2,8 @@ import type { GraphEdge, GraphNode } from "@dextree/core";
 import type { LensId } from "@dextree/core/lenses";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
+import { edgePathFromNodePath } from "graphology-shortest-path";
+import { bidirectional } from "graphology-shortest-path/unweighted";
 import { bfsFromNode } from "graphology-traversal";
 import { motion } from "framer-motion";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,19 +14,25 @@ import { GraphToolbar } from "./GraphToolbar.js";
 import { InspectorPanel } from "./InspectorPanel.js";
 import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
 import lensesPanelStyles from "./LensesPanel.module.css";
+import { TraceBanner } from "./TraceBanner.js";
+import { TraceInspector } from "./TraceInspector.js";
 import { dimColor } from "./lensColor.js";
 import { CANONICAL_NODE_FILTER_LIST, type NodeFilterEntry } from "./NodeFilterPanel.js";
-import type {
-  FallbackNode,
-  FallbackGraph,
-  GraphEdgeAttributes,
-  GraphNodeAttributes,
-  GraphViewProps,
-  OverlaySegment,
-  SearchResultItem,
-  SelectionTraversal,
-  SigmaNodeDisplayData,
-  ThemeColors,
+import {
+  TRACE_STATE_IDLE,
+  type FallbackNode,
+  type FallbackGraph,
+  type GraphEdgeAttributes,
+  type GraphNodeAttributes,
+  type GraphViewProps,
+  type OverlaySegment,
+  type SearchResultItem,
+  type SelectionTraversal,
+  type SigmaNodeDisplayData,
+  type ThemeColors,
+  type TracePhase,
+  type TraceState,
+  type TracePath,
 } from "./graphViewTypes.js";
 
 // Keep faded nodes/edges very dim so only the hovered/selected cluster is prominent
@@ -116,6 +124,9 @@ function readThemeColors(): ThemeColors {
     callsEdgeColor: styles.getPropertyValue("--vscode-charts-orange").trim() || foreground,
     inheritsEdgeColor: styles.getPropertyValue("--vscode-charts-purple").trim() || foreground,
     instantiatesEdgeColor: styles.getPropertyValue("--vscode-charts-red").trim() || foreground,
+    // Slice 023 — trace path edge color. Reuses the chart yellow if defined;
+    // falls back to a static yellow that survives all known VS Code themes.
+    tracePathEdgeColor: styles.getPropertyValue("--vscode-charts-yellow").trim() || "#dcdcaa",
   };
 }
 
@@ -708,6 +719,45 @@ function computeSelection(
   };
 }
 
+/**
+ * Derive a TracePath summary from the trace state for the right-rail
+ * TraceInspector (slice 023). Returns null when the path is empty.
+ * `layersCrossed` is currently always empty because `arch_layer` is a
+ * slice 026 column; we render gracefully when absent per spec CC-003.
+ */
+function computeTracePath(graph: MultiDirectedGraph, state: TraceState): TracePath | null {
+  if (state.pathNodeIds.length === 0 || state.startNodeId === null || state.endNodeId === null) {
+    return null;
+  }
+
+  const filePaths = new Set<string>();
+  const frameworks = new Set<string>();
+  for (const nodeId of state.pathNodeIds) {
+    if (!graph.hasNode(nodeId)) {
+      continue;
+    }
+    const filePath = graph.getNodeAttribute(nodeId, "filePath") as string | undefined;
+    if (typeof filePath === "string" && filePath.length > 0) {
+      filePaths.add(filePath);
+    }
+    const framework = graph.getNodeAttribute(nodeId, "framework") as string | undefined;
+    if (typeof framework === "string" && framework.length > 0) {
+      frameworks.add(framework);
+    }
+  }
+
+  return {
+    startNodeId: state.startNodeId,
+    endNodeId: state.endNodeId,
+    hopCount: state.pathEdgeIds.length,
+    fileCount: filePaths.size,
+    layersCrossed: [],
+    crossesFrameworkBoundary: frameworks.size > 1,
+    nodeIds: state.pathNodeIds,
+    edgeIds: state.pathEdgeIds,
+  };
+}
+
 function createOverlaySegments(
   graph: MultiDirectedGraph,
   sigma: Sigma,
@@ -1072,6 +1122,13 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
   const matchedNodeIdsRef = useRef<Set<string>>(new Set());
   // Depth slider state (slice 022). Default 3 per spec FR-005.
   const [depth, setDepth] = useState<number>(3);
+  // Trace state (slice 023). Tracks the trace state machine and the
+  // resolved path. `tracePhaseRef` mirrors `traceState.phase` so the
+  // Sigma clickNode callback can route clicks without being re-registered.
+  const [traceState, setTraceState] = useState<TraceState>(TRACE_STATE_IDLE);
+  const tracePhaseRef = useRef<TracePhase>("idle");
+  const pathNodeIdsRef = useRef<Set<string>>(new Set());
+  const pathEdgeIdsRef = useRef<Set<string>>(new Set());
 
   const toggleEdgeKind = useCallback((kind: GraphEdge["kind"]) => {
     setHiddenEdgeKinds((prev) => {
@@ -1218,6 +1275,125 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
 
   const handleDepthChange = useCallback((next: number): void => {
     setDepth(next);
+  }, []);
+
+  // Trace mode handlers (slice 023).
+  const handleTraceToggle = useCallback((): void => {
+    setTraceState((current) => {
+      if (current.phase !== "idle") {
+        tracePhaseRef.current = "idle";
+        return TRACE_STATE_IDLE;
+      }
+      // Entering trace mode clears search + depth so the full graph is
+      // visible for node picking (spec FR-010).
+      setSearchQuery("");
+      setSearchFocusedIndex(0);
+      setDepth(3);
+      tracePhaseRef.current = "picking-start";
+      return { ...TRACE_STATE_IDLE, phase: "picking-start" };
+    });
+  }, []);
+
+  const handleTraceExit = useCallback((): void => {
+    tracePhaseRef.current = "idle";
+    setTraceState(TRACE_STATE_IDLE);
+  }, []);
+
+  const handleTracePathCompute = useCallback((startId: string, endId: string): void => {
+    const graph = graphRef.current;
+    if (graph === null || !graph.hasNode(startId) || !graph.hasNode(endId)) {
+      return;
+    }
+    const nodePath = bidirectional(graph, startId, endId);
+    if (nodePath === null) {
+      tracePhaseRef.current = "path-active";
+      setTraceState({
+        phase: "path-active",
+        startNodeId: startId,
+        endNodeId: endId,
+        pathNodeIds: [],
+        pathEdgeIds: [],
+        noPathFound: true,
+        selfTraceError: false,
+      });
+      return;
+    }
+    const edgePath = edgePathFromNodePath(graph, nodePath);
+    tracePhaseRef.current = "path-active";
+    setTraceState({
+      phase: "path-active",
+      startNodeId: startId,
+      endNodeId: endId,
+      pathNodeIds: nodePath,
+      pathEdgeIds: edgePath,
+      noPathFound: false,
+      selfTraceError: false,
+    });
+  }, []);
+
+  const handleTraceNodeClick = useCallback(
+    (nodeId: string): void => {
+      setTraceState((current) => {
+        if (current.phase === "picking-start") {
+          tracePhaseRef.current = "picking-end";
+          return {
+            ...TRACE_STATE_IDLE,
+            phase: "picking-end",
+            startNodeId: nodeId,
+          };
+        }
+        if (current.phase === "picking-end") {
+          if (current.startNodeId === nodeId) {
+            // Self-trace — flag the error, stay in picking-end.
+            return { ...current, selfTraceError: true };
+          }
+          // Schedule path compute outside the setter (which must stay pure).
+          // We do this by returning early and dispatching via microtask.
+          queueMicrotask(() => handleTracePathCompute(current.startNodeId!, nodeId));
+          return current;
+        }
+        return current;
+      });
+    },
+    [handleTracePathCompute],
+  );
+
+  /**
+   * "Trace from here" entry point (slice 023 US3). Pre-fills the trace start
+   * with the given node id and transitions directly to picking-end. Clears
+   * search + depth like the toolbar toggle does.
+   */
+  const handleTraceFromHere = useCallback((nodeId: string): void => {
+    setSearchQuery("");
+    setSearchFocusedIndex(0);
+    setDepth(3);
+    tracePhaseRef.current = "picking-end";
+    setTraceState({
+      ...TRACE_STATE_IDLE,
+      phase: "picking-end",
+      startNodeId: nodeId,
+    });
+  }, []);
+
+  /** Animate the Sigma camera to the given node (slice 023 trace-step click). */
+  const handleTraceStepClick = useCallback((nodeId: string): void => {
+    const sigma = sigmaRef.current;
+    const graph = graphRef.current;
+    if (sigma === null || graph === null || !graph.hasNode(nodeId)) {
+      return;
+    }
+    const sigmaWithExtras = sigma as SigmaWithExtras;
+    const camera = sigmaWithExtras.getCamera?.();
+    if (camera?.animate === undefined) {
+      return;
+    }
+    const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
+    const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+    if (typeof x !== "number" || typeof y !== "number") {
+      return;
+    }
+    const currentRatio = camera.getState?.().ratio ?? 1;
+    camera.animate({ x, y, ratio: currentRatio }, { duration: CAMERA_CENTER_DURATION_MS });
   }, []);
 
   useEffect(() => {
@@ -1392,6 +1568,19 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
             return { ...data, hidden: true };
           }
 
+          // 3. Trace dimming (slice 023) — when a trace path is active,
+          // off-path nodes are dimmed. Trace dimming wins over search/lens.
+          if (tracePhaseRef.current === "path-active" && pathNodeIdsRef.current.size > 0) {
+            if (!pathNodeIdsRef.current.has(node)) {
+              return {
+                ...data,
+                color: dimColor(String(data.color)),
+                label: "",
+              };
+            }
+            return data;
+          }
+
           const hover = hoverRef.current;
           const selection = selectionRef.current;
           const activeFocus = hover ?? selection;
@@ -1445,6 +1634,25 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
             return { ...data, hidden: true };
           }
 
+          // Trace path styling (slice 023) — on-path edges render as dashed
+          // yellow; off-path edges are dimmed. Wins over hover/selection.
+          if (tracePhaseRef.current === "path-active" && pathEdgeIdsRef.current.size > 0) {
+            if (pathEdgeIdsRef.current.has(edge)) {
+              return {
+                ...data,
+                color: colors.tracePathEdgeColor,
+                type: "dashed",
+                size: Number(data.baseSize ?? data.size) * 1.2,
+                zIndex: 1,
+              };
+            }
+            return {
+              ...data,
+              color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
+              size: Math.max(Number(data.baseSize ?? data.size) * 0.6, 1),
+            };
+          }
+
           const activeFocus = hover ?? selection;
 
           if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
@@ -1488,6 +1696,13 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
       resizeObserver.observe(container);
 
       sigma.on("clickNode", (event) => {
+        // Trace mode takes priority over normal selection (slice 023). When a
+        // trace phase is waiting for a node pick, route the click to the
+        // trace state machine and short-circuit normal selection.
+        if (tracePhaseRef.current === "picking-start" || tracePhaseRef.current === "picking-end") {
+          handleTraceNodeClick(event.node);
+          return;
+        }
         // Queue single-click selection; doubleClickNode cancels this if a double-click fires.
         if (clickTimeoutRef.current !== null) {
           window.clearTimeout(clickTimeoutRef.current);
@@ -1674,6 +1889,34 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
       refreshSigma(sigma);
     }
   }, [depthEnabled, matchedNodeIds, selectedNodeId, depth]);
+
+  // Slice 023 — sync trace path ids into refs so the nodeReducer + edgeReducer
+  // can apply the path-active dimming/highlight without being recreated.
+  useEffect(() => {
+    tracePhaseRef.current = traceState.phase;
+    pathNodeIdsRef.current = new Set(traceState.pathNodeIds);
+    pathEdgeIdsRef.current = new Set(traceState.pathEdgeIds);
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [traceState]);
+
+  // Slice 023 — Escape exits trace mode from any phase. Listener attached at
+  // window level so it works regardless of focus (matches spec edge case
+  // "Escape always exits trace mode regardless of state").
+  useEffect(() => {
+    if (traceState.phase === "idle") {
+      return;
+    }
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        handleTraceExit();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [traceState.phase, handleTraceExit]);
 
   if (fallbackGraph !== null) {
     return <StaticGraphFallback fallbackGraph={fallbackGraph} onNavigate={onNavigate} />;
@@ -1867,6 +2110,9 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
           depth={depth}
           depthEnabled={depthEnabled}
           onDepthChange={handleDepthChange}
+          tracePhase={traceState.phase}
+          onTraceToggle={handleTraceToggle}
+          onTraceExit={handleTraceExit}
         />
         <canvas
           className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}
@@ -1889,12 +2135,49 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
             </span>
           </footer>
         )}
+        {traceState.phase !== "idle" && (
+          <TraceBanner
+            state={traceState}
+            startLabel={
+              traceState.startNodeId === null
+                ? null
+                : (nodes.find((n) => n.id === traceState.startNodeId)?.label ?? null)
+            }
+            endLabel={
+              traceState.endNodeId === null
+                ? null
+                : (nodes.find((n) => n.id === traceState.endNodeId)?.label ?? null)
+            }
+            onExit={handleTraceExit}
+          />
+        )}
       </div>
-      <InspectorPanel
-        selectedNode={
-          selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
-        }
-      />
+      {traceState.phase === "path-active" ? (
+        <TraceInspector
+          tracePath={
+            graphRef.current === null ? null : computeTracePath(graphRef.current, traceState)
+          }
+          noPathFound={traceState.noPathFound}
+          startLabel={
+            traceState.startNodeId === null
+              ? null
+              : (nodes.find((n) => n.id === traceState.startNodeId)?.label ?? null)
+          }
+          endLabel={
+            traceState.endNodeId === null
+              ? null
+              : (nodes.find((n) => n.id === traceState.endNodeId)?.label ?? null)
+          }
+          onStepClick={handleTraceStepClick}
+        />
+      ) : (
+        <InspectorPanel
+          selectedNode={
+            selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
+          }
+          onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
+        />
+      )}
     </div>
   );
 }

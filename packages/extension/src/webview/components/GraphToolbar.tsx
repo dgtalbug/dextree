@@ -4,7 +4,7 @@ import { DepthSlider } from "./DepthSlider.js";
 import { NodeFilterPanel } from "./NodeFilterPanel.js";
 import type { NodeFilterEntry } from "./NodeFilterPanel.js";
 import { SearchBar } from "./SearchBar.js";
-import type { SearchResultItem } from "./graphViewTypes.js";
+import type { SearchResultItem, TracePhase } from "./graphViewTypes.js";
 
 const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
   DEFINES: "Defines",
@@ -37,6 +37,10 @@ export interface GraphToolbarProps {
   depth: number;
   depthEnabled: boolean;
   onDepthChange: (depth: number) => void;
+  // Trace mode (new — slice 023):
+  tracePhase: TracePhase;
+  onTraceToggle: () => void;
+  onTraceExit: () => void;
 }
 
 function EdgeFilterBar({
@@ -104,7 +108,11 @@ export function GraphToolbar({
   depth,
   depthEnabled,
   onDepthChange,
+  tracePhase,
+  onTraceToggle,
+  onTraceExit,
 }: GraphToolbarProps) {
+  const traceActive = tracePhase !== "idle";
   return (
     <div className="dxt-toolbar" role="toolbar" aria-label="Graph toolbar">
       <button
@@ -116,6 +124,40 @@ export function GraphToolbar({
       >
         <span className="codicon codicon-export" aria-hidden="true" />
       </button>
+      <button
+        type="button"
+        className="dxt-toolbar__trace"
+        onClick={onTraceToggle}
+        title={traceActive ? "Cancel trace" : "Trace route between two nodes"}
+        aria-label="Toggle trace route mode"
+        aria-pressed={traceActive}
+      >
+        <span className="codicon codicon-rocket" aria-hidden="true" />
+      </button>
+      {traceActive && (
+        <>
+          <button
+            type="button"
+            className="dxt-toolbar__trace-export"
+            disabled
+            title="Export this trace as a sequence diagram — available after slice S7.14"
+            aria-label="Export this trace (disabled)"
+          >
+            <span className="codicon codicon-export" aria-hidden="true" />
+            Export
+          </button>
+          <button
+            type="button"
+            className="dxt-toolbar__trace-exit"
+            onClick={onTraceExit}
+            title="Exit trace mode (Esc)"
+            aria-label="Exit trace mode"
+          >
+            <span className="codicon codicon-close" aria-hidden="true" />
+            Exit trace
+          </button>
+        </>
+      )}
       <SearchBar
         query={searchQuery}
         results={searchResults}

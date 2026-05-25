@@ -2,10 +2,9 @@
 
 ## [1.5.0](https://github.com/dgtalbug/dextree/compare/v1.4.0...v1.5.0) (2026-05-24)
 
-
 ### Features
 
-* **extension:** toolbar search + depth slider, BFS refactor (slice 022) ([#92](https://github.com/dgtalbug/dextree/issues/92)) ([42460a2](https://github.com/dgtalbug/dextree/commit/42460a273274e55ab1b8f3d7dcbbdf0455db6fff))
+- **extension:** toolbar search + depth slider, BFS refactor (slice 022) ([#92](https://github.com/dgtalbug/dextree/issues/92)) ([42460a2](https://github.com/dgtalbug/dextree/commit/42460a273274e55ab1b8f3d7dcbbdf0455db6fff))
 
 ## [1.4.0](https://github.com/dgtalbug/dextree/compare/v1.3.0...v1.4.0) (2026-05-24)
 

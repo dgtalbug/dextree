@@ -905,4 +905,116 @@ describe("GraphView", () => {
       expect(input.value).toBe("");
     });
   });
+
+  describe("trace route (slice 023)", () => {
+    it("renders the trace toggle button in the toolbar", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Toggle trace route mode" })).toBeTruthy();
+    });
+
+    it("activates trace mode and shows the banner when the toggle is clicked", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+      expect(screen.queryByTestId("trace-banner")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+
+      expect(screen.getByTestId("trace-banner")).toBeTruthy();
+      expect(screen.getByText(/click a start node/i)).toBeTruthy();
+    });
+
+    it("toggling the trace button off restores idle state", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: "Toggle trace route mode" });
+      fireEvent.click(toggle);
+      expect(screen.getByTestId("trace-banner")).toBeTruthy();
+      fireEvent.click(toggle);
+      expect(screen.queryByTestId("trace-banner")).toBeNull();
+    });
+
+    it("Exit trace button is visible only when phase is not idle", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "Exit trace mode" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      expect(screen.getByRole("button", { name: "Exit trace mode" })).toBeTruthy();
+    });
+
+    it("clicking the Exit trace toolbar button clears the trace banner", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      expect(screen.getByTestId("trace-banner")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Exit trace mode" }));
+      expect(screen.queryByTestId("trace-banner")).toBeNull();
+    });
+
+    it("Escape exits trace mode", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      expect(screen.getByTestId("trace-banner")).toBeTruthy();
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(screen.queryByTestId("trace-banner")).toBeNull();
+    });
+
+    it("entering trace mode clears any active search query", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+      const searchInput = screen.getByRole("combobox", {
+        name: "Search graph",
+      }) as HTMLInputElement;
+      fireEvent.change(searchInput, { target: { value: "greet" } });
+      act(() => {
+        vi.advanceTimersByTime(160);
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      expect(searchInput.value).toBe("");
+    });
+  });
 });
