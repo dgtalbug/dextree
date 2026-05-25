@@ -325,3 +325,43 @@ describe("serializeToClassDiagram", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// T021 — end-to-end method-grouping correctness with same-named methods
+// across two classes (proves grouping uses enclosingSymbolId, not name match)
+// ---------------------------------------------------------------------------
+
+describe("serializeToClassDiagram — same-named methods grouped by enclosingSymbolId (US2)", () => {
+  it("renders two render() methods under the right class boxes, not collapsed into one", () => {
+    const Button = classNode("class-button", "Button");
+    const Card = classNode("class-card", "Card");
+    const renderInButton = memberNode("m-render-btn", "render", "class-button");
+    const renderInCard = memberNode("m-render-card", "render", "class-card");
+
+    const sg = subgraph([Button, Card, renderInButton, renderInCard]);
+    const out = serializeToClassDiagram(sg, DEFAULT_OPTIONS);
+
+    expect(out).toMatch(/class Button \{[\s\S]*\+render\(\)[\s\S]*\}/);
+    expect(out).toMatch(/class Card \{[\s\S]*\+render\(\)[\s\S]*\}/);
+    // Confirm both methods appear (one per class); the serializer never
+    // deduplicates by method name across classes.
+    const renderHits = out.match(/\+render\(\)/g) ?? [];
+    expect(renderHits.length).toBe(2);
+  });
+
+  it("grouping survives a method rename inside one class without leaking to the other", () => {
+    const Button = classNode("class-button", "Button");
+    const Card = classNode("class-card", "Card");
+    const renderInButton = memberNode("m-render-btn", "renderOldStyle", "class-button"); // renamed
+    const renderInCard = memberNode("m-render-card", "render", "class-card");
+
+    const sg = subgraph([Button, Card, renderInButton, renderInCard]);
+    const entries = groupClassDiagramEntries(sg);
+
+    const buttonEntry = entries.find((e) => e.classId === "class-button");
+    const cardEntry = entries.find((e) => e.classId === "class-card");
+
+    expect(buttonEntry?.methods.map((m) => m.name)).toEqual(["renderOldStyle"]);
+    expect(cardEntry?.methods.map((m) => m.name)).toEqual(["render"]);
+  });
+});

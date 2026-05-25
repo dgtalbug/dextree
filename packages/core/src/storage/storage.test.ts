@@ -686,3 +686,116 @@ describe("symbol classification fields (entry_kind, arch_layer)", () => {
     }
   });
 });
+
+describe("symbol.enclosing_symbol_id write-path (slice 028 US2)", () => {
+  function makeClassWithMethod(): ExtractedIndexData {
+    return {
+      file: {
+        id: "file-class",
+        path: "/workspace/src/Animal.ts",
+        relativePath: "src/Animal.ts",
+        language: "typescript",
+        loc: 5,
+        hash: "hash-class",
+      },
+      symbols: [
+        {
+          id: "sym-animal-class",
+          fqn: "src/Animal.ts:Animal",
+          name: "Animal",
+          kind: "class",
+          fileId: "file-class",
+          range: { startLine: 0, startCol: 0, endLine: 4, endCol: 1 },
+          language: "typescript",
+        },
+        {
+          id: "sym-animal-eat",
+          fqn: "src/Animal.ts:Animal.eat",
+          name: "Animal.eat",
+          kind: "method",
+          fileId: "file-class",
+          range: { startLine: 1, startCol: 2, endLine: 1, endCol: 20 },
+          language: "typescript",
+          enclosingSymbolId: "sym-animal-class",
+        },
+      ],
+      imports: [],
+    };
+  }
+
+  function makeClassWithMethodRenamed(): ExtractedIndexData {
+    const data = makeClassWithMethod();
+    data.symbols[1] = {
+      ...data.symbols[1]!,
+      id: "sym-animal-eat-v2",
+      name: "Animal.feed",
+      fqn: "src/Animal.ts:Animal.feed",
+    };
+    data.file.hash = "hash-class-v2";
+    return data;
+  }
+
+  it("writes the enclosing_symbol_id column when the symbol carries one", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeClassWithMethod());
+
+      const rows = await (
+        await database.connection.run("SELECT id, enclosing_symbol_id FROM symbol ORDER BY id")
+      ).getRowObjectsJS();
+      const byId = new Map(
+        rows.map((r) => [
+          (r as { id: string }).id,
+          (r as { enclosing_symbol_id: string | null }).enclosing_symbol_id,
+        ]),
+      );
+      expect(byId.get("sym-animal-eat")).toBe("sym-animal-class");
+      expect(byId.get("sym-animal-class")).toBeNull();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("writes NULL when the symbol has no enclosingSymbolId", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("greet"));
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT enclosing_symbol_id FROM symbol WHERE id = 'symbol-greet'",
+        )
+      ).getRowObjectsJS();
+      const row = rows[0] as { enclosing_symbol_id: string | null };
+      expect(row.enclosing_symbol_id).toBeNull();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("a reindex overwrites the prior enclosing_symbol_id (deleteExistingRows wipes first)", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeClassWithMethod());
+      await replaceFileGraph(database.connection, makeClassWithMethodRenamed());
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT id, name, enclosing_symbol_id FROM symbol ORDER BY id",
+        )
+      ).getRowObjectsJS();
+      // After reindex only the v2 ids exist; the eat-method row is gone.
+      const ids = rows.map((r) => (r as { id: string }).id).sort();
+      expect(ids).toEqual(["sym-animal-class", "sym-animal-eat-v2"]);
+      const feedRow = rows.find((r) => (r as { id: string }).id === "sym-animal-eat-v2") as {
+        enclosing_symbol_id: string;
+      };
+      expect(feedRow.enclosing_symbol_id).toBe("sym-animal-class");
+    } finally {
+      database.close();
+    }
+  });
+});

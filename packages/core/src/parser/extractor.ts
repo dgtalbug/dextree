@@ -301,6 +301,7 @@ function buildTopLevelSymbol(
 function buildMethodSymbols(
   classNode: Node,
   className: string,
+  classSymbolId: string,
   relativePath: string,
   fileId: string,
 ): StoredSymbol[] {
@@ -328,6 +329,7 @@ function buildMethodSymbols(
       fileId,
       range: toRange(member),
       language: "typescript",
+      enclosingSymbolId: classSymbolId,
     });
   }
 
@@ -408,9 +410,14 @@ export async function extractTypeScriptFromTree(
     if (symbol !== null) {
       symbols.push(symbol);
       // Also extract methods for class declarations so method-level nodes
-      // appear in the graph (mirrors GitNexus symbol density).
+      // appear in the graph (mirrors GitNexus symbol density). Each method
+      // carries the parent class's symbol id via `enclosingSymbolId` so
+      // downstream consumers (e.g. classDiagram serializer) can group
+      // methods under their owning class without name-matching FQNs.
       if (declaration.type === "class_declaration") {
-        symbols.push(...buildMethodSymbols(declaration, symbol.name, relativePath, fileId));
+        symbols.push(
+          ...buildMethodSymbols(declaration, symbol.name, symbol.id, relativePath, fileId),
+        );
       }
     }
   }

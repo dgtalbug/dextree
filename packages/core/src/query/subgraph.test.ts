@@ -480,3 +480,118 @@ describe("getWorkspaceSubgraph", () => {
     }
   });
 });
+
+describe("getWorkspaceSubgraph — enclosingSymbolId projection (slice 028 US2)", () => {
+  function makeClassAndMethodData(): ExtractedIndexData {
+    return {
+      file: {
+        id: "file-animal",
+        path: "/workspace/src/Animal.ts",
+        relativePath: "src/Animal.ts",
+        language: "typescript",
+        loc: 5,
+        hash: "hash-animal",
+      },
+      symbols: [
+        {
+          id: "sym-animal-class",
+          fqn: "src/Animal.ts:Animal",
+          name: "Animal",
+          kind: "class",
+          fileId: "file-animal",
+          range: { startLine: 0, startCol: 0, endLine: 4, endCol: 1 },
+          language: "typescript",
+        },
+        {
+          id: "sym-animal-eat",
+          fqn: "src/Animal.ts:Animal.eat",
+          name: "Animal.eat",
+          kind: "method",
+          fileId: "file-animal",
+          range: { startLine: 1, startCol: 2, endLine: 1, endCol: 20 },
+          language: "typescript",
+          enclosingSymbolId: "sym-animal-class",
+        },
+      ],
+      imports: [],
+    };
+  }
+
+  it("projects enclosingSymbolId onto type: symbol nodes when the parent is in scope", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeClassAndMethodData());
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const method = graph.nodes.find((n) => n.id === "sym-animal-eat");
+      const cls = graph.nodes.find((n) => n.id === "sym-animal-class");
+
+      expect(method?.type).toBe("symbol");
+      expect(method?.enclosingSymbolId).toBe("sym-animal-class");
+      // The class itself is top-level → undefined.
+      expect(cls?.enclosingSymbolId).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("omits enclosingSymbolId for top-level symbols (no parent class)", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("greet"));
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const top = graph.nodes.find((n) => n.id === "symbol-greet");
+
+      expect(top?.enclosingSymbolId).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("does not set enclosingSymbolId on file nodes", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeClassAndMethodData());
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const file = graph.nodes.find((n) => n.id === "file-animal");
+
+      expect(file?.type).toBe("file");
+      expect(file?.enclosingSymbolId).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("refreshes enclosingSymbolId on reindex (a renamed method keeps pointing at the right class)", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeClassAndMethodData());
+
+      const renamed = makeClassAndMethodData();
+      renamed.file.hash = "hash-animal-v2";
+      renamed.symbols[1] = {
+        ...renamed.symbols[1]!,
+        id: "sym-animal-feed",
+        name: "Animal.feed",
+        fqn: "src/Animal.ts:Animal.feed",
+        enclosingSymbolId: "sym-animal-class",
+      };
+      await replaceFileGraph(database.connection, renamed);
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const feed = graph.nodes.find((n) => n.id === "sym-animal-feed");
+      expect(feed?.enclosingSymbolId).toBe("sym-animal-class");
+
+      // The old eat method id is gone.
+      expect(graph.nodes.find((n) => n.id === "sym-animal-eat")).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+});

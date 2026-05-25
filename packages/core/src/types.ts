@@ -136,6 +136,13 @@ export interface StoredSymbol {
   fileId: string;
   range: SymbolRange;
   language: string;
+  /**
+   * Optional pointer to the enclosing class / interface / enum symbol id.
+   * Populated by `buildMethodSymbols` for class methods; undefined for
+   * top-level declarations. The classDiagram serializer reads this through
+   * the projected `GraphNode.enclosingSymbolId` field.
+   */
+  enclosingSymbolId?: string;
 }
 
 export interface FileRecord {
