@@ -82,6 +82,8 @@ export interface ThemeColors {
   instantiatesEdgeColor: string;
   /** Yellow used for active trace path edges (slice 023). */
   tracePathEdgeColor: string;
+  /** Gold-ish border applied to classified entry symbols (slice 026). */
+  entryBorderColor: string;
 }
 
 export interface GraphViewProps {
@@ -123,6 +125,8 @@ export interface GraphNodeAttributes {
   archLayer?: ArchitecturalLayer;
   /** Omitted to use Sigma's defaultNodeType. */
   type?: SigmaNodeProgramType;
+  /** Per-node entry-border color read by NodeEntryProgram. Set only when type === "entry". */
+  entryBorderColor?: string;
 }
 
 /**

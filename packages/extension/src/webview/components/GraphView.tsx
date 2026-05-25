@@ -52,15 +52,20 @@ const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 const FLOW_MAX_DEPTH = 4;
 
-// Muted gold reads well against both light and dark VS Code themes without
-// fighting the existing per-kind symbol palette. 2px is the smallest border
-// that stays visible at the smallest rendered symbol-node size (5px).
-const ENTRY_BORDER_COLOR = "#d4af37";
+// 2px is the smallest border that stays visible at the smallest rendered
+// symbol-node size (5px). Fallback hex is muted gold; the live color comes
+// from the `--vscode-charts-yellow` theme token via `readThemeColors`, so
+// custom VS Code themes drive the entry styling and theme switches refresh
+// it on the next render.
+const ENTRY_BORDER_COLOR_FALLBACK = "#d4af37";
 const ENTRY_BORDER_PIXELS = 2;
 
 const NodeEntryProgram = createNodeBorderProgram({
   borders: [
-    { color: { value: ENTRY_BORDER_COLOR }, size: { value: ENTRY_BORDER_PIXELS, mode: "pixels" } },
+    {
+      color: { attribute: "entryBorderColor", defaultValue: ENTRY_BORDER_COLOR_FALLBACK },
+      size: { value: ENTRY_BORDER_PIXELS, mode: "pixels" },
+    },
     { color: { attribute: "color" }, size: { fill: true } },
   ],
 });
@@ -151,6 +156,8 @@ function readThemeColors(): ThemeColors {
     // Slice 023 — trace path edge color. Reuses the chart yellow if defined;
     // falls back to a static yellow that survives all known VS Code themes.
     tracePathEdgeColor: styles.getPropertyValue("--vscode-charts-yellow").trim() || "#dcdcaa",
+    entryBorderColor:
+      styles.getPropertyValue("--vscode-charts-yellow").trim() || ENTRY_BORDER_COLOR_FALLBACK,
   };
 }
 
@@ -367,7 +374,11 @@ function buildGraph(
     const size = sizeForNode(node, importanceBounds);
     seenNodeIds.add(node.id);
 
-    const visual = entryVisualState(node.entryKind);
+    // Entry styling applies only to symbol nodes — guards against payload
+    // drift across the host-webview boundary where the upstream contract
+    // (file nodes never carry entry/layer classification) could regress.
+    const isSymbol = node.type === "symbol";
+    const visual = entryVisualState(isSymbol ? node.entryKind : undefined);
 
     graph.addNode(node.id, {
       label: node.label.trim() || node.filePath.split("/").pop() || node.id,
@@ -381,9 +392,11 @@ function buildGraph(
       baseSize: size,
       color,
       baseColor: color,
-      ...(node.entryKind === undefined ? {} : { entryKind: node.entryKind }),
-      ...(node.archLayer === undefined ? {} : { archLayer: node.archLayer }),
-      ...(visual.usesEntryBorder ? { type: "entry" as const } : {}),
+      ...(isSymbol && node.entryKind !== undefined ? { entryKind: node.entryKind } : {}),
+      ...(isSymbol && node.archLayer !== undefined ? { archLayer: node.archLayer } : {}),
+      ...(visual.usesEntryBorder
+        ? { type: "entry" as const, entryBorderColor: colors.entryBorderColor }
+        : {}),
     } satisfies GraphNodeAttributes);
   }
 
