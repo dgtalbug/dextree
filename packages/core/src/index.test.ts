@@ -119,6 +119,31 @@ describe("createIndexer", () => {
     }
   });
 
+  it("classifies symbols in presentation paths as archLayer 'presentation' during indexFile", async () => {
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-026-layer-"));
+    tempDirs.push(workspaceRoot);
+    await mkdir(resolve(workspaceRoot, "src/components"), { recursive: true });
+    const filePath = resolve(workspaceRoot, "src/components/Card.tsx");
+    await writeFile(filePath, "export function renderCard() {}\n");
+
+    const indexer = createIndexer(":memory:", wasmDir);
+
+    try {
+      await indexer.initialize();
+      await indexer.indexFile(filePath, workspaceRoot);
+
+      const subgraph = await indexer.getWorkspaceSubgraph(workspaceRoot);
+      const symbolNode = subgraph.nodes.find(
+        (n) => n.type === "symbol" && n.label === "renderCard",
+      );
+
+      expect(symbolNode).toBeDefined();
+      expect(symbolNode?.archLayer).toBe("presentation");
+    } finally {
+      await indexer.dispose();
+    }
+  });
+
   it("refreshes classification when the same file is reindexed with different content", async () => {
     const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-026-refresh-"));
     tempDirs.push(workspaceRoot);
