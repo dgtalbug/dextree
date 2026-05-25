@@ -150,6 +150,9 @@ importers:
       '@dextree/core':
         specifier: workspace:*
         version: link:../core
+      graphology-operators:
+        specifier: ^1.6.1
+        version: 1.6.1(graphology-types@0.24.8)
 
   packages/extension:
     dependencies:
@@ -3086,6 +3089,11 @@ packages:
 
   graphology-metrics@2.4.0:
     resolution: {integrity: sha512-7WOfOP+mFLCaTJx55Qg4eY+211vr1/b3D/R3biz3SXGhAaCVcWYkfabnmO4O4WBNWANEHtVnFrGgJ0kj6MM6xw==}
+    peerDependencies:
+      graphology-types: '>=0.20.0'
+
+  graphology-operators@1.6.1:
+    resolution: {integrity: sha512-ZKGcaN+6L5hv0VelrDgkZ2IQL1c7nrqkTRiHDwBCjmbkS56vWh/iQNDnvd/c9YIpoygtEK0mgGOr/m4i7BOYrw==}
     peerDependencies:
       graphology-types: '>=0.20.0'
 
@@ -7929,6 +7937,11 @@ snapshots:
       graphology-utils: 2.5.2(graphology-types@0.24.8)
       mnemonist: 0.39.8
       pandemonium: 2.4.1
+
+  graphology-operators@1.6.1(graphology-types@0.24.8):
+    dependencies:
+      graphology-types: 0.24.8
+      graphology-utils: 2.5.2(graphology-types@0.24.8)
 
   graphology-shortest-path@2.1.0(graphology-types@0.24.8):
     dependencies:

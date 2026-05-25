@@ -1,5 +1,7 @@
-import type { GraphNode, WorkspaceSubgraph } from "@dextree/core";
-import { MERMAID_INIT_DIRECTIVE, type MermaidTheme } from "./theme.js";
+import type { WorkspaceSubgraph } from "@dextree/core";
+
+import { serializeToScopedMermaid } from "./scopedSerializer.js";
+import type { MermaidTheme } from "./theme.js";
 
 export interface MermaidSerializeOptions {
   /** Theme applied as the Mermaid %%{init}%% directive. */
@@ -7,38 +9,19 @@ export interface MermaidSerializeOptions {
 }
 
 /**
- * Convert a node's UUID to a safe Mermaid identifier.
- * Mermaid disallows hyphens in bare node IDs, so we prefix with 'n'
- * and replace all hyphens with underscores.
- */
-function toSafeId(id: string): string {
-  return "n" + id.replace(/-/g, "_");
-}
-
-/** Escape characters that would break the Mermaid "..." label syntax. */
-function escapeLabel(text: string): string {
-  return text
-    .replace(/&/g, "#amp;")
-    .replace(/"/g, "#quot;")
-    .replace(/</g, "#lt;")
-    .replace(/>/g, "#gt;");
-}
-
-function nodeLabel(node: GraphNode): string {
-  if (node.type === "symbol" && node.symbolKind !== undefined) {
-    return `${escapeLabel(node.label)} [${node.symbolKind}]`;
-  }
-  return escapeLabel(node.label);
-}
-
-/**
- * Serialize the workspace subgraph into a valid Mermaid `graph TD` document.
+ * Slice-016 compatibility shim. Delegates to {@link serializeToScopedMermaid}
+ * with the workspace / symbol / auto defaults.
  *
- * Guarantees:
- * - Pure function: same inputs → same output (deterministic, FR-012).
- * - First line is the %%{init}%% theme directive.
- * - Edges referencing unknown node IDs are silently dropped (FR-009).
- * - Throws if `subgraph.nodes` is empty.
+ * Preserves two slice-016 invariants that the new scoped path does not
+ * guarantee on its own:
+ *
+ *  1. Throws `Error("Graph has no nodes to export")` on an empty workspace
+ *     subgraph (the fuzz target asserts this exact message).
+ *  2. Emits `graph TD` as the second line (Mermaid alias of `graph TB`) so
+ *     existing snapshot tests stay byte-identical.
+ *
+ * Slated for removal in slice 029 once the preview panel becomes the only
+ * consumer of the legacy entry point.
  */
 export function serializeToMermaid(
   subgraph: WorkspaceSubgraph,
@@ -48,35 +31,12 @@ export function serializeToMermaid(
     throw new Error("Graph has no nodes to export");
   }
 
-  const lines: string[] = [];
-
-  // Theme directive — must be first line.
-  lines.push(MERMAID_INIT_DIRECTIVE[opts.theme]);
-  lines.push("graph TD");
-
-  // Build node id set for edge validation.
-  const nodeIds = new Set(subgraph.nodes.map((n) => n.id));
-
-  // Sort nodes deterministically by id (FR-012).
-  const sortedNodes = [...subgraph.nodes].sort((a, b) => a.id.localeCompare(b.id));
-  for (const node of sortedNodes) {
-    lines.push(`  ${toSafeId(node.id)}["${nodeLabel(node)}"]`);
-  }
-
-  // Sort edges deterministically by source+target+kind (FR-012).
-  const sortedEdges = [...subgraph.edges].sort((a, b) => {
-    const keyA = `${a.source}\0${a.target}\0${a.kind}`;
-    const keyB = `${b.source}\0${b.target}\0${b.kind}`;
-    return keyA.localeCompare(keyB);
+  const output = serializeToScopedMermaid(subgraph, {
+    scope: { kind: "workspace" },
+    granularity: "symbol",
+    direction: "auto",
+    theme: opts.theme,
   });
 
-  for (const edge of sortedEdges) {
-    // Silently skip edges whose source or target is not in the node set (FR-009).
-    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
-      continue;
-    }
-    lines.push(`  ${toSafeId(edge.source)} -->|${edge.kind}| ${toSafeId(edge.target)}`);
-  }
-
-  return lines.join("\n");
+  return output.replace(/^graph TB$/m, "graph TD");
 }
