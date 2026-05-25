@@ -207,6 +207,41 @@ describe("createIndexer", () => {
     }
   });
 
+  it("supports the full indexer lifecycle: detect, index, finalize, query, clear", async () => {
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-026-lifecycle-"));
+    tempDirs.push(workspaceRoot);
+    await mkdir(resolve(workspaceRoot, "src"), { recursive: true });
+    const filePath = resolve(workspaceRoot, "src/lifecycle.ts");
+    await writeFile(filePath, "export function lifecycle() {}\n");
+
+    const indexer = createIndexer(":memory:", wasmDir);
+
+    try {
+      await indexer.initialize();
+      await indexer.detectWorkspaceFrameworks(workspaceRoot);
+      await indexer.indexFile(filePath, workspaceRoot);
+      await indexer.finalizeWorkspace(workspaceRoot);
+
+      const files = await indexer.getAllFiles();
+      expect(files.map((f) => f.relativePath)).toContain("src/lifecycle.ts");
+
+      const edgeKinds = await indexer.getPresentEdgeKinds(workspaceRoot);
+      expect(edgeKinds).toContain("DEFINES");
+
+      const summary = await indexer.getSessionSummary(workspaceRoot);
+      expect(summary.fileCount).toBe(1);
+      expect(summary.symbolCount).toBe(1);
+
+      const cleared = await indexer.clearWorkspace(workspaceRoot);
+      expect(cleared.deletedFiles).toBe(1);
+
+      const afterClear = await indexer.getAllFiles();
+      expect(afterClear).toEqual([]);
+    } finally {
+      await indexer.dispose();
+    }
+  });
+
   it("refreshes classification when the same file is reindexed with different content", async () => {
     const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-026-refresh-"));
     tempDirs.push(workspaceRoot);
