@@ -2,6 +2,7 @@ import {
   DEFAULT_MERMAID_THEME,
   isMermaidTheme,
   serializeToScopedMermaid,
+  type MermaidGranularity,
   type MermaidScope,
 } from "@dextree/exporters";
 import type { Indexer } from "@dextree/core";
@@ -13,6 +14,10 @@ export interface ExportMermaidCommandDependencies {
 
 interface ScopePickItem extends vscode.QuickPickItem {
   scope: MermaidScope;
+}
+
+interface GranularityPickItem extends vscode.QuickPickItem {
+  granularity: MermaidGranularity;
 }
 
 export function createExportMermaidCommand(
@@ -41,6 +46,11 @@ export function createExportMermaidCommand(
       return;
     }
 
+    const granularity = await pickGranularity();
+    if (granularity === undefined) {
+      return;
+    }
+
     const defaultUri = vscode.Uri.joinPath(root.uri, "dextree-graph.mmd");
     const saveUri = await vscode.window.showSaveDialog({
       defaultUri,
@@ -61,7 +71,7 @@ export function createExportMermaidCommand(
     try {
       content = serializeToScopedMermaid(subgraph, {
         scope,
-        granularity: "symbol",
+        granularity,
         direction: "auto",
         theme,
       });
@@ -124,6 +134,39 @@ async function pickScope(workspaceRoot: string): Promise<MermaidScope | undefine
   });
 
   return picked?.scope;
+}
+
+/**
+ * Second QuickPick step. Bounded to package / file / symbol per the slice
+ * 027 data model. Package is listed first because it's the coarsest and
+ * the most likely to keep an export readable on a large workspace.
+ */
+async function pickGranularity(): Promise<MermaidGranularity | undefined> {
+  const items: GranularityPickItem[] = [
+    {
+      label: "Package",
+      description: "Architectural view — one node per package / top folder",
+      granularity: "package",
+    },
+    {
+      label: "File",
+      description: "File-level view — one node per indexed file",
+      granularity: "file",
+    },
+    {
+      label: "Symbol",
+      description: "Full detail — every indexed symbol kept",
+      granularity: "symbol",
+    },
+  ];
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: "Mermaid Export — Granularity",
+    placeHolder: "Pick the level of detail",
+    canPickMany: false,
+  });
+
+  return picked?.granularity;
 }
 
 function toWorkspaceRelative(absolutePath: string, workspaceRoot: string): string | undefined {

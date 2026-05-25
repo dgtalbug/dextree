@@ -231,7 +231,9 @@ describe("createExportMermaidCommand — US1 scope picker", () => {
   });
 
   it("threads { kind: 'workspace' } through to the serializer and writes the file", async () => {
-    showQuickPick.mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } });
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
     writeFile.mockResolvedValueOnce(undefined);
 
@@ -248,10 +250,12 @@ describe("createExportMermaidCommand — US1 scope picker", () => {
 
   it("threads { kind: 'file', relativePath } when Current file is picked", async () => {
     setActiveTextEditor("/workspace/src/a.ts");
-    showQuickPick.mockResolvedValueOnce({
-      label: "Current file",
-      scope: { kind: "file", relativePath: "src/a.ts" },
-    });
+    showQuickPick
+      .mockResolvedValueOnce({
+        label: "Current file",
+        scope: { kind: "file", relativePath: "src/a.ts" },
+      })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
     writeFile.mockResolvedValueOnce(undefined);
 
@@ -273,10 +277,12 @@ describe("createExportMermaidCommand — US1 scope picker", () => {
 
   it("surfaces serializer errors via showWarningMessage and writes no file when the scope resolves to unsupported", async () => {
     setActiveTextEditor("/workspace/src/missing.ts");
-    showQuickPick.mockResolvedValueOnce({
-      label: "Current file",
-      scope: { kind: "file", relativePath: "src/missing.ts" },
-    });
+    showQuickPick
+      .mockResolvedValueOnce({
+        label: "Current file",
+        scope: { kind: "file", relativePath: "src/missing.ts" },
+      })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
 
     const command = createExportMermaidCommand({
@@ -291,6 +297,106 @@ describe("createExportMermaidCommand — US1 scope picker", () => {
       expect.stringContaining("File not found in indexed graph"),
     );
     expect(writeFile).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US2 — Granularity picker (Package / File / Symbol)
+// ---------------------------------------------------------------------------
+
+describe("createExportMermaidCommand — US2 granularity picker", () => {
+  beforeEach(() => {
+    resetMocks();
+  });
+
+  afterEach(() => {
+    resetMocks();
+  });
+
+  it("offers Package / File / Symbol in that order after the scope step", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce(undefined); // cancel at granularity
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+    });
+    await command();
+
+    expect(showQuickPick).toHaveBeenCalledTimes(2);
+    const granularityItems = showQuickPick.mock.calls[1]?.[0] as Array<{ label: string }>;
+    expect(granularityItems.map((i) => i.label)).toEqual(["Package", "File", "Symbol"]);
+  });
+
+  it("exits silently when the user cancels at the granularity step", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+    });
+    await command();
+
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("threads granularity 'file' into the serializer when File is picked", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "File", granularity: "file" });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+    writeFile.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () =>
+        makeIndexerStubFromNodes([
+          { id: "f1", type: "file", label: "a.ts", filePath: "/workspace/src/a.ts" },
+          { id: "s1", type: "symbol", label: "foo", filePath: "/workspace/src/a.ts" },
+        ]),
+    });
+    await command();
+
+    const written = writeFile.mock.calls[0]?.[1] as Uint8Array;
+    const text = new TextDecoder().decode(written);
+    // File granularity collapses the symbol into the file → output has
+    // only the file node and no `[function]` symbol-kind label.
+    expect(text).not.toContain("[function]");
+    expect(text).toContain('["a.ts"]');
+  });
+
+  it("threads granularity 'package' into the serializer when Package is picked", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "Package", granularity: "package" });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+    writeFile.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () =>
+        makeIndexerStubFromNodes([
+          {
+            id: "f-a",
+            type: "file",
+            label: "a.ts",
+            filePath: "/repo/packages/alpha/src/a.ts",
+          },
+          {
+            id: "f-b",
+            type: "file",
+            label: "b.ts",
+            filePath: "/repo/packages/beta/src/b.ts",
+          },
+        ]),
+    });
+    await command();
+
+    const written = writeFile.mock.calls[0]?.[1] as Uint8Array;
+    const text = new TextDecoder().decode(written);
+    // Package collapse → two synthetic nodes labelled alpha and beta.
+    expect(text).toContain('["alpha"]');
+    expect(text).toContain('["beta"]');
   });
 });
 
