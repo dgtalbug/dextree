@@ -1,10 +1,18 @@
 import type { GraphEdge, GraphNode, WorkspaceSubgraph } from "@dextree/core";
 
+import { inferMermaidDirection } from "./direction.js";
 import { applyMermaidGranularity } from "./granularity.js";
 import { extractMermaidScope } from "./scope.js";
 import { MERMAID_INIT_DIRECTIVE, type MermaidTheme } from "./theme.js";
+import { MERMAID_GRANULARITY_CAPS, validateScopedMermaidExport } from "./validator.js";
 
-export { applyMermaidGranularity, extractMermaidScope };
+export {
+  applyMermaidGranularity,
+  extractMermaidScope,
+  inferMermaidDirection,
+  MERMAID_GRANULARITY_CAPS,
+  validateScopedMermaidExport,
+};
 
 /**
  * Discriminated union describing which portion of the indexed workspace graph
@@ -54,20 +62,6 @@ export type ScopedExportValidation =
   | { status: "unsupported"; reason: string };
 
 /**
- * Per-granularity export caps. File granularity tolerates the most because
- * each node is structurally lighter; package tolerates the fewest because
- * label collisions appear earliest at that level.
- */
-export const MERMAID_GRANULARITY_CAPS: Record<
-  MermaidGranularity,
-  { nodes: number; edges: number }
-> = {
-  package: { nodes: 150, edges: 300 },
-  file: { nodes: 400, edges: 800 },
-  symbol: { nodes: 200, edges: 400 },
-};
-
-/**
  * Result of scope extraction. Forward-compatibility seam: scope kinds not yet
  * implemented in this build return `unsupported` and the orchestrator
  * propagates that result without invoking the validator.
@@ -77,29 +71,8 @@ export type ScopeExtractionResult =
   | { status: "unsupported"; reason: string };
 
 // ---------------------------------------------------------------------------
-// Pass-through implementations.
-//
-// US1 replaced extractMermaidScope via scope.ts (re-exported above).
-// US2 replaced applyMermaidGranularity via granularity.ts (re-exported above).
-// US3 (T021) replaces inferMermaidDirection with per-scope inference.
-// US3 (T022) replaces validateScopedMermaidExport with real cap logic.
-// ---------------------------------------------------------------------------
-
-export function inferMermaidDirection(_scope: MermaidScope): "TB" | "LR" | "BT" | "RL" {
-  return "TB";
-}
-
-export function validateScopedMermaidExport(
-  subgraph: WorkspaceSubgraph,
-  _granularity: MermaidGranularity,
-): ScopedExportValidation {
-  return {
-    status: "ok",
-    nodeCount: subgraph.nodes.length,
-    edgeCount: subgraph.edges.length,
-  };
-}
-
+// Per-axis behavior lives in scope.ts / granularity.ts / direction.ts /
+// validator.ts — all re-exported above for consumers of @dextree/exporters.
 // ---------------------------------------------------------------------------
 // Output formatting helpers. Mirror the slice-016 serializer.ts contract so
 // the legacy shim and the new scoped path emit byte-identical node + edge

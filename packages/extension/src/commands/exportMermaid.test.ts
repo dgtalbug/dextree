@@ -233,7 +233,8 @@ describe("createExportMermaidCommand — US1 scope picker", () => {
   it("threads { kind: 'workspace' } through to the serializer and writes the file", async () => {
     showQuickPick
       .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
-      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" });
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce({ label: "Auto", direction: "auto" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
     writeFile.mockResolvedValueOnce(undefined);
 
@@ -255,7 +256,8 @@ describe("createExportMermaidCommand — US1 scope picker", () => {
         label: "Current file",
         scope: { kind: "file", relativePath: "src/a.ts" },
       })
-      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" });
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce({ label: "Auto", direction: "auto" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
     writeFile.mockResolvedValueOnce(undefined);
 
@@ -282,7 +284,8 @@ describe("createExportMermaidCommand — US1 scope picker", () => {
         label: "Current file",
         scope: { kind: "file", relativePath: "src/missing.ts" },
       })
-      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" });
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce({ label: "Auto", direction: "auto" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
 
     const command = createExportMermaidCommand({
@@ -345,7 +348,8 @@ describe("createExportMermaidCommand — US2 granularity picker", () => {
   it("threads granularity 'file' into the serializer when File is picked", async () => {
     showQuickPick
       .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
-      .mockResolvedValueOnce({ label: "File", granularity: "file" });
+      .mockResolvedValueOnce({ label: "File", granularity: "file" })
+      .mockResolvedValueOnce({ label: "Auto", direction: "auto" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
     writeFile.mockResolvedValueOnce(undefined);
 
@@ -369,7 +373,8 @@ describe("createExportMermaidCommand — US2 granularity picker", () => {
   it("threads granularity 'package' into the serializer when Package is picked", async () => {
     showQuickPick
       .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
-      .mockResolvedValueOnce({ label: "Package", granularity: "package" });
+      .mockResolvedValueOnce({ label: "Package", granularity: "package" })
+      .mockResolvedValueOnce({ label: "Auto", direction: "auto" });
     showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
     writeFile.mockResolvedValueOnce(undefined);
 
@@ -402,7 +407,110 @@ describe("createExportMermaidCommand — US2 granularity picker", () => {
 
 // US2 will add: granularity picker (Package / File / Symbol), cancel-at-granularity.
 //
-// US3 will add: direction picker (Auto / TB / LR / BT / RL), validator-failure
-// surfaces via showWarningMessage with no-write invariant.
+// ---------------------------------------------------------------------------
+// US3 — Direction picker + fail-closed validator
+// ---------------------------------------------------------------------------
+
+describe("createExportMermaidCommand — US3 direction picker + validator", () => {
+  beforeEach(() => {
+    resetMocks();
+  });
+
+  afterEach(() => {
+    resetMocks();
+  });
+
+  it("offers Auto / Top-down / Left-right / Bottom-up / Right-left after the granularity step", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce(undefined); // cancel at direction
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+    });
+    await command();
+
+    expect(showQuickPick).toHaveBeenCalledTimes(3);
+    const directionItems = showQuickPick.mock.calls[2]?.[0] as Array<{ label: string }>;
+    expect(directionItems.map((i) => i.label)).toEqual([
+      "Auto",
+      "Top-down",
+      "Left-right",
+      "Bottom-up",
+      "Right-left",
+    ]);
+  });
+
+  it("exits silently when the user cancels at the direction step", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+    });
+    await command();
+
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("Top-down picks graph TB explicitly (no auto inference)", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce({ label: "Top-down", direction: "TB" });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+    writeFile.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+    });
+    await command();
+
+    const written = writeFile.mock.calls[0]?.[1] as Uint8Array;
+    const text = new TextDecoder().decode(written);
+    expect(text.split("\n")[1]).toBe("graph TB");
+  });
+
+  it("Left-right picks graph LR explicitly", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce({ label: "Left-right", direction: "LR" });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+    writeFile.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+    });
+    await command();
+
+    const written = writeFile.mock.calls[0]?.[1] as Uint8Array;
+    const text = new TextDecoder().decode(written);
+    expect(text.split("\n")[1]).toBe("graph LR");
+  });
+
+  it("refuses an oversized symbol-granularity export with showWarningMessage and writes no file", async () => {
+    // 250 file nodes > symbol cap (200)
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } })
+      .mockResolvedValueOnce({ label: "Symbol", granularity: "symbol" })
+      .mockResolvedValueOnce({ label: "Auto", direction: "auto" });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(250),
+    });
+    await command();
+
+    expect(showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("exceeds the symbol cap of 200 nodes"),
+    );
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+});
 
 export { setActiveTextEditor, setWorkspaceFolders };

@@ -2,6 +2,7 @@ import {
   DEFAULT_MERMAID_THEME,
   isMermaidTheme,
   serializeToScopedMermaid,
+  type MermaidDirection,
   type MermaidGranularity,
   type MermaidScope,
 } from "@dextree/exporters";
@@ -18,6 +19,10 @@ interface ScopePickItem extends vscode.QuickPickItem {
 
 interface GranularityPickItem extends vscode.QuickPickItem {
   granularity: MermaidGranularity;
+}
+
+interface DirectionPickItem extends vscode.QuickPickItem {
+  direction: MermaidDirection;
 }
 
 export function createExportMermaidCommand(
@@ -51,6 +56,11 @@ export function createExportMermaidCommand(
       return;
     }
 
+    const direction = await pickDirection();
+    if (direction === undefined) {
+      return;
+    }
+
     const defaultUri = vscode.Uri.joinPath(root.uri, "dextree-graph.mmd");
     const saveUri = await vscode.window.showSaveDialog({
       defaultUri,
@@ -72,7 +82,7 @@ export function createExportMermaidCommand(
       content = serializeToScopedMermaid(subgraph, {
         scope,
         granularity,
-        direction: "auto",
+        direction,
         theme,
       });
     } catch (err) {
@@ -167,6 +177,50 @@ async function pickGranularity(): Promise<MermaidGranularity | undefined> {
   });
 
   return picked?.granularity;
+}
+
+/**
+ * Third QuickPick step. Auto is the default and resolves to the per-scope
+ * inference inside the exporter (LR for caller/callee scopes, TB otherwise).
+ * Explicit tokens (TB / LR / BT / RL) pass straight through to the
+ * `graph <DIR>` header in the .mmd output.
+ */
+async function pickDirection(): Promise<MermaidDirection | undefined> {
+  const items: DirectionPickItem[] = [
+    {
+      label: "Auto",
+      description: "Default for the chosen scope (LR for call chains, TB otherwise)",
+      direction: "auto",
+    },
+    {
+      label: "Top-down",
+      description: "graph TB — files / hierarchies read top to bottom",
+      direction: "TB",
+    },
+    {
+      label: "Left-right",
+      description: "graph LR — call chains read left to right",
+      direction: "LR",
+    },
+    {
+      label: "Bottom-up",
+      description: "graph BT — inverted hierarchy",
+      direction: "BT",
+    },
+    {
+      label: "Right-left",
+      description: "graph RL — inverted call chains",
+      direction: "RL",
+    },
+  ];
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: "Mermaid Export — Direction",
+    placeHolder: "Pick the flowchart orientation",
+    canPickMany: false,
+  });
+
+  return picked?.direction;
 }
 
 function toWorkspaceRelative(absolutePath: string, workspaceRoot: string): string | undefined {
