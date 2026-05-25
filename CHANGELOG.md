@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/dgtalbug/dextree/compare/v1.6.0...v1.7.0) (2026-05-25)
+
+
+### Features
+
+* **extension:** workspace switcher with toolbar button and Workspaces page (slice 024) ([#107](https://github.com/dgtalbug/dextree/issues/107)) ([7be5f4f](https://github.com/dgtalbug/dextree/commit/7be5f4f778bde79aa8487e745599e63406f7f6d9))
+
 ## [1.6.0](https://github.com/dgtalbug/dextree/compare/v1.5.0...v1.6.0) (2026-05-25)
 
 ### Features
