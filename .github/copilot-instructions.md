@@ -213,15 +213,15 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `027-mermaid-scoped-serializer` (implementation)
+**Branch**: `028-enclosing-symbol-classdiagram` (implementation)
 
-- Plan (027): [`specs/027-mermaid-scoped-serializer/plan.md`](../specs/027-mermaid-scoped-serializer/plan.md)
-- Spec (027): [`specs/027-mermaid-scoped-serializer/spec.md`](../specs/027-mermaid-scoped-serializer/spec.md)
-- Research (027): [`specs/027-mermaid-scoped-serializer/research.md`](../specs/027-mermaid-scoped-serializer/research.md)
-- Data model (027): [`specs/027-mermaid-scoped-serializer/data-model.md`](../specs/027-mermaid-scoped-serializer/data-model.md)
-- Contracts (027): [`specs/027-mermaid-scoped-serializer/contracts/`](../specs/027-mermaid-scoped-serializer/contracts/)
-- Quickstart (027): [`specs/027-mermaid-scoped-serializer/quickstart.md`](../specs/027-mermaid-scoped-serializer/quickstart.md)
+- Plan (028): [`specs/028-enclosing-symbol-classdiagram/plan.md`](../specs/028-enclosing-symbol-classdiagram/plan.md)
+- Spec (028): [`specs/028-enclosing-symbol-classdiagram/spec.md`](../specs/028-enclosing-symbol-classdiagram/spec.md)
+- Research (028): [`specs/028-enclosing-symbol-classdiagram/research.md`](../specs/028-enclosing-symbol-classdiagram/research.md)
+- Data model (028): [`specs/028-enclosing-symbol-classdiagram/data-model.md`](../specs/028-enclosing-symbol-classdiagram/data-model.md)
+- Contracts (028): [`specs/028-enclosing-symbol-classdiagram/contracts/`](../specs/028-enclosing-symbol-classdiagram/contracts/)
+- Quickstart (028): [`specs/028-enclosing-symbol-classdiagram/quickstart.md`](../specs/028-enclosing-symbol-classdiagram/quickstart.md)
 
-Review focus for 027: refactor of `packages/exporters/src/mermaid/serializer.ts` into a discriminated-union option model with `serializeToScopedMermaid` as the new entry point and the existing `serializeToMermaid` preserved as a one-line shim for the slice-016 contract; new pure-function modules under `packages/exporters/src/mermaid/` for scope extraction (`scope.ts` via `graphology-operators.subgraph()`), granularity collapse (`granularity.ts`), direction inference (`direction.ts`), and fail-closed validation (`validator.ts`) with per-granularity node/edge caps; `packages/exporters/package.json` adds `graphology-operators@^0.6`; `packages/extension/src/commands/exportMermaid.ts` gains a three-step QuickPick (Scope → Granularity → Direction) and surfaces validator-failure reasons via `vscode.window.showWarningMessage`; the existing fuzz harness in `packages/exporters/src/__fuzz__/serializer.fuzz.ts` gains a scoped-entry branch. No schema, indexing, webview, or host↔webview protocol changes; no new VS Code commands; no remote services.
+Review focus for 028: add a nullable `symbol.enclosing_symbol_id` column via migration 007 (drop-indexes / bare ADD COLUMN / recreate-indexes pattern from slice 026's migration 006, no backfill UPDATE — the schema-version bump invalidates the workspace cache and forces a reindex); populate it during pass-1 extraction inside `packages/core/src/extractors/ClassRelationExtractor.ts` via tree-sitter parent walking (no FQN parsing); add `enclosingSymbolId?` to `StoredSymbol` + `GraphNode` and project through `packages/core/src/storage/repository.ts` and `packages/core/src/query/subgraph.ts`; add a `diagram: MermaidDiagram` discriminator (`"flowchart" | "classDiagram"`) to `ScopedMermaidOptions` and switch in `packages/exporters/src/mermaid/scopedSerializer.ts`; new `packages/exporters/src/mermaid/classDiagram.ts` with `serializeToClassDiagram`, `validateClassDiagramExport`, `groupClassDiagramEntries`, and `MERMAID_CLASS_DIAGRAM_CAPS` (80 classes / 200 methods); extend the fuzz harness in `packages/exporters/src/__fuzz__/serializer.fuzz.ts` with a classDiagram branch; add a Diagram QuickPick step in `packages/extension/src/commands/exportMermaid.ts` (Flowchart / Class diagram) that skips Granularity + Direction when Class diagram is picked. No new commands, host↔webview protocol messages, remote services, full UML signatures, visibility, implements arrows, sequence diagrams, preview panel, or context menus.
 
 <!-- SPECKIT END -->
