@@ -92,6 +92,15 @@ jobs:
             fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
             console.log('Stamped version', pkg.version, 'into', p);
           "
+      - name: Turbo build
+        # Build every workspace package first so the extension's vite build
+        # can resolve deep imports like `@dextree/core/lenses` to dist files
+        # that exist. pnpm does not auto-build linked workspace packages;
+        # the extension's local `prepackage` only runs the extension's own
+        # `pnpm build`, which leaves `packages/core/dist/query/lenses.js`
+        # absent and breaks the webview bundle. _package.yml (PR CI) already
+        # does this; release.yml was missing it.
+        run: pnpm build
       - name: Package .vsix (${{ matrix.target }})
         env:
           VSCE_TARGET: ${{ matrix.target }}
