@@ -1,6 +1,7 @@
 import type { GraphEdge, GraphNode, WorkspaceSubgraph } from "@dextree/core";
 import { describe, expect, it } from "vitest";
 import { serializeToMermaid } from "./serializer.js";
+import { serializeToScopedMermaid } from "./scopedSerializer.js";
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -207,5 +208,156 @@ describe("serializeToMermaid — empty graph", () => {
     expect(() => serializeToMermaid(subgraph([]), { theme: "Light" })).toThrow(
       "Graph has no nodes to export",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slice 027 — scoped serializer parity
+// ---------------------------------------------------------------------------
+
+describe("serializeToScopedMermaid — workspace scope parity with shim", () => {
+  it("produces matching node + edge lines vs the legacy shim (only the graph header differs: TB vs TD)", () => {
+    const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
+    const shimOut = serializeToMermaid(sg, { theme: "Light" });
+    const scopedOut = serializeToScopedMermaid(sg, {
+      scope: { kind: "workspace" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+
+    // Headers differ by design: shim post-processes to `graph TD`, scoped path emits `graph TB`.
+    expect(shimOut.replace("graph TD", "graph TB")).toBe(scopedOut);
+  });
+});
+
+describe("serializeToScopedMermaid — file scope", () => {
+  // Local fixture so the file and symbol nodes share a consistent filePath
+  // (the existing makeSymbolNode helper hard-codes `/workspace/a.ts` and
+  // doesn't line up with FILE_A's `/workspace/src/a.ts`).
+  const FILE_X: GraphNode = {
+    id: "file-x",
+    type: "file",
+    label: "src/a.ts",
+    filePath: "/workspace/src/a.ts",
+    startLine: 1,
+  };
+  const FILE_Y: GraphNode = {
+    id: "file-y",
+    type: "file",
+    label: "src/b.ts",
+    filePath: "/workspace/src/b.ts",
+    startLine: 1,
+  };
+  const SYM_X: GraphNode = {
+    id: "sym-x",
+    type: "symbol",
+    label: "fooInA",
+    filePath: "/workspace/src/a.ts",
+    startLine: 5,
+    symbolKind: "function",
+  };
+  const SYM_Y: GraphNode = {
+    id: "sym-y",
+    type: "symbol",
+    label: "barInB",
+    filePath: "/workspace/src/b.ts",
+    startLine: 5,
+    symbolKind: "function",
+  };
+  const EDGE_DEF_X: GraphEdge = {
+    id: "ed-x",
+    source: "file-x",
+    target: "sym-x",
+    kind: "DEFINES",
+  };
+  const EDGE_DEF_Y: GraphEdge = {
+    id: "ed-y",
+    source: "file-y",
+    target: "sym-y",
+    kind: "DEFINES",
+  };
+  const EDGE_CROSS: GraphEdge = {
+    id: "ec",
+    source: "sym-x",
+    target: "sym-y",
+    kind: "CALLS",
+  };
+
+  it("emits only the focused file's nodes and intra-file edges", () => {
+    const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
+    const out = serializeToScopedMermaid(sg, {
+      scope: { kind: "file", relativePath: "src/a.ts" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+
+    const nodeLines = out.split("\n").filter((l) => /^ {2}n\w+\[/.test(l));
+    expect(nodeLines).toHaveLength(2);
+    expect(out).not.toContain("src/b.ts");
+    expect(out).toContain('["fooInA [function]"]');
+  });
+
+  it("drops cross-file edges where one endpoint is outside the file scope", () => {
+    const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
+    const out = serializeToScopedMermaid(sg, {
+      scope: { kind: "file", relativePath: "src/a.ts" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+
+    const edgeLines = out.split("\n").filter((l) => l.includes("-->"));
+    expect(edgeLines).toHaveLength(1);
+    expect(out).toContain("-->|DEFINES|");
+    expect(out).not.toContain("-->|CALLS|");
+  });
+
+  it("produces strictly fewer nodes than the workspace scope when other files exist", () => {
+    const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
+    const workspaceOut = serializeToScopedMermaid(sg, {
+      scope: { kind: "workspace" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+    const fileOut = serializeToScopedMermaid(sg, {
+      scope: { kind: "file", relativePath: "src/a.ts" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+
+    const workspaceNodes = workspaceOut.split("\n").filter((l) => /^ {2}n\w+\[/.test(l)).length;
+    const fileNodes = fileOut.split("\n").filter((l) => /^ {2}n\w+\[/.test(l)).length;
+    expect(fileNodes).toBeLessThan(workspaceNodes);
+  });
+
+  it("throws with the scope.unsupported reason when the file does not exist", () => {
+    const sg = subgraph([FILE_X], []);
+    expect(() =>
+      serializeToScopedMermaid(sg, {
+        scope: { kind: "file", relativePath: "src/missing.ts" },
+        granularity: "symbol",
+        direction: "auto",
+        theme: "Light",
+      }),
+    ).toThrow(/File not found in indexed graph/);
+  });
+});
+
+describe("serializeToScopedMermaid — determinism", () => {
+  it("same input produces identical output across repeated calls", () => {
+    const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
+    const options = {
+      scope: { kind: "workspace" as const },
+      granularity: "symbol" as const,
+      direction: "auto" as const,
+      theme: "Dark" as const,
+    };
+    const a = serializeToScopedMermaid(sg, options);
+    const b = serializeToScopedMermaid(sg, options);
+    expect(a).toBe(b);
   });
 });

@@ -213,14 +213,15 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `026-entry-point-tagging-and-layer` (implementation)
+**Branch**: `027-mermaid-scoped-serializer` (implementation)
 
-- Plan (026): [`specs/026-entry-point-tagging-and-layer/plan.md`](../specs/026-entry-point-tagging-and-layer/plan.md)
-- Spec (026): [`specs/026-entry-point-tagging-and-layer/spec.md`](../specs/026-entry-point-tagging-and-layer/spec.md)
-- Research (026): [`specs/026-entry-point-tagging-and-layer/research.md`](../specs/026-entry-point-tagging-and-layer/research.md)
-- Contracts (026): [`specs/026-entry-point-tagging-and-layer/contracts/`](../specs/026-entry-point-tagging-and-layer/contracts/)
-- Quickstart (026): [`specs/026-entry-point-tagging-and-layer/quickstart.md`](../specs/026-entry-point-tagging-and-layer/quickstart.md)
+- Plan (027): [`specs/027-mermaid-scoped-serializer/plan.md`](../specs/027-mermaid-scoped-serializer/plan.md)
+- Spec (027): [`specs/027-mermaid-scoped-serializer/spec.md`](../specs/027-mermaid-scoped-serializer/spec.md)
+- Research (027): [`specs/027-mermaid-scoped-serializer/research.md`](../specs/027-mermaid-scoped-serializer/research.md)
+- Data model (027): [`specs/027-mermaid-scoped-serializer/data-model.md`](../specs/027-mermaid-scoped-serializer/data-model.md)
+- Contracts (027): [`specs/027-mermaid-scoped-serializer/contracts/`](../specs/027-mermaid-scoped-serializer/contracts/)
+- Quickstart (027): [`specs/027-mermaid-scoped-serializer/quickstart.md`](../specs/027-mermaid-scoped-serializer/quickstart.md)
 
-Review focus for 026: modified `packages/core/src/types.ts` (EntryKind / ArchitecturalLayer / GraphNode metadata); new symbol classification helper under `packages/core/src/extractors/classification/`; modified `packages/core/src/index.ts` (classification during pass 1 indexing); modified `packages/core/src/storage/schema.ts`, `repository.ts`, and migration runner with a new symbol classification migration; modified `packages/core/src/query/subgraph.ts` (entry/layer projection); modified `packages/extension/src/webview/components/GraphView.tsx` and `graphViewTypes.ts` for entry-node styling and graceful missing-field fallback; modified `packages/extension/package.json` for Sigma node add-ons; updated core and webview tests. No new commands, remote services, or host↔webview protocol messages.
+Review focus for 027: refactor of `packages/exporters/src/mermaid/serializer.ts` into a discriminated-union option model with `serializeToScopedMermaid` as the new entry point and the existing `serializeToMermaid` preserved as a one-line shim for the slice-016 contract; new pure-function modules under `packages/exporters/src/mermaid/` for scope extraction (`scope.ts` via `graphology-operators.subgraph()`), granularity collapse (`granularity.ts`), direction inference (`direction.ts`), and fail-closed validation (`validator.ts`) with per-granularity node/edge caps; `packages/exporters/package.json` adds `graphology-operators@^0.6`; `packages/extension/src/commands/exportMermaid.ts` gains a three-step QuickPick (Scope → Granularity → Direction) and surfaces validator-failure reasons via `vscode.window.showWarningMessage`; the existing fuzz harness in `packages/exporters/src/__fuzz__/serializer.fuzz.ts` gains a scoped-entry branch. No schema, indexing, webview, or host↔webview protocol changes; no new VS Code commands; no remote services.
 
 <!-- SPECKIT END -->

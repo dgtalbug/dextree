@@ -2,10 +2,9 @@
 
 ## [1.9.0](https://github.com/dgtalbug/dextree/compare/v1.8.0...v1.9.0) (2026-05-25)
 
-
 ### Features
 
-* **core,extension:** entry-point tagging and architectural-layer classification (slice 026) ([#118](https://github.com/dgtalbug/dextree/issues/118)) ([358f7d4](https://github.com/dgtalbug/dextree/commit/358f7d49c6d323c294a9bd18feb0f742df0387d8)), closes [#117](https://github.com/dgtalbug/dextree/issues/117)
+- **core,extension:** entry-point tagging and architectural-layer classification (slice 026) ([#118](https://github.com/dgtalbug/dextree/issues/118)) ([358f7d4](https://github.com/dgtalbug/dextree/commit/358f7d49c6d323c294a9bd18feb0f742df0387d8)), closes [#117](https://github.com/dgtalbug/dextree/issues/117)
 
 ## [1.8.0](https://github.com/dgtalbug/dextree/compare/v1.7.0...v1.8.0) (2026-05-25)
 

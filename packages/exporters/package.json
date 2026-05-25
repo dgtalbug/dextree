@@ -46,6 +46,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@dextree/core": "workspace:*"
+    "@dextree/core": "workspace:*",
+    "graphology": "^0.26.0",
+    "graphology-operators": "^1.6.1"
   }
 }
