@@ -1,4 +1,10 @@
-import type { GraphEdge, GraphNode, SymbolKind } from "@dextree/core";
+import type {
+  ArchitecturalLayer,
+  EntryKind,
+  GraphEdge,
+  GraphNode,
+  SymbolKind,
+} from "@dextree/core";
 
 // ---------------------------------------------------------------------------
 // Layout presets (slice 025)
@@ -76,6 +82,8 @@ export interface ThemeColors {
   instantiatesEdgeColor: string;
   /** Yellow used for active trace path edges (slice 023). */
   tracePathEdgeColor: string;
+  /** Gold-ish border applied to classified entry symbols (slice 026). */
+  entryBorderColor: string;
 }
 
 export interface GraphViewProps {
@@ -91,6 +99,14 @@ export interface GraphViewProps {
   onWorkspaceSwitcherClick?: () => void;
 }
 
+/**
+ * Per-node Sigma program selector. Sigma 3 dispatches the WebGL renderer for
+ * each node based on this attribute. `entry` is the slice-026 program (gold
+ * border around the node's existing color); `square` is registered alongside
+ * for future architectural-layer differentiation.
+ */
+export type SigmaNodeProgramType = "circle" | "square" | "entry";
+
 export interface GraphNodeAttributes {
   label: string;
   filePath: string;
@@ -103,6 +119,41 @@ export interface GraphNodeAttributes {
   baseSize: number;
   color: string;
   baseColor: string;
+  /** Set on symbol nodes only. File nodes never carry classification. */
+  entryKind?: EntryKind;
+  /** Set on symbol nodes only. File nodes never carry classification. */
+  archLayer?: ArchitecturalLayer;
+  /** Omitted to use Sigma's defaultNodeType. */
+  type?: SigmaNodeProgramType;
+  /** Per-node entry-border color read by NodeEntryProgram. Set only when type === "entry". */
+  entryBorderColor?: string;
+}
+
+/**
+ * GraphView-local rendering state for an entry symbol. Computed on the fly
+ * from `GraphNodeAttributes.entryKind` — symbols with `unclassified` or
+ * missing entryKind keep the standard symbol rendering.
+ */
+export interface EntryNodeVisualState {
+  entryKind: EntryKind | undefined;
+  usesEntryShape: boolean;
+  usesEntryBorder: boolean;
+}
+
+/**
+ * Decide GraphView's per-symbol entry styling from the persisted entry kind.
+ * Pure function — exported so tests can pin the contract without spinning up
+ * a Sigma instance. Conservative: only classified, non-`unclassified` entries
+ * receive the distinct entry treatment; everything else keeps neutral
+ * rendering.
+ */
+export function entryVisualState(entryKind: EntryKind | undefined): EntryNodeVisualState {
+  const isClassifiedEntry = entryKind !== undefined && entryKind !== "unclassified";
+  return {
+    entryKind,
+    usesEntryShape: isClassifiedEntry,
+    usesEntryBorder: isClassifiedEntry,
+  };
 }
 
 export interface GraphEdgeAttributes {

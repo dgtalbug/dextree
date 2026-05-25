@@ -4,7 +4,8 @@
 //   3 — unifies call_site + import_ref into edge with kind/metadata (migration 003)
 //   4 — adds workspace_cache table (migration 004)
 //   5 — adds workspace_framework table + file.framework columns (migration 005)
-export const SCHEMA_VERSION = 5;
+//   6 — adds symbol.entry_kind + symbol.arch_layer classification columns (migration 006)
+export const SCHEMA_VERSION = 6;
 
 export interface WorkspaceCacheIdentity {
   cacheKey: string;
@@ -51,6 +52,21 @@ export type SymbolKind =
   | "variable"
   | "method";
 
+export type EntryKind = "runtime" | "handler" | "test" | "public-api" | "unclassified";
+
+export type ArchitecturalLayer =
+  | "presentation"
+  | "application"
+  | "domain"
+  | "infrastructure"
+  | "test"
+  | "unknown";
+
+export interface SymbolClassificationRecord {
+  entryKind: EntryKind;
+  archLayer: ArchitecturalLayer;
+}
+
 export type GraphNodeType = "file" | "symbol";
 
 export type GraphEdgeKind = "DEFINES" | "IMPORTS" | "CALLS" | "INHERITS" | "INSTANTIATES";
@@ -77,6 +93,10 @@ export interface GraphNode {
   flags?: readonly string[];
   signature?: string;
   docstring?: string;
+  /** Set on `type: "symbol"` nodes only. Absent on file nodes. */
+  entryKind?: EntryKind;
+  /** Set on `type: "symbol"` nodes only. Absent on file nodes. */
+  archLayer?: ArchitecturalLayer;
 }
 
 export interface GraphEdge {

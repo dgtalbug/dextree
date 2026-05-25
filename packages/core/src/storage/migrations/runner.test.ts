@@ -182,6 +182,76 @@ describe("applyMigrations", () => {
       const v = (r as { version: number | bigint }).version;
       return typeof v === "bigint" ? Number(v) : v;
     });
-    expect(versions).toEqual([1, 2, 3, 4, 5]);
+    expect(versions).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("adds symbol.entry_kind and symbol.arch_layer columns on a v5 DB (migration 006)", async () => {
+    const conn = requireHandle().connection;
+
+    // Simulate a persisted pre-v6 database: drop the classification columns
+    // that schema.ts creates on a fresh DB, then mark the registry at v5.
+    // DuckDB rejects ALTER while indexes reference the table, so the test
+    // setup repeats the same drop/recreate dance the migration uses.
+    await conn.run("DROP INDEX IF EXISTS idx_symbol_fqn");
+    await conn.run("DROP INDEX IF EXISTS idx_symbol_file_id");
+    await conn.run("DROP INDEX IF EXISTS idx_symbol_kind");
+    await conn.run("ALTER TABLE symbol DROP COLUMN entry_kind");
+    await conn.run("ALTER TABLE symbol DROP COLUMN arch_layer");
+    await conn.run("CREATE INDEX idx_symbol_fqn ON symbol(fqn)");
+    await conn.run("CREATE INDEX idx_symbol_file_id ON symbol(file_id)");
+    await conn.run("CREATE INDEX idx_symbol_kind ON symbol(kind)");
+    await conn.run(
+      "INSERT INTO _schema_version (version, description) VALUES (5, 'pre-006 baseline')",
+    );
+
+    const result = await applyMigrations(conn);
+
+    if (result.status === "failed") {
+      throw new Error(`Migration 006 unexpectedly failed: ${result.reason}`);
+    }
+    expect(result.status).toBe("ok");
+
+    const columnsReader = await conn.run(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'main' AND table_name = 'symbol'
+         AND column_name IN ('entry_kind', 'arch_layer')
+       ORDER BY column_name`,
+    );
+    const columnNames = (await columnsReader.getRowObjectsJS()).map(
+      (r) => (r as { column_name: string }).column_name,
+    );
+    expect(columnNames).toEqual(["arch_layer", "entry_kind"]);
+
+    const indexesReader = await conn.run(
+      `SELECT index_name FROM duckdb_indexes()
+       WHERE table_name = 'symbol' ORDER BY index_name`,
+    );
+    const indexNames = (await indexesReader.getRowObjectsJS()).map(
+      (r) => (r as { index_name: string }).index_name,
+    );
+    expect(indexNames).toEqual(["idx_symbol_file_id", "idx_symbol_fqn", "idx_symbol_kind"]);
+  });
+
+  it("is idempotent when re-run on a v6 DB (migration 006)", async () => {
+    const conn = requireHandle().connection;
+
+    const first = await applyMigrations(conn);
+    expect(first.status).toBe("ok");
+
+    const second = await applyMigrations(conn);
+    expect(second.status).toBe("ok");
+    if (second.status === "ok") {
+      expect(second.applied).toEqual([]);
+    }
+
+    const versions = (
+      await (
+        await conn.run("SELECT version FROM _schema_version WHERE version = 6 ORDER BY version")
+      ).getRowObjectsJS()
+    ).map((r) => {
+      const v = (r as { version: number | bigint }).version;
+      return typeof v === "bigint" ? Number(v) : v;
+    });
+    expect(versions).toEqual([6]);
   });
 });

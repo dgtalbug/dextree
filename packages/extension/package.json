@@ -41,6 +41,8 @@
     "vscode": "^1.85.0"
   },
   "dependencies": {
+    "@sigma/node-border": "^3.0.0",
+    "@sigma/node-square": "^3.0.0",
     "graphology": "^0.26.0",
     "graphology-dag": "^0.4.1",
     "graphology-layout": "^0.6.1",

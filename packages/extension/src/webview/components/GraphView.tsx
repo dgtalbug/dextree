@@ -1,5 +1,7 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
 import type { LensId } from "@dextree/core/lenses";
+import { createNodeBorderProgram } from "@sigma/node-border";
+import { NodeSquareProgram } from "@sigma/node-square";
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { edgePathFromNodePath } from "graphology-shortest-path";
@@ -8,6 +10,7 @@ import { bfsFromNode } from "graphology-traversal";
 import { motion } from "framer-motion";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
+import { NodeCircleProgram } from "sigma/rendering";
 
 import {
   applyLayoutPreset,
@@ -25,6 +28,7 @@ import { dimColor } from "./lensColor.js";
 import { CANONICAL_NODE_FILTER_LIST, type NodeFilterEntry } from "./NodeFilterPanel.js";
 import {
   TRACE_STATE_IDLE,
+  entryVisualState,
   type FallbackNode,
   type FallbackGraph,
   type GraphEdgeAttributes,
@@ -47,6 +51,24 @@ const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 const FLOW_MAX_DEPTH = 4;
+
+// 2px is the smallest border that stays visible at the smallest rendered
+// symbol-node size (5px). Fallback hex is muted gold; the live color comes
+// from the `--vscode-charts-yellow` theme token via `readThemeColors`, so
+// custom VS Code themes drive the entry styling and theme switches refresh
+// it on the next render.
+const ENTRY_BORDER_COLOR_FALLBACK = "#d4af37";
+const ENTRY_BORDER_PIXELS = 2;
+
+const NodeEntryProgram = createNodeBorderProgram({
+  borders: [
+    {
+      color: { attribute: "entryBorderColor", defaultValue: ENTRY_BORDER_COLOR_FALLBACK },
+      size: { value: ENTRY_BORDER_PIXELS, mode: "pixels" },
+    },
+    { color: { attribute: "color" }, size: { fill: true } },
+  ],
+});
 
 type SigmaWithExtras = Sigma & {
   getNodeDisplayData?: (node: string) => SigmaNodeDisplayData | undefined;
@@ -134,6 +156,8 @@ function readThemeColors(): ThemeColors {
     // Slice 023 — trace path edge color. Reuses the chart yellow if defined;
     // falls back to a static yellow that survives all known VS Code themes.
     tracePathEdgeColor: styles.getPropertyValue("--vscode-charts-yellow").trim() || "#dcdcaa",
+    entryBorderColor:
+      styles.getPropertyValue("--vscode-charts-yellow").trim() || ENTRY_BORDER_COLOR_FALLBACK,
   };
 }
 
@@ -350,6 +374,12 @@ function buildGraph(
     const size = sizeForNode(node, importanceBounds);
     seenNodeIds.add(node.id);
 
+    // Entry styling applies only to symbol nodes — guards against payload
+    // drift across the host-webview boundary where the upstream contract
+    // (file nodes never carry entry/layer classification) could regress.
+    const isSymbol = node.type === "symbol";
+    const visual = entryVisualState(isSymbol ? node.entryKind : undefined);
+
     graph.addNode(node.id, {
       label: node.label.trim() || node.filePath.split("/").pop() || node.id,
       filePath: node.filePath,
@@ -362,6 +392,11 @@ function buildGraph(
       baseSize: size,
       color,
       baseColor: color,
+      ...(isSymbol && node.entryKind !== undefined ? { entryKind: node.entryKind } : {}),
+      ...(isSymbol && node.archLayer !== undefined ? { archLayer: node.archLayer } : {}),
+      ...(visual.usesEntryBorder
+        ? { type: "entry" as const, entryBorderColor: colors.entryBorderColor }
+        : {}),
     } satisfies GraphNodeAttributes);
   }
 
@@ -1639,6 +1674,15 @@ export function GraphView({
         enableEdgeEvents: true,
         // Prevent built-in double-click zoom — navigation is handled manually via clickNode.
         doubleClickZoomingRatio: 1,
+        // Explicitly include circle (replacing nodeProgramClasses overrides the
+        // default mapping in Sigma 3). Square is registered for upcoming
+        // architectural-layer differentiation in later slices; entry is the
+        // gold-bordered classification treatment from slice 026.
+        nodeProgramClasses: {
+          circle: NodeCircleProgram,
+          square: NodeSquareProgram,
+          entry: NodeEntryProgram,
+        },
         nodeReducer: (node, data) => {
           // 1. Node-kind filter (applied first — hides node before hover/focus logic runs)
           const attrs = data as GraphNodeAttributes;

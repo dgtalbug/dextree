@@ -65,7 +65,9 @@ export const SCHEMA_STATEMENTS = [
       embedding FLOAT[1536],
       tags VARCHAR[],
       labels VARCHAR[],
-      metadata JSON
+      metadata JSON,
+      entry_kind VARCHAR NOT NULL DEFAULT 'unclassified',
+      arch_layer VARCHAR NOT NULL DEFAULT 'unknown'
     )
   `,
   `

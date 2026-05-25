@@ -193,6 +193,19 @@ async function tableExists(connection: DuckDBConnection, tableName: string): Pro
   return rows.length > 0;
 }
 
+async function columnExists(
+  connection: DuckDBConnection,
+  tableName: string,
+  columnName: string,
+): Promise<boolean> {
+  const reader = await connection.run(
+    `SELECT 1 AS present FROM information_schema.columns
+     WHERE table_schema = 'main' AND table_name = '${tableName}' AND column_name = '${columnName}'`,
+  );
+  const rows = await reader.getRowObjectsJS();
+  return rows.length > 0;
+}
+
 async function columnIsNotNull(
   connection: DuckDBConnection,
   tableName: string,
@@ -268,12 +281,61 @@ const MIGRATION_005: Migration = {
   `,
 };
 
+// DuckDB rejects ALTER TABLE while indexes reference the table and also
+// rejects ADD COLUMN clauses with NOT NULL / DEFAULT ("Adding columns with
+// constraints not yet supported"). Combining ALTER + UPDATE on the same
+// table inside one transaction is also rejected. We drop the three symbol
+// indexes, add bare columns, and recreate the indexes — no UPDATE here.
+//
+// Pre-v6 rows carry NULL entry_kind / arch_layer briefly. The schema-version
+// bump invalidates the workspace cache (validateWorkspaceCache compares
+// metadata.schemaVersion to SCHEMA_VERSION), which forces a reindex on the
+// next session. That reindex rewrites every symbol row with explicit
+// classification values from classifySymbol(), so the NULLs are short-lived.
+// The subgraph projection coalesces NULL to the conservative fallback so
+// any read between migration and reindex still renders sensibly.
+async function runMigration006(connection: DuckDBConnection): Promise<void> {
+  const hasEntryKind = await columnExists(connection, "symbol", "entry_kind");
+  const hasArchLayer = await columnExists(connection, "symbol", "arch_layer");
+
+  if (!hasEntryKind || !hasArchLayer) {
+    await connection.run("DROP INDEX IF EXISTS idx_symbol_fqn");
+    await connection.run("DROP INDEX IF EXISTS idx_symbol_file_id");
+    await connection.run("DROP INDEX IF EXISTS idx_symbol_kind");
+
+    if (!hasEntryKind) {
+      await connection.run("ALTER TABLE symbol ADD COLUMN entry_kind VARCHAR");
+    }
+    if (!hasArchLayer) {
+      await connection.run("ALTER TABLE symbol ADD COLUMN arch_layer VARCHAR");
+    }
+
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_symbol_fqn ON symbol(fqn)");
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_symbol_file_id ON symbol(file_id)");
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_symbol_kind ON symbol(kind)");
+  }
+
+  await connection.run(`
+    INSERT INTO _schema_version (version, description)
+    SELECT 6, 'add symbol.entry_kind and symbol.arch_layer classification columns'
+    WHERE NOT EXISTS (SELECT 1 FROM _schema_version WHERE version = 6)
+  `);
+}
+
+const MIGRATION_006: Migration = {
+  version: 6,
+  description: "add symbol.entry_kind and symbol.arch_layer classification columns",
+  sql: "",
+  apply: runMigration006,
+};
+
 const MIGRATIONS: readonly Migration[] = [
   MIGRATION_001,
   MIGRATION_002,
   MIGRATION_003,
   MIGRATION_004,
   MIGRATION_005,
+  MIGRATION_006,
 ];
 
 export interface MigrationResultOk {

@@ -2,15 +2,13 @@
 
 ## [1.8.0](https://github.com/dgtalbug/dextree/compare/v1.7.0...v1.8.0) (2026-05-25)
 
-
 ### Features
 
-* **extension:** layout presets dropdown with Circular and Hierarchical fallback (slice 025) ([#115](https://github.com/dgtalbug/dextree/issues/115)) ([b9b40fd](https://github.com/dgtalbug/dextree/commit/b9b40fd1f55e3c292e9724cf053591e6722f0ad2)), closes [#114](https://github.com/dgtalbug/dextree/issues/114)
-
+- **extension:** layout presets dropdown with Circular and Hierarchical fallback (slice 025) ([#115](https://github.com/dgtalbug/dextree/issues/115)) ([b9b40fd](https://github.com/dgtalbug/dextree/commit/b9b40fd1f55e3c292e9724cf053591e6722f0ad2)), closes [#114](https://github.com/dgtalbug/dextree/issues/114)
 
 ### Bug Fixes
 
-* **speckit:** also add new tracking issues to the Dextree project board ([#112](https://github.com/dgtalbug/dextree/issues/112)) ([2d133d1](https://github.com/dgtalbug/dextree/commit/2d133d1e4b371336eb74313a6e5feed13f344498)), closes [#80](https://github.com/dgtalbug/dextree/issues/80)
+- **speckit:** also add new tracking issues to the Dextree project board ([#112](https://github.com/dgtalbug/dextree/issues/112)) ([2d133d1](https://github.com/dgtalbug/dextree/commit/2d133d1e4b371336eb74313a6e5feed13f344498)), closes [#80](https://github.com/dgtalbug/dextree/issues/80)
 
 ## [1.7.0](https://github.com/dgtalbug/dextree/compare/v1.6.0...v1.7.0) (2026-05-25)
 

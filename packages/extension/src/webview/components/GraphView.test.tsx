@@ -45,6 +45,21 @@ vi.mock("sigma", () => ({
   default: sigmaConstructor,
 }));
 
+// The real `sigma/rendering` module reads WebGL2RenderingContext at import
+// time, which jsdom does not expose. Stub the named exports we use; the body
+// of these classes is irrelevant to the tests because Sigma itself is mocked.
+vi.mock("sigma/rendering", () => ({
+  NodeCircleProgram: class FakeNodeCircleProgram {},
+}));
+
+vi.mock("@sigma/node-square", () => ({
+  NodeSquareProgram: class FakeNodeSquareProgram {},
+}));
+
+vi.mock("@sigma/node-border", () => ({
+  createNodeBorderProgram: vi.fn(() => class FakeNodeBorderProgram {}),
+}));
+
 vi.mock("graphology-layout-forceatlas2", () => ({
   default: {
     assign: forceAtlasAssign,
@@ -1172,6 +1187,180 @@ describe("GraphView", () => {
       });
 
       expect(select.value).toBe("forceAtlas2");
+    });
+  });
+
+  describe("entry-symbol styling (slice 026)", () => {
+    it("registers circle, square, and entry node program classes with Sigma", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const settings = sigmaConstructor.mock.calls[0]?.[2] as Record<string, unknown>;
+      const programs = settings.nodeProgramClasses as Record<string, unknown>;
+      expect(programs).toBeDefined();
+      expect(Object.keys(programs).sort()).toEqual(["circle", "entry", "square"]);
+    });
+
+    it("assigns type='entry' on symbol nodes classified as a non-unclassified entry kind", () => {
+      const nodes = [
+        ...baseNodes,
+        {
+          id: "symbol-handler",
+          type: "symbol" as const,
+          label: "onClick",
+          filePath: "/workspace/src/Button.tsx",
+          startLine: 12,
+          symbolKind: "function" as const,
+          entryKind: "handler" as const,
+        },
+        {
+          id: "symbol-public",
+          type: "symbol" as const,
+          label: "createIndexer",
+          filePath: "/workspace/src/index.ts",
+          startLine: 1,
+          symbolKind: "function" as const,
+          entryKind: "public-api" as const,
+        },
+      ];
+
+      render(
+        <GraphView
+          nodes={nodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const graph = sigmaConstructor.mock.calls[0]?.[0];
+      expect(graph.getNodeAttribute("symbol-handler", "type")).toBe("entry");
+      expect(graph.getNodeAttribute("symbol-handler", "entryKind")).toBe("handler");
+      expect(graph.getNodeAttribute("symbol-public", "type")).toBe("entry");
+      expect(graph.getNodeAttribute("symbol-public", "entryKind")).toBe("public-api");
+    });
+
+    it("omits the type attribute for unclassified or missing entryKind so the node falls back to default circle rendering", () => {
+      const nodes = [
+        ...baseNodes,
+        {
+          id: "symbol-unclassified",
+          type: "symbol" as const,
+          label: "helper",
+          filePath: "/workspace/src/util.ts",
+          startLine: 4,
+          symbolKind: "function" as const,
+          entryKind: "unclassified" as const,
+        },
+      ];
+
+      render(
+        <GraphView
+          nodes={nodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const graph = sigmaConstructor.mock.calls[0]?.[0];
+      // unclassified symbol — entryKind flows through but no `type` override.
+      expect(graph.getNodeAttribute("symbol-unclassified", "entryKind")).toBe("unclassified");
+      expect(graph.getNodeAttribute("symbol-unclassified", "type")).toBeUndefined();
+      // baseNodes have no entryKind at all — should also have no type override.
+      expect(graph.getNodeAttribute("symbol-1", "entryKind")).toBeUndefined();
+      expect(graph.getNodeAttribute("symbol-1", "type")).toBeUndefined();
+    });
+
+    it("projects archLayer onto symbol nodes when present", () => {
+      const nodes = [
+        ...baseNodes,
+        {
+          id: "symbol-layered",
+          type: "symbol" as const,
+          label: "render",
+          filePath: "/workspace/src/components/Card.tsx",
+          startLine: 5,
+          symbolKind: "function" as const,
+          entryKind: "handler" as const,
+          archLayer: "presentation" as const,
+        },
+      ];
+
+      render(
+        <GraphView
+          nodes={nodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const graph = sigmaConstructor.mock.calls[0]?.[0];
+      expect(graph.getNodeAttribute("symbol-layered", "archLayer")).toBe("presentation");
+    });
+
+    it("renders mixed-classification workspaces without dropping unclassified symbols (US3)", () => {
+      // Reproduces the pass-1-only / ambiguous-workspace scenario from US3:
+      // a classified entry, an unclassified-but-otherwise-valid symbol, and
+      // a symbol with no classification fields at all. None should be hidden
+      // or styled identically; the classified one is the only `type: "entry"`.
+      const nodes = [
+        ...baseNodes,
+        {
+          id: "symbol-classified",
+          type: "symbol" as const,
+          label: "createIndexer",
+          filePath: "/workspace/src/index.ts",
+          startLine: 2,
+          symbolKind: "function" as const,
+          entryKind: "public-api" as const,
+          archLayer: "unknown" as const,
+        },
+        {
+          id: "symbol-unclassified",
+          type: "symbol" as const,
+          label: "helper",
+          filePath: "/workspace/src/helper.ts",
+          startLine: 3,
+          symbolKind: "function" as const,
+          entryKind: "unclassified" as const,
+          archLayer: "unknown" as const,
+        },
+        {
+          id: "symbol-pass1only",
+          type: "symbol" as const,
+          label: "fallback",
+          filePath: "/workspace/src/fallback.ts",
+          startLine: 4,
+          symbolKind: "function" as const,
+          // entryKind and archLayer intentionally omitted: pass-1-only graph.
+        },
+      ];
+
+      render(
+        <GraphView
+          nodes={nodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const graph = sigmaConstructor.mock.calls[0]?.[0];
+      expect(graph.hasNode("symbol-classified")).toBe(true);
+      expect(graph.hasNode("symbol-unclassified")).toBe(true);
+      expect(graph.hasNode("symbol-pass1only")).toBe(true);
+      expect(graph.getNodeAttribute("symbol-classified", "type")).toBe("entry");
+      expect(graph.getNodeAttribute("symbol-unclassified", "type")).toBeUndefined();
+      expect(graph.getNodeAttribute("symbol-pass1only", "type")).toBeUndefined();
+      expect(graph.getNodeAttribute("symbol-pass1only", "entryKind")).toBeUndefined();
     });
   });
 });
