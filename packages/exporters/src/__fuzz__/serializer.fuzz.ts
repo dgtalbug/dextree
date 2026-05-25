@@ -8,12 +8,14 @@
  * Run locally:
  *   npx jazzer packages/exporters/dist/__fuzz__/serializer.fuzz.js
  */
-import type { WorkspaceSubgraph } from "@dextree/core";
+import type { GraphNode, WorkspaceSubgraph } from "@dextree/core";
 
+import { validateClassDiagramExport } from "../mermaid/classDiagram.js";
 import { DEFAULT_MERMAID_THEME } from "../mermaid/theme.js";
 import {
   serializeToScopedMermaid,
   validateScopedMermaidExport,
+  type MermaidDiagram,
   type MermaidDirection,
   type MermaidGranularity,
   type MermaidScope,
@@ -22,11 +24,23 @@ import { serializeToMermaid } from "../mermaid/serializer.js";
 
 const GRANULARITIES: MermaidGranularity[] = ["package", "file", "symbol"];
 const DIRECTIONS: MermaidDirection[] = ["auto", "TB", "LR", "BT", "RL"];
+const DIAGRAMS: MermaidDiagram[] = ["flowchart", "classDiagram"];
 
 export function fuzz(data: Buffer): void {
   const text = data.toString("utf8");
   if (text.length === 0) return;
 
+  // Always include one class-like symbol so the classDiagram branch has a
+  // non-empty in-scope class set for at least some iterations. The label is
+  // the fuzz input so the serializer's name-sanitization is exercised too.
+  const classNode: GraphNode = {
+    id: "22222222-2222-2222-2222-222222222222",
+    label: text.slice(0, 32) || "FuzzClass",
+    type: "symbol",
+    filePath: "/fuzz/test.ts",
+    startLine: 1,
+    symbolKind: "class",
+  };
   const subgraph: WorkspaceSubgraph = {
     nodes: [
       {
@@ -36,6 +50,7 @@ export function fuzz(data: Buffer): void {
         filePath: "/fuzz/test.ts",
         startLine: 1,
       },
+      classNode,
     ],
     edges: [],
     frameworks: [],
@@ -54,6 +69,7 @@ export function fuzz(data: Buffer): void {
   // and never produces empty output otherwise.
   const granularity = GRANULARITIES[data.length % GRANULARITIES.length] ?? "symbol";
   const direction = DIRECTIONS[(data[0] ?? 0) % DIRECTIONS.length] ?? "auto";
+  const diagram = DIAGRAMS[(data[1] ?? 0) % DIAGRAMS.length] ?? "flowchart";
 
   const scopes: MermaidScope[] = [
     { kind: "workspace" },
@@ -62,12 +78,11 @@ export function fuzz(data: Buffer): void {
   ];
 
   for (const scope of scopes) {
-    const validation = validateScopedMermaidExport(subgraph, granularity);
     let threw = false;
     let scoped = "";
     try {
       scoped = serializeToScopedMermaid(subgraph, {
-        diagram: "flowchart",
+        diagram,
         scope,
         granularity,
         direction,
@@ -77,16 +92,33 @@ export function fuzz(data: Buffer): void {
       threw = true;
     }
 
-    // Invariant: throws must correspond to non-ok validation or unsupported
-    // scope extraction. The `file` scopes against a non-matching relativePath
-    // legitimately throw via the `unsupported` extraction path.
-    if (!threw && validation.status !== "ok") {
-      throw new Error(
-        `scoped serializer returned a string when validation.status=${validation.status}`,
-      );
-    }
-    if (!threw && (typeof scoped !== "string" || scoped.length === 0)) {
-      throw new Error("scoped serializer returned empty or non-string output");
+    if (diagram === "flowchart") {
+      // Flowchart branch: throws must correspond to non-ok validation or
+      // unsupported scope extraction. The `file` scopes against a
+      // non-matching relativePath legitimately throw via the `unsupported`
+      // extraction path.
+      const flowValidation = validateScopedMermaidExport(subgraph, granularity);
+      if (!threw && flowValidation.status !== "ok") {
+        throw new Error(
+          `scoped serializer returned a string when validation.status=${flowValidation.status}`,
+        );
+      }
+      if (!threw && (typeof scoped !== "string" || scoped.length === 0)) {
+        throw new Error("scoped serializer (flowchart) returned empty or non-string output");
+      }
+    } else {
+      // ClassDiagram branch: throws iff validateClassDiagramExport reports
+      // non-ok (file-scope unsupported extraction is bypassed because the
+      // classDiagram path validates the full subgraph directly).
+      const classValidation = validateClassDiagramExport(subgraph);
+      if (!threw && classValidation.status !== "ok") {
+        throw new Error(
+          `classDiagram serializer returned a string when validation.status=${classValidation.status}`,
+        );
+      }
+      if (!threw && (typeof scoped !== "string" || scoped.length === 0)) {
+        throw new Error("classDiagram serializer returned empty or non-string output");
+      }
     }
   }
 }

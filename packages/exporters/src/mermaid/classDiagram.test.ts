@@ -327,6 +327,55 @@ describe("serializeToClassDiagram", () => {
 });
 
 // ---------------------------------------------------------------------------
+// T025 — missing UML detail is omitted, not invented. The v1 preview shows
+// only what pass-1 extraction provides; no fake signatures, no fake visibility,
+// no fake implements arrows.
+// ---------------------------------------------------------------------------
+
+describe("serializeToClassDiagram — missing UML detail is absent, not faked (US3)", () => {
+  it("never emits parameter lists or return-type annotations", () => {
+    const A = classNode("class-a", "Animal");
+    const m = memberNode("m-eat", "eat", "class-a");
+    const out = serializeToClassDiagram(subgraph([A, m]), DEFAULT_OPTIONS);
+    expect(out).toContain("+eat()");
+    // No types or args:
+    expect(out).not.toMatch(/\+eat\([^)]+\)/);
+    expect(out).not.toMatch(/\+eat\(\)\s*:/);
+  });
+
+  it("never emits visibility prefixes other than '+'", () => {
+    const A = classNode("class-a", "Animal");
+    const m = memberNode("m-eat", "eat", "class-a");
+    const out = serializeToClassDiagram(subgraph([A, m]), DEFAULT_OPTIONS);
+    // Look only inside method-stub lines (the +/-/~ chars never appear there
+    // outside the visibility prefix slot).
+    const methodLines = out.split("\n").filter((l) => /^\s{4}\S/.test(l));
+    for (const line of methodLines) {
+      expect(line).toMatch(/^\s+\+/);
+    }
+  });
+
+  it("does not emit '..|>' implements arrows even when an IMPLEMENTS-like edge is in the input", () => {
+    const Iface = classNode("class-iface", "Walker", "interface");
+    const Impl = classNode("class-impl", "Dog");
+    // Slice 028 does not have IMPLEMENTS — feed a synthetic INHERITS edge to
+    // confirm we render <|-- and never the dependency-style '..|>' arrow.
+    const e1 = edge("e-imp", "class-impl", "class-iface", "INHERITS");
+    const out = serializeToClassDiagram(subgraph([Iface, Impl], [e1]), DEFAULT_OPTIONS);
+    expect(out).toContain("Dog <|-- Walker");
+    expect(out).not.toContain("..|>");
+  });
+
+  it("never emits placeholder text like '[unknown]' or empty parens with hint syntax", () => {
+    const A = classNode("class-a", "Animal");
+    const out = serializeToClassDiagram(subgraph([A]), DEFAULT_OPTIONS);
+    expect(out).not.toContain("[unknown]");
+    expect(out).not.toContain("(...)");
+    expect(out).not.toMatch(/\(\s*\?\s*\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // T021 — end-to-end method-grouping correctness with same-named methods
 // across two classes (proves grouping uses enclosingSymbolId, not name match)
 // ---------------------------------------------------------------------------

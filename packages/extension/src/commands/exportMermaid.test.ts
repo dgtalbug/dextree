@@ -618,6 +618,27 @@ describe("createExportMermaidCommand — slice 028 diagram picker", () => {
     expect(text.split("\n")[1]).toBe("graph TB");
   });
 
+  it("surfaces the no-class-like-symbols reason via showWarningMessage when Class diagram is picked against a scope with no classes (US3 T024)", async () => {
+    showQuickPick
+      .mockResolvedValueOnce({ label: "Class diagram", diagram: "classDiagram" })
+      .mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () =>
+        makeIndexerStubFromNodes([
+          // No class-like symbols — just a function.
+          { id: "fn-1", type: "symbol", label: "doStuff", filePath: "/workspace/src/a.ts" },
+        ]),
+    });
+    await command();
+
+    expect(showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("No class, interface, or enum symbols are in the chosen scope"),
+    );
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
   it("Class diagram path emits a 'classDiagram' header instead of 'graph TB'", async () => {
     showQuickPick
       .mockResolvedValueOnce({ label: "Class diagram", diagram: "classDiagram" })

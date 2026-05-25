@@ -368,3 +368,40 @@ describe("serializeToScopedMermaid — determinism", () => {
     expect(a).toBe(b);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 028 US3 T027 — flowchart path is byte-identical to its slice-027
+// behavior. The diagram discriminator must not perturb the flowchart output.
+// ---------------------------------------------------------------------------
+
+describe("serializeToScopedMermaid — flowchart path unchanged by slice 028 (US3 T027)", () => {
+  it("emits a byte-identical workspace+symbol+light output across the discriminator switch", () => {
+    const sg = subgraph([FILE_A, FILE_B, FUNC_FOO, CLASS_BAR], [EDGE_DEFINES, EDGE_IMPORTS]);
+    const baseline = [
+      "%%{init: {'theme': 'default'}}%%",
+      "graph TB",
+      '  naaaa_1111_aaaa_1111_aaaaaaaaaaaa["src/a.ts"]',
+      '  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb["src/b.ts"]',
+      '  ncccc_3333_cccc_3333_cccccccccccc["foo [function]"]',
+      '  ndddd_4444_dddd_4444_dddddddddddd["Bar [class]"]',
+      "  naaaa_1111_aaaa_1111_aaaaaaaaaaaa -->|DEFINES| ncccc_3333_cccc_3333_cccccccccccc",
+      "  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb -->|IMPORTS| naaaa_1111_aaaa_1111_aaaaaaaaaaaa",
+    ].join("\n");
+
+    const out = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
+      scope: { kind: "workspace" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+
+    expect(out).toBe(baseline);
+  });
+
+  it("the slice-016 shim's 'graph TD' post-process still fires unchanged", () => {
+    const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
+    const shimOut = serializeToMermaid(sg, { theme: "Light" });
+    expect(shimOut.split("\n")[1]).toBe("graph TD");
+  });
+});
