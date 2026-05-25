@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/dgtalbug/dextree/compare/v1.5.0...v1.6.0) (2026-05-25)
+
+
+### Features
+
+* **extension:** trace route mode with shortest path (slice 023) ([#94](https://github.com/dgtalbug/dextree/issues/94)) ([3eda3ae](https://github.com/dgtalbug/dextree/commit/3eda3ae77dc741d1800320e90cf1b7c340a07a91))
+
 ## [1.5.0](https://github.com/dgtalbug/dextree/compare/v1.4.0...v1.5.0) (2026-05-24)
 
 ### Features
