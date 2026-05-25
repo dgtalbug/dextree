@@ -4,7 +4,9 @@ import type {
   CommandMessage,
   GraphMessage,
   HostToWebviewMessage,
+  IndexedWorkspaceRecord,
   IndexingMessage,
+  WorkspaceListMessage,
 } from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
 
@@ -23,6 +25,12 @@ let currentPanel: vscode.WebviewPanel | undefined;
 let cachedGraph: GraphMessage | undefined;
 let cachedIndexing: IndexingMessage | undefined;
 let isWebviewReady = false;
+
+// Slice 024 — injected by extension.ts so panel.ts stays decoupled from the
+// workspace registry / cache layer. Both handlers return without effect when
+// undefined (the webview just sees no response).
+let listIndexedWorkspacesHandler: (() => Promise<IndexedWorkspaceRecord[]>) | undefined;
+let switchWorkspaceHandler: ((workspaceRoot: string) => Promise<void>) | undefined;
 
 function postCachedState(): void {
   if (currentPanel === undefined || !isWebviewReady) {
@@ -106,6 +114,37 @@ export const WebviewPanelManager = {
           return;
         }
 
+        // Slice 024 — webview asks for the list of indexed workspaces
+        if (record["type"] === "requestWorkspaceList") {
+          const provider = listIndexedWorkspacesHandler;
+          if (provider !== undefined) {
+            void provider()
+              .then((workspaces) => {
+                const reply: WorkspaceListMessage = {
+                  type: "workspaceList",
+                  workspaces,
+                };
+                postMessage(reply);
+              })
+              .catch(() => {
+                postMessage({ type: "workspaceList", workspaces: [] });
+              });
+          }
+          return;
+        }
+
+        // Slice 024 — webview asks to switch to a different workspace
+        if (record["type"] === "switchWorkspace") {
+          const target = record["workspaceRoot"];
+          const handler = switchWorkspaceHandler;
+          if (handler !== undefined && typeof target === "string" && target.length > 0) {
+            void handler(target).catch(() => {
+              // Errors are surfaced as VS Code notifications inside the handler.
+            });
+          }
+          return;
+        }
+
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const validated = validateNavigateMessage(msg, workspaceRoot);
         if (validated === null) {
@@ -147,6 +186,10 @@ export const WebviewPanelManager = {
       nodes: graph.nodes,
       edges: graph.edges,
       ...(graph.presentEdgeKinds !== undefined && { presentEdgeKinds: graph.presentEdgeKinds }),
+      ...(graph.workspaceName !== undefined && { workspaceName: graph.workspaceName }),
+      ...(graph.workspaceFrameworks !== undefined && {
+        workspaceFrameworks: graph.workspaceFrameworks,
+      }),
     };
     postCachedState();
   },
@@ -172,6 +215,19 @@ export const WebviewPanelManager = {
    */
   isOpen(): boolean {
     return currentPanel !== undefined;
+  },
+
+  /**
+   * Slice 024 — register host-side handlers for workspace switcher messages.
+   * Called once during extension activation. Subsequent calls overwrite the
+   * stored handlers (useful for tests).
+   */
+  setWorkspaceHandlers(handlers: {
+    onRequestWorkspaceList?: () => Promise<IndexedWorkspaceRecord[]>;
+    onSwitchWorkspace?: (workspaceRoot: string) => Promise<void>;
+  }): void {
+    listIndexedWorkspacesHandler = handlers.onRequestWorkspaceList;
+    switchWorkspaceHandler = handlers.onSwitchWorkspace;
   },
 };
 

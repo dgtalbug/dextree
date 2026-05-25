@@ -1088,7 +1088,15 @@ function centerCameraOnNode(graph: MultiDirectedGraph, sigma: Sigma, nodeId: str
   );
 }
 
-export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphViewProps) {
+export function GraphView({
+  nodes,
+  edges,
+  onNavigate,
+  onExportMermaid,
+  workspaceName,
+  workspaceFrameworks,
+  onWorkspaceSwitcherClick,
+}: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MultiDirectedGraph | null>(null);
   const sigmaRef = useRef<Sigma | null>(null);
@@ -2113,6 +2121,9 @@ export function GraphView({ nodes, edges, onNavigate, onExportMermaid }: GraphVi
           tracePhase={traceState.phase}
           onTraceToggle={handleTraceToggle}
           onTraceExit={handleTraceExit}
+          {...(workspaceName !== undefined && { workspaceName })}
+          {...(workspaceFrameworks !== undefined && { workspaceFrameworks })}
+          {...(onWorkspaceSwitcherClick !== undefined && { onWorkspaceSwitcherClick })}
         />
         <canvas
           className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}

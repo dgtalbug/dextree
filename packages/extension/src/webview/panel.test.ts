@@ -460,3 +460,117 @@ describe("WebviewPanelManager navigation (US2)", () => {
     expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 024 — workspace switcher message dispatch
+// ---------------------------------------------------------------------------
+
+describe("WebviewPanelManager workspace switcher (slice 024)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    createWebviewPanel.mockClear();
+    mockPostMessage.mockClear();
+    mockOnDidReceiveMessage.mockClear();
+    mockOnDidDispose.mockClear();
+    triggerReadyOnHtmlAssignment = false;
+    currentMessageHandler = undefined;
+    mockOnDidReceiveMessage.mockImplementation((handler: (message: unknown) => void) => {
+      currentMessageHandler = handler;
+    });
+  });
+
+  function setupPanel(WebviewPanelManager: { create: (context: never) => void }) {
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+    WebviewPanelManager.create(context as never);
+    currentMessageHandler?.({ type: "ready" });
+    mockPostMessage.mockClear();
+  }
+
+  it("requestWorkspaceList dispatches to the registered provider and posts workspaceList back", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    const sample = [
+      {
+        workspaceRoot: "/a",
+        name: "a",
+        indexedFileCount: 1,
+        graphNodeCount: 2,
+        graphEdgeCount: 3,
+        lastIndexedAt: null,
+        frameworks: [] as string[],
+        isActive: true,
+      },
+    ];
+
+    WebviewPanelManager.setWorkspaceHandlers({
+      onRequestWorkspaceList: async () => sample,
+    });
+
+    await currentMessageHandler?.({ type: "requestWorkspaceList" });
+    // Allow the .then chain to resolve
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "workspaceList",
+      workspaces: sample,
+    });
+  });
+
+  it("requestWorkspaceList posts an empty list when the provider rejects", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    WebviewPanelManager.setWorkspaceHandlers({
+      onRequestWorkspaceList: async () => {
+        throw new Error("boom");
+      },
+    });
+
+    await currentMessageHandler?.({ type: "requestWorkspaceList" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPostMessage).toHaveBeenCalledWith({ type: "workspaceList", workspaces: [] });
+  });
+
+  it("switchWorkspace dispatches to the registered handler with the requested workspaceRoot", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    const onSwitchWorkspace = vi.fn().mockResolvedValue(undefined);
+    WebviewPanelManager.setWorkspaceHandlers({ onSwitchWorkspace });
+
+    await currentMessageHandler?.({ type: "switchWorkspace", workspaceRoot: "/b/widgets" });
+
+    expect(onSwitchWorkspace).toHaveBeenCalledWith("/b/widgets");
+  });
+
+  it("switchWorkspace ignores messages without a workspaceRoot string", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    const onSwitchWorkspace = vi.fn();
+    WebviewPanelManager.setWorkspaceHandlers({ onSwitchWorkspace });
+
+    await currentMessageHandler?.({ type: "switchWorkspace" });
+    await currentMessageHandler?.({ type: "switchWorkspace", workspaceRoot: "" });
+    await currentMessageHandler?.({ type: "switchWorkspace", workspaceRoot: 42 });
+
+    expect(onSwitchWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("requestWorkspaceList is a no-op when no provider is registered", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    WebviewPanelManager.setWorkspaceHandlers({});
+
+    await currentMessageHandler?.({ type: "requestWorkspaceList" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPostMessage).not.toHaveBeenCalled();
+  });
+});

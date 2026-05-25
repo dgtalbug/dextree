@@ -57,12 +57,15 @@ vi.mock("@dextree/core", () => ({
   createWorkspaceIgnore,
 }));
 
+const setWorkspaceHandlers = vi.fn();
+
 vi.mock("./webview/panel.js", () => ({
   WebviewPanelManager: {
     create: createPanel,
     isOpen: isPanelOpen,
     pushGraph,
     pushIndexing,
+    setWorkspaceHandlers,
   },
 }));
 
@@ -268,6 +271,8 @@ describe("activate", () => {
         edges: [],
         frameworks: [],
         presentEdgeKinds: ["DEFINES"],
+        workspaceName: "workspace",
+        workspaceFrameworks: [],
       });
     });
   });
@@ -373,6 +378,8 @@ describe("activate", () => {
         edges: [],
         frameworks: [],
         presentEdgeKinds: ["DEFINES"],
+        workspaceName: "workspace",
+        workspaceFrameworks: [],
       });
       expect(pushIndexing).toHaveBeenCalledWith({
         phase: "finished",

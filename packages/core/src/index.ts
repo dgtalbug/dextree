@@ -85,6 +85,8 @@ export type {
   KnownSymbol,
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
+export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
+export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 
 // NOTE: Lens utilities are NOT re-exported here. They're published via the
 // `@dextree/core/lenses` subpath export so webview bundlers (Rollup/Vite)

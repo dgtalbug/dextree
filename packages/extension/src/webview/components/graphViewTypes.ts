@@ -20,6 +20,12 @@ export interface GraphViewProps {
   edges: GraphEdge[];
   onNavigate: (filePath: string, line: number) => void;
   onExportMermaid: () => void;
+  /** Currently displayed workspace name (slice 024). Undefined hides the toolbar button. */
+  workspaceName?: string;
+  /** Framework chips shown next to the workspace name (slice 024). May be empty. */
+  workspaceFrameworks?: readonly string[];
+  /** Click handler for the toolbar workspace switcher button (slice 024). */
+  onWorkspaceSwitcherClick?: () => void;
 }
 
 export interface GraphNodeAttributes {
