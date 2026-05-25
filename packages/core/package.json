@@ -61,7 +61,7 @@
     "picomatch": "^4.0.4",
     "tree-sitter-typescript": "^0.23.2",
     "uuid": "^14.0.0",
-    "web-tree-sitter": "^0.26.8"
+    "web-tree-sitter": "^0.26.9"
   },
   "devDependencies": {
     "@types/picomatch": "^4.0.0"
