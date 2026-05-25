@@ -13,6 +13,21 @@ import type { GraphEdge, GraphNode } from "@dextree/core";
 // Shared entity types
 // ---------------------------------------------------------------------------
 
+/**
+ * Display record for one card in the Workspaces page. Sent in the
+ * `workspaceList` payload from host → webview (slice 024).
+ */
+export interface IndexedWorkspaceRecord {
+  workspaceRoot: string;
+  name: string;
+  indexedFileCount: number;
+  graphNodeCount: number;
+  graphEdgeCount: number;
+  lastIndexedAt: string | null;
+  frameworks: readonly string[];
+  isActive: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Extension Host → Webview messages
 // ---------------------------------------------------------------------------
@@ -27,6 +42,10 @@ export interface GraphMessage {
   edges: GraphEdge[];
   /** Sorted, deduplicated set of edge kinds present in this workspace graph (US3). */
   presentEdgeKinds?: readonly string[];
+  /** Directory basename of the currently displayed workspace (slice 024). */
+  workspaceName?: string;
+  /** Detected framework names for the displayed workspace (may be empty, slice 024). */
+  workspaceFrameworks?: readonly string[];
 }
 
 export type IndexingPhase = "starting" | "progress" | "finished";
@@ -44,8 +63,14 @@ export interface IndexingMessage {
   status: IndexingStatus;
 }
 
+/** Sent in response to `requestWorkspaceList`. Carries every indexed workspace (slice 024). */
+export interface WorkspaceListMessage {
+  type: "workspaceList";
+  workspaces: IndexedWorkspaceRecord[];
+}
+
 /** Union of all messages the extension host can send to the webview. */
-export type HostToWebviewMessage = GraphMessage | IndexingMessage;
+export type HostToWebviewMessage = GraphMessage | IndexingMessage | WorkspaceListMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension Host messages
@@ -83,8 +108,24 @@ export interface CommandMessage {
   command: GraphCommandId;
 }
 
+/** Sent when the user clicks the toolbar workspace button (slice 024). */
+export interface RequestWorkspaceListMessage {
+  type: "requestWorkspaceList";
+}
+
+/** Sent when the user clicks a workspace card or picks one from the command palette (slice 024). */
+export interface SwitchWorkspaceMessage {
+  type: "switchWorkspace";
+  workspaceRoot: string;
+}
+
 /** Union of all messages the webview can send to the extension host. */
-export type WebviewToHostMessage = NavigateMessage | ReadyMessage | CommandMessage;
+export type WebviewToHostMessage =
+  | NavigateMessage
+  | ReadyMessage
+  | CommandMessage
+  | RequestWorkspaceListMessage
+  | SwitchWorkspaceMessage;
 
 // ---------------------------------------------------------------------------
 // Type guard helpers
@@ -94,12 +135,18 @@ export type WebviewToHostMessage = NavigateMessage | ReadyMessage | CommandMessa
 export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMessage {
   if (typeof value !== "object" || value === null) return false;
   const msg = value as Record<string, unknown>;
-  return msg["type"] === "graph" || msg["type"] === "indexing";
+  return msg["type"] === "graph" || msg["type"] === "indexing" || msg["type"] === "workspaceList";
 }
 
 /** Narrows an unknown value to WebviewToHostMessage. */
 export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
   if (typeof value !== "object" || value === null) return false;
   const msg = value as Record<string, unknown>;
-  return msg["type"] === "navigate" || msg["type"] === "ready" || msg["type"] === "command";
+  return (
+    msg["type"] === "navigate" ||
+    msg["type"] === "ready" ||
+    msg["type"] === "command" ||
+    msg["type"] === "requestWorkspaceList" ||
+    msg["type"] === "switchWorkspace"
+  );
 }

@@ -41,6 +41,10 @@ export interface GraphToolbarProps {
   tracePhase: TracePhase;
   onTraceToggle: () => void;
   onTraceExit: () => void;
+  // Workspace switcher (new — slice 024):
+  workspaceName?: string;
+  workspaceFrameworks?: readonly string[];
+  onWorkspaceSwitcherClick?: () => void;
 }
 
 function EdgeFilterBar({
@@ -111,10 +115,34 @@ export function GraphToolbar({
   tracePhase,
   onTraceToggle,
   onTraceExit,
+  workspaceName,
+  workspaceFrameworks,
+  onWorkspaceSwitcherClick,
 }: GraphToolbarProps) {
   const traceActive = tracePhase !== "idle";
   return (
     <div className="dxt-toolbar" role="toolbar" aria-label="Graph toolbar">
+      {workspaceName !== undefined && (
+        <button
+          type="button"
+          className="dxt-workspace-switcher"
+          onClick={onWorkspaceSwitcherClick}
+          title={`Switch workspace (current: ${workspaceName})`}
+          aria-label={`Switch workspace (current: ${workspaceName})`}
+        >
+          <span className="codicon codicon-folder-active" aria-hidden="true" />
+          <span className="dxt-workspace-switcher__name">{workspaceName}</span>
+          {workspaceFrameworks && workspaceFrameworks.length > 0 && (
+            <span className="dxt-workspace-switcher__chips">
+              {workspaceFrameworks.map((fw) => (
+                <span key={fw} className="dxt-badge dxt-badge--framework" data-framework={fw}>
+                  {fw}
+                </span>
+              ))}
+            </span>
+          )}
+        </button>
+      )}
       <button
         type="button"
         className="dxt-export-mermaid dxt-toolbar__export"

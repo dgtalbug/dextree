@@ -6,18 +6,35 @@ vi.mock("./components/GraphView.js", () => ({
     nodes,
     edges,
     onNavigate,
+    workspaceName,
+    workspaceFrameworks,
+    onWorkspaceSwitcherClick,
   }: {
     nodes: { filePath: string; startLine: number }[];
     edges: unknown[];
     onNavigate: (filePath: string, line: number) => void;
+    workspaceName?: string;
+    workspaceFrameworks?: readonly string[];
+    onWorkspaceSwitcherClick?: () => void;
   }) => (
-    <button
-      type="button"
-      data-testid="graph-view"
-      onClick={() => onNavigate(nodes[0]?.filePath ?? "", nodes[0]?.startLine ?? 0)}
-    >
-      {`graph:${nodes.length}:${edges.length}`}
-    </button>
+    <>
+      <button
+        type="button"
+        data-testid="graph-view"
+        onClick={() => onNavigate(nodes[0]?.filePath ?? "", nodes[0]?.startLine ?? 0)}
+      >
+        {`graph:${nodes.length}:${edges.length}`}
+      </button>
+      <div data-testid="ws-name">{workspaceName ?? ""}</div>
+      <div data-testid="ws-frameworks">{(workspaceFrameworks ?? []).join(",")}</div>
+      <button
+        type="button"
+        data-testid="ws-switcher-click"
+        onClick={() => onWorkspaceSwitcherClick?.()}
+      >
+        switch
+      </button>
+    </>
   ),
 }));
 
@@ -225,6 +242,190 @@ describe("App", () => {
       expect(screen.getByText("CUSTOM_FOO")).toBeTruthy();
       const pill = document.querySelector(".dxt-legend-pill-custom");
       expect(pill).toBeTruthy();
+    });
+  });
+
+  describe("workspace context (slice 024 US1)", () => {
+    it("captures workspaceName and workspaceFrameworks from a graph message and passes them down", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: {
+              ...mockGraphMessage,
+              workspaceName: "dextree",
+              workspaceFrameworks: ["react", "vitest"],
+            },
+          }),
+        );
+      });
+
+      expect(screen.getByTestId("ws-name").textContent).toBe("dextree");
+      expect(screen.getByTestId("ws-frameworks").textContent).toBe("react,vitest");
+    });
+
+    it("does not set workspace context when graph message omits workspaceName", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+      });
+
+      expect(screen.getByTestId("ws-name").textContent).toBe("");
+      expect(screen.getByTestId("ws-frameworks").textContent).toBe("");
+    });
+
+    it("preserves workspace context across subsequent graph messages that omit it", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: {
+              ...mockGraphMessage,
+              workspaceName: "dextree",
+              workspaceFrameworks: ["react"],
+            },
+          }),
+        );
+      });
+      expect(screen.getByTestId("ws-name").textContent).toBe("dextree");
+
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+      });
+      expect(screen.getByTestId("ws-name").textContent).toBe("dextree");
+      expect(screen.getByTestId("ws-frameworks").textContent).toBe("react");
+    });
+  });
+
+  describe("workspaces scene (slice 024 US2)", () => {
+    it("posts requestWorkspaceList and shows the Workspaces page when the switcher is clicked", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { ...mockGraphMessage, workspaceName: "dextree", workspaceFrameworks: [] },
+          }),
+        );
+      });
+
+      vscodeApi.postMessage.mockClear();
+
+      act(() => {
+        fireEvent.click(screen.getByTestId("ws-switcher-click"));
+      });
+
+      expect(vscodeApi.postMessage).toHaveBeenCalledWith({ type: "requestWorkspaceList" });
+      expect(screen.getByTestId("workspaces-page")).toBeTruthy();
+      expect(screen.getByText(/Loading workspaces/)).toBeTruthy();
+    });
+
+    function enterWorkspacesScene() {
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { ...mockGraphMessage, workspaceName: "dextree", workspaceFrameworks: [] },
+          }),
+        );
+      });
+      act(() => {
+        fireEvent.click(screen.getByTestId("ws-switcher-click"));
+      });
+    }
+
+    const sampleList = [
+      {
+        workspaceRoot: "/a/dextree",
+        name: "dextree",
+        indexedFileCount: 1,
+        graphNodeCount: 2,
+        graphEdgeCount: 3,
+        lastIndexedAt: null,
+        frameworks: [] as string[],
+        isActive: true,
+      },
+      {
+        workspaceRoot: "/b/widgets",
+        name: "widgets",
+        indexedFileCount: 0,
+        graphNodeCount: 0,
+        graphEdgeCount: 0,
+        lastIndexedAt: null,
+        frameworks: [] as string[],
+        isActive: false,
+      },
+    ];
+
+    it("renders workspace cards once the host posts workspaceList", () => {
+      render(<App vscodeApi={vscodeApi} />);
+      enterWorkspacesScene();
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { type: "workspaceList", workspaces: sampleList },
+          }),
+        );
+      });
+
+      expect(screen.getAllByTestId("workspace-card").length).toBe(2);
+    });
+
+    it("posts switchWorkspace and returns to graph when a non-active card is clicked", () => {
+      render(<App vscodeApi={vscodeApi} />);
+      enterWorkspacesScene();
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { type: "workspaceList", workspaces: sampleList },
+          }),
+        );
+      });
+
+      vscodeApi.postMessage.mockClear();
+
+      act(() => {
+        const cards = screen.getAllByTestId("workspace-card");
+        fireEvent.click(cards[1]!);
+      });
+
+      expect(vscodeApi.postMessage).toHaveBeenCalledWith({
+        type: "switchWorkspace",
+        workspaceRoot: "/b/widgets",
+      });
+      expect(screen.queryByTestId("workspaces-page")).toBeNull();
+    });
+
+    it("returns to the graph when the back button is clicked", () => {
+      render(<App vscodeApi={vscodeApi} />);
+      enterWorkspacesScene();
+
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: "Back to graph" }));
+      });
+
+      expect(screen.queryByTestId("workspaces-page")).toBeNull();
+    });
+
+    it("resets the scene to graph when a new graph message arrives", () => {
+      render(<App vscodeApi={vscodeApi} />);
+      enterWorkspacesScene();
+
+      expect(screen.getByTestId("workspaces-page")).toBeTruthy();
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { ...mockGraphMessage, workspaceName: "widgets" },
+          }),
+        );
+      });
+
+      expect(screen.queryByTestId("workspaces-page")).toBeNull();
     });
   });
 });

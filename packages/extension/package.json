@@ -126,6 +126,10 @@
       {
         "command": "dextree.exportSessionSummary",
         "title": "Dextree: Export Session Summary"
+      },
+      {
+        "command": "dextree.switchWorkspace",
+        "title": "Dextree: Switch Workspace"
       }
     ],
     "menus": {

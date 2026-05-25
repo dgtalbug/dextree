@@ -1,4 +1,5 @@
 import type { Indexer } from "@dextree/core";
+import { basename } from "node:path";
 import * as vscode from "vscode";
 import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
 import { WebviewPanelManager } from "../webview/panel.js";
@@ -41,7 +42,12 @@ export function registerOpenGraphViewCommand(
       const graph = await indexer.getWorkspaceSubgraph(workspaceRoot);
       const presentEdgeKinds = await indexer.getPresentEdgeKinds(workspaceRoot);
 
-      WebviewPanelManager.pushGraph({ ...graph, presentEdgeKinds });
+      WebviewPanelManager.pushGraph({
+        ...graph,
+        presentEdgeKinds,
+        workspaceName: basename(workspaceRoot),
+        workspaceFrameworks: graph.frameworks.map((fw) => fw.name),
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await vscode.window.showErrorMessage(`Dextree: Failed to load graph — ${message}`);

@@ -1,8 +1,14 @@
-import { createIndexer, type Indexer } from "@dextree/core";
-import { join } from "node:path";
+import { createIndexer, readWorkspaceGraph, type Indexer } from "@dextree/core";
+import { basename, join } from "node:path";
 import * as vscode from "vscode";
 
 import { resolveCacheIdentity } from "./cache/resolveCacheIdentity.js";
+import {
+  listIndexedWorkspaces,
+  readWorkspaceRegistry,
+  registerWorkspace,
+} from "./cache/workspaceRegistry.js";
+import { createSwitchWorkspaceCommand } from "./commands/switchWorkspace.js";
 import {
   createClearAllIndexCommand,
   createClearWorkspaceIndexCommand,
@@ -29,6 +35,7 @@ let watcher: (vscode.Disposable & { drainQueue(): Promise<void> }) | null = null
 interface ActivationContext {
   subscriptions: { dispose(): void }[];
   storageUri: { fsPath: string } | undefined;
+  globalStorageUri?: { fsPath: string };
   extensionUri: { fsPath: string };
 }
 
@@ -121,7 +128,12 @@ export async function activate(context: ActivationContext): Promise<void> {
     const indexer = await getIndexer();
     const graph = await indexer.getWorkspaceSubgraph(workspaceRoot);
     const presentEdgeKinds = await indexer.getPresentEdgeKinds(workspaceRoot);
-    WebviewPanelManager.pushGraph({ ...graph, presentEdgeKinds });
+    WebviewPanelManager.pushGraph({
+      ...graph,
+      presentEdgeKinds,
+      workspaceName: basename(workspaceRoot),
+      workspaceFrameworks: graph.frameworks.map((fw) => fw.name),
+    });
   };
 
   const refreshGraphIfOpen = (): void => {
@@ -151,6 +163,77 @@ export async function activate(context: ActivationContext): Promise<void> {
       symbolsProvider.refresh();
       refreshGraphIfOpen();
     })();
+  };
+
+  const handleSwitchWorkspace = async (targetWorkspaceRoot: string): Promise<void> => {
+    const globalStoragePath = context.globalStorageUri?.fsPath;
+    if (globalStoragePath === undefined) {
+      await vscode.window.showErrorMessage(
+        "Dextree: Workspace registry unavailable for this VS Code session.",
+      );
+      return;
+    }
+
+    const registry = await readWorkspaceRegistry(globalStoragePath);
+    const entry = registry.entries.find((e) => e.workspaceRoot === targetWorkspaceRoot);
+    if (entry === undefined) {
+      await vscode.window.showErrorMessage(
+        `Dextree: Workspace ${basename(targetWorkspaceRoot)} is not in the index registry.`,
+      );
+      return;
+    }
+
+    const result = await readWorkspaceGraph(entry.dbPath, targetWorkspaceRoot);
+    if (result === null) {
+      await vscode.window.showErrorMessage(
+        `Could not open workspace ${basename(targetWorkspaceRoot)}. The index may be missing or corrupt.`,
+      );
+      return;
+    }
+
+    WebviewPanelManager.create(context as unknown as vscode.ExtensionContext);
+    WebviewPanelManager.pushGraph({
+      ...result.subgraph,
+      presentEdgeKinds: result.presentEdgeKinds,
+      workspaceName: basename(targetWorkspaceRoot),
+      workspaceFrameworks: result.subgraph.frameworks.map((fw) => fw.name),
+    });
+  };
+
+  WebviewPanelManager.setWorkspaceHandlers({
+    onRequestWorkspaceList: async () => {
+      const globalStoragePath = context.globalStorageUri?.fsPath;
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (globalStoragePath === undefined || workspaceRoot === undefined) {
+        return [];
+      }
+      return listIndexedWorkspaces(globalStoragePath, workspaceRoot);
+    },
+    onSwitchWorkspace: handleSwitchWorkspace,
+  });
+
+  const recordSuccessfulIndex = async (): Promise<void> => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const storageUri = context.storageUri;
+    const globalStoragePath = context.globalStorageUri?.fsPath;
+
+    if (
+      workspaceRoot === undefined ||
+      storageUri === undefined ||
+      globalStoragePath === undefined
+    ) {
+      return;
+    }
+
+    try {
+      await registerWorkspace(
+        globalStoragePath,
+        workspaceRoot,
+        join(storageUri.fsPath, "dextree.db"),
+      );
+    } catch {
+      // Registry is best-effort — failure must not block indexing or graph push.
+    }
   };
 
   const pushIndexing = (
@@ -200,6 +283,9 @@ export async function activate(context: ActivationContext): Promise<void> {
           void (async () => {
             await refreshWorkspaceCacheStatus();
             symbolsProvider.refresh();
+            if (update.status === "completed") {
+              await recordSuccessfulIndex();
+            }
             if (WebviewPanelManager.isOpen()) {
               try {
                 await pushCurrentGraph();
@@ -240,6 +326,14 @@ export async function activate(context: ActivationContext): Promise<void> {
       "dextree.exportMermaid",
       createExportMermaidCommand({ getIndexer }),
     ),
+    vscode.commands.registerCommand(
+      "dextree.switchWorkspace",
+      createSwitchWorkspaceCommand({
+        getGlobalStoragePath: () => context.globalStorageUri?.fsPath,
+        getActiveWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+        switchWorkspace: handleSwitchWorkspace,
+      }),
+    ),
   );
 
   const treeView = vscode.window.createTreeView("dextree.symbolsView", {
@@ -273,6 +367,9 @@ export async function activate(context: ActivationContext): Promise<void> {
 
   void (async () => {
     await refreshWorkspaceCacheStatus();
+    if (canHydrateCache()) {
+      await recordSuccessfulIndex();
+    }
     symbolsProvider.refresh();
     refreshGraphIfOpen();
   })();

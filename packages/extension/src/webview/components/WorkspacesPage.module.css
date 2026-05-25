@@ -1,0 +1,66 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  overflow: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1 1 auto;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--vscode-button-border, transparent);
+  color: var(--vscode-foreground);
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.backButton:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.backButton:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.loading,
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  font-size: 13px;
+}
+
+.skeletonCard {
+  height: 120px;
+  border-radius: 6px;
+  background: var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background));
+  opacity: 0.5;
+}

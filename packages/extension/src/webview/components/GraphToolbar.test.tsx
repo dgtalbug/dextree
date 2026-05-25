@@ -322,4 +322,50 @@ describe("GraphToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exit trace mode" }));
     expect(onTraceExit).toHaveBeenCalledTimes(1);
   });
+
+  // Slice 024 — workspace switcher button
+  it("renders the workspace switcher button when workspaceName is provided", () => {
+    renderToolbar({ workspaceName: "dextree" });
+
+    const button = screen.getByRole("button", { name: /switch workspace/i });
+    expect(button).toBeTruthy();
+    expect(button.textContent).toContain("dextree");
+  });
+
+  it("does not render the workspace switcher button when workspaceName is undefined", () => {
+    renderToolbar();
+
+    expect(screen.queryByRole("button", { name: /switch workspace/i })).toBeNull();
+  });
+
+  it("renders framework chips alongside the workspace name when provided", () => {
+    const { container } = renderToolbar({
+      workspaceName: "dextree",
+      workspaceFrameworks: ["react", "vitest"],
+    });
+
+    const chips = container.querySelectorAll(".dxt-workspace-switcher .dxt-badge--framework");
+    expect(chips.length).toBe(2);
+    expect(chips[0]?.textContent).toBe("react");
+    expect(chips[1]?.textContent).toBe("vitest");
+  });
+
+  it("renders workspace name without a chip row when workspaceFrameworks is empty", () => {
+    const { container } = renderToolbar({
+      workspaceName: "dextree",
+      workspaceFrameworks: [],
+    });
+
+    expect(container.querySelector(".dxt-workspace-switcher")).toBeTruthy();
+    expect(container.querySelectorAll(".dxt-badge--framework").length).toBe(0);
+  });
+
+  it("calls onWorkspaceSwitcherClick when the workspace button is clicked", () => {
+    const onWorkspaceSwitcherClick = vi.fn();
+    renderToolbar({ workspaceName: "dextree", onWorkspaceSwitcherClick });
+
+    fireEvent.click(screen.getByRole("button", { name: /switch workspace/i }));
+
+    expect(onWorkspaceSwitcherClick).toHaveBeenCalledTimes(1);
+  });
 });

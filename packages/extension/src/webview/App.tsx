@@ -3,8 +3,18 @@ import { useEffect, useMemo, useReducer, useState } from "react";
 import { EmptyState } from "./components/EmptyState.js";
 import { GraphView } from "./components/GraphView.js";
 import { LoadingState } from "./components/LoadingState.js";
-import type { CommandMessage, GraphCommandId, IndexingMessage } from "./protocol/messages.js";
+import { WorkspacesPage } from "./components/WorkspacesPage.js";
+import type {
+  CommandMessage,
+  GraphCommandId,
+  IndexedWorkspaceRecord,
+  IndexingMessage,
+  RequestWorkspaceListMessage,
+  SwitchWorkspaceMessage,
+} from "./protocol/messages.js";
 import { isHostToWebviewMessage } from "./protocol/messages.js";
+
+type AppScene = "graph" | "workspaces";
 
 // ---------------------------------------------------------------------------
 // State model — discriminated union (FR-002, FR-008)
@@ -16,16 +26,20 @@ interface AppState {
   edges: GraphEdge[];
   indexing: IndexingMessage | null;
   presentEdgeKinds: readonly string[];
+  workspaceName: string | null;
+  workspaceFrameworks: readonly string[];
 }
 
 type AppAction =
   | { type: "graph"; nodes: GraphNode[]; edges: GraphEdge[]; presentEdgeKinds: readonly string[] }
-  | { type: "indexing"; message: IndexingMessage };
+  | { type: "indexing"; message: IndexingMessage }
+  | { type: "setWorkspaceContext"; name: string; frameworks: readonly string[] };
 
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "graph":
       return {
+        ...state,
         hasReceivedGraph: true,
         nodes: action.nodes,
         edges: action.edges,
@@ -43,6 +57,12 @@ function reducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         indexing: action.message,
+      };
+    case "setWorkspaceContext":
+      return {
+        ...state,
+        workspaceName: action.name,
+        workspaceFrameworks: action.frameworks,
       };
     default:
       return state;
@@ -66,12 +86,16 @@ export function App({ vscodeApi }: AppProps) {
     edges: [],
     presentEdgeKinds: [],
     indexing: null,
+    workspaceName: null,
+    workspaceFrameworks: [],
   });
 
   const [indexedCount, setIndexedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
   const [lastIndexedFiles, setLastIndexedFiles] = useState<string[]>([]);
   const [showSourceOnly, setShowSourceOnly] = useState(false);
+  const [activeScene, setActiveScene] = useState<AppScene>("graph");
+  const [workspaceList, setWorkspaceList] = useState<IndexedWorkspaceRecord[] | null>(null);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -97,6 +121,19 @@ export function App({ vscodeApi }: AppProps) {
           edges: msg.edges,
           presentEdgeKinds: msg.presentEdgeKinds ?? [],
         });
+        if (msg.workspaceName !== undefined) {
+          dispatch({
+            type: "setWorkspaceContext",
+            name: msg.workspaceName,
+            frameworks: msg.workspaceFrameworks ?? [],
+          });
+        }
+        setActiveScene("graph");
+        return;
+      }
+
+      if (msg.type === "workspaceList") {
+        setWorkspaceList(msg.workspaces);
         return;
       }
 
@@ -132,6 +169,30 @@ export function App({ vscodeApi }: AppProps) {
   function handleCommand(command: GraphCommandId) {
     const msg: CommandMessage = { type: "command", command };
     vscodeApi.postMessage(msg);
+  }
+
+  function handleWorkspaceSwitcherClick() {
+    setWorkspaceList(null);
+    setActiveScene("workspaces");
+    const request: RequestWorkspaceListMessage = { type: "requestWorkspaceList" };
+    vscodeApi.postMessage(request);
+  }
+
+  function handleWorkspacesBack() {
+    setActiveScene("graph");
+  }
+
+  function handleSwitchWorkspace(workspaceRoot: string) {
+    if (state.workspaceName !== null) {
+      const activeRoot = workspaceList?.find((w) => w.isActive)?.workspaceRoot;
+      if (workspaceRoot === activeRoot) {
+        setActiveScene("graph");
+        return;
+      }
+    }
+    const msg: SwitchWorkspaceMessage = { type: "switchWorkspace", workspaceRoot };
+    vscodeApi.postMessage(msg);
+    setActiveScene("graph");
   }
 
   const hasGraph = state.nodes.length > 0;
@@ -178,6 +239,16 @@ export function App({ vscodeApi }: AppProps) {
     return parts[parts.length - 1] ?? name;
   }
 
+  if (activeScene === "workspaces") {
+    return (
+      <WorkspacesPage
+        workspaces={workspaceList}
+        onBack={handleWorkspacesBack}
+        onSwitch={handleSwitchWorkspace}
+      />
+    );
+  }
+
   if (showEmptyState) {
     return <EmptyState />;
   }
@@ -193,6 +264,9 @@ export function App({ vscodeApi }: AppProps) {
             onExportMermaid={() => {
               handleCommand("export-mermaid");
             }}
+            {...(state.workspaceName !== null && { workspaceName: state.workspaceName })}
+            workspaceFrameworks={state.workspaceFrameworks}
+            onWorkspaceSwitcherClick={handleWorkspaceSwitcherClick}
           />
         ) : (
           <div
