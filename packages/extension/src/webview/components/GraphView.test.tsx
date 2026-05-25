@@ -23,7 +23,12 @@ const {
     refresh: vi.fn(),
   };
 
-  const sigmaConstructor = vi.fn((_graph, _container, _settings) => mockSigma);
+  // Use a function declaration (not arrow) so `new sigmaConstructor()` works.
+  // Vitest 4 tightened vi.fn semantics — arrow functions no longer have a
+  // [[Construct]] internal slot when invoked with `new`.
+  const sigmaConstructor = vi.fn(function SigmaCtor(_graph, _container, _settings) {
+    return mockSigma;
+  });
   const forceAtlasAssign = vi.fn();
 
   return {
