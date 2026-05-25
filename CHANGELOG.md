@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/dgtalbug/dextree/compare/v1.7.0...v1.7.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* **speckit:** also add new tracking issues to the Dextree project board ([#112](https://github.com/dgtalbug/dextree/issues/112)) ([2d133d1](https://github.com/dgtalbug/dextree/commit/2d133d1e4b371336eb74313a6e5feed13f344498)), closes [#80](https://github.com/dgtalbug/dextree/issues/80)
+
 ## [1.7.0](https://github.com/dgtalbug/dextree/compare/v1.6.0...v1.7.0) (2026-05-25)
 
 ### Features
