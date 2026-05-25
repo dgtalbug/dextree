@@ -1,0 +1,80 @@
+name: Format release-please CHANGELOG
+
+# release-please-action v5 ships an opinionated changelog template that emits
+# markdown bullets with `*`, but our Prettier config requires `-` bullets.
+# Every release-please PR therefore lands with a CHANGELOG.md that fails
+# `pnpm format:check`, which gates the `static-checks` job on every other PR
+# in the repo (slice 024 first surfaced this).
+#
+# This workflow listens for changes to CHANGELOG.md on release-please PRs,
+# runs Prettier to fix the bullets, and commits the result back to the same
+# branch. The static-checks job re-runs against the corrected commit and
+# passes without manual intervention.
+#
+# Scope is narrow on purpose: only the release-please head branch, only
+# CHANGELOG.md. If release-please ever starts emitting Prettier-compatible
+# markdown natively (or we move to a per-package config that lets us swap
+# the template), this workflow can be deleted.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+    paths:
+      - CHANGELOG.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please-prettier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Apply Prettier to release-please CHANGELOG
+    # Only fire on release-please's own branch. Pattern matches both
+    # `release-please--branches--main` and `release-please--branches--main--components--*`
+    # which the action uses for monorepo manifest mode in case we adopt it later.
+    if: startsWith(github.head_ref, 'release-please--')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      # Need write to push the formatting commit back to the PR branch.
+      # Restricted to this job only (top-level permissions stay read).
+      contents: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout PR branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+          # persist-credentials must stay true so the later `git push` can
+          # authenticate against origin using the workflow token.
+          persist-credentials: true
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          # Skip Turbo cache setup — we only need Prettier from node_modules.
+          turbo-cache: "false"
+
+      - name: Apply Prettier to CHANGELOG.md
+        run: pnpm prettier --write CHANGELOG.md
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet CHANGELOG.md; then
+            echo "CHANGELOG.md already Prettier-formatted; nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore(ci): apply Prettier formatting to CHANGELOG.md"
+          git push origin "HEAD:${{ github.head_ref }}"
