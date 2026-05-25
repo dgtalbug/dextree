@@ -144,6 +144,69 @@ describe("createIndexer", () => {
     }
   });
 
+  it("classifies symbols without calling detectWorkspaceFrameworks (US3 pass-1-only)", async () => {
+    // The slice contract says classification must work whenever pass-1
+    // indexing runs, even if no framework detection / enrichment pass has
+    // been invoked. We exercise that by indexing a file in a fresh indexer
+    // without ever calling detectWorkspaceFrameworks().
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-026-pass1-"));
+    tempDirs.push(workspaceRoot);
+    await mkdir(resolve(workspaceRoot, "src/components"), { recursive: true });
+    const filePath = resolve(workspaceRoot, "src/components/Card.tsx");
+    await writeFile(filePath, "export function Card() {}\n");
+
+    const indexer = createIndexer(":memory:", wasmDir);
+
+    try {
+      await indexer.initialize();
+      await indexer.indexFile(filePath, workspaceRoot);
+
+      const subgraph = await indexer.getWorkspaceSubgraph(workspaceRoot);
+      const symbolNode = subgraph.nodes.find((n) => n.type === "symbol");
+
+      expect(symbolNode).toBeDefined();
+      // Classification fired despite framework cache being empty.
+      expect(symbolNode?.archLayer).toBe("presentation");
+      expect(symbolNode?.entryKind).toBeDefined();
+    } finally {
+      await indexer.dispose();
+    }
+  });
+
+  it("indexes mixed-classification workspaces fully (US3 graceful degradation)", async () => {
+    // Mix of a clearly-classified file and a structurally-unclassifiable
+    // helper. The unclassifiable file must remain visible with neutral
+    // (unclassified/unknown) classification instead of being dropped.
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-026-mixed-"));
+    tempDirs.push(workspaceRoot);
+    await mkdir(resolve(workspaceRoot, "src"), { recursive: true });
+
+    const helperPath = resolve(workspaceRoot, "src/helper.ts");
+    await writeFile(helperPath, "function helper() {}\n");
+
+    const entryPath = resolve(workspaceRoot, "src/main.ts");
+    await writeFile(entryPath, "export async function main() {}\n");
+
+    const indexer = createIndexer(":memory:", wasmDir);
+
+    try {
+      await indexer.initialize();
+      await indexer.indexFile(helperPath, workspaceRoot);
+      await indexer.indexFile(entryPath, workspaceRoot);
+
+      const subgraph = await indexer.getWorkspaceSubgraph(workspaceRoot);
+      const symbolNodes = subgraph.nodes.filter((n) => n.type === "symbol");
+
+      // Both symbols are present despite one being unclassified.
+      const byLabel = new Map(symbolNodes.map((n) => [n.label, n]));
+      expect(byLabel.get("helper")?.entryKind).toBe("unclassified");
+      expect(byLabel.get("helper")?.archLayer).toBe("unknown");
+      expect(byLabel.get("main")?.entryKind).toBe("runtime");
+    } finally {
+      await indexer.dispose();
+    }
+  });
+
   it("refreshes classification when the same file is reindexed with different content", async () => {
     const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-026-refresh-"));
     tempDirs.push(workspaceRoot);

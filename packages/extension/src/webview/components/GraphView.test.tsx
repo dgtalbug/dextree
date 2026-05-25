@@ -1305,5 +1305,62 @@ describe("GraphView", () => {
       const graph = sigmaConstructor.mock.calls[0]?.[0];
       expect(graph.getNodeAttribute("symbol-layered", "archLayer")).toBe("presentation");
     });
+
+    it("renders mixed-classification workspaces without dropping unclassified symbols (US3)", () => {
+      // Reproduces the pass-1-only / ambiguous-workspace scenario from US3:
+      // a classified entry, an unclassified-but-otherwise-valid symbol, and
+      // a symbol with no classification fields at all. None should be hidden
+      // or styled identically; the classified one is the only `type: "entry"`.
+      const nodes = [
+        ...baseNodes,
+        {
+          id: "symbol-classified",
+          type: "symbol" as const,
+          label: "createIndexer",
+          filePath: "/workspace/src/index.ts",
+          startLine: 2,
+          symbolKind: "function" as const,
+          entryKind: "public-api" as const,
+          archLayer: "unknown" as const,
+        },
+        {
+          id: "symbol-unclassified",
+          type: "symbol" as const,
+          label: "helper",
+          filePath: "/workspace/src/helper.ts",
+          startLine: 3,
+          symbolKind: "function" as const,
+          entryKind: "unclassified" as const,
+          archLayer: "unknown" as const,
+        },
+        {
+          id: "symbol-pass1only",
+          type: "symbol" as const,
+          label: "fallback",
+          filePath: "/workspace/src/fallback.ts",
+          startLine: 4,
+          symbolKind: "function" as const,
+          // entryKind and archLayer intentionally omitted: pass-1-only graph.
+        },
+      ];
+
+      render(
+        <GraphView
+          nodes={nodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const graph = sigmaConstructor.mock.calls[0]?.[0];
+      expect(graph.hasNode("symbol-classified")).toBe(true);
+      expect(graph.hasNode("symbol-unclassified")).toBe(true);
+      expect(graph.hasNode("symbol-pass1only")).toBe(true);
+      expect(graph.getNodeAttribute("symbol-classified", "type")).toBe("entry");
+      expect(graph.getNodeAttribute("symbol-unclassified", "type")).toBeUndefined();
+      expect(graph.getNodeAttribute("symbol-pass1only", "type")).toBeUndefined();
+      expect(graph.getNodeAttribute("symbol-pass1only", "entryKind")).toBeUndefined();
+    });
   });
 });

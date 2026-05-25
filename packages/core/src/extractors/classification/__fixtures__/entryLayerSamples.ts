@@ -300,4 +300,46 @@ export const entryLayerSamples: ReadonlyArray<EntryLayerSample> = [
     expectedEntryKind: "unclassified",
     expectedArchLayer: "presentation",
   },
+  // ── US3: ambiguous / graceful-degradation cases ──────────────────────
+  {
+    name: "symbol kind we don't yet model stays unclassified/unknown",
+    input: makeInput({
+      relativePath: "src/helpers/format.ts",
+      symbolKind: "namespace",
+      symbolName: "Formatting",
+    }),
+    expectedEntryKind: "unclassified",
+    expectedArchLayer: "unknown",
+  },
+  {
+    name: "near-miss handler name (handle followed by lowercase) stays unclassified",
+    input: makeInput({
+      relativePath: "src/util.ts",
+      symbolKind: "function",
+      symbolName: "handler_legacy",
+    }),
+    expectedEntryKind: "unclassified",
+    expectedArchLayer: "unknown",
+  },
+  {
+    name: "empty source string in src/index.ts cannot prove export, stays unclassified",
+    input: makeInput({
+      relativePath: "packages/core/src/index.ts",
+      symbolName: "createIndexer",
+      source: "",
+    }),
+    expectedEntryKind: "unclassified",
+    expectedArchLayer: "unknown",
+  },
+  {
+    name: "unknown language with handler-like path stays neutral when symbolKind doesn't match",
+    input: makeInput({
+      relativePath: "src/handlers/legacy.unknown",
+      language: "unknown",
+      symbolKind: "variable",
+      symbolName: "FOO",
+    }),
+    expectedEntryKind: "unclassified",
+    expectedArchLayer: "application",
+  },
 ];
