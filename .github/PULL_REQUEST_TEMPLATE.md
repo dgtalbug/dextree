@@ -10,11 +10,21 @@
 ## Linked spec / issue
 
 <!--
-  Reference the slice spec this PR implements, plus any GitHub issue:
-    Spec: specs/NNN-<short>/spec.md
-    Closes: #<issue-number>
+  REQUIRED: `Closes: #<issue-number>` must reference the cluster issue this
+  PR completes (or partially completes — write `Refs: #<n>` instead if the
+  cluster is not fully done yet).
 
-  If this PR has no spec, explain why (typo fix, dependency bump, etc.).
+  GitHub will auto-close the issue when this PR merges, and project workflows
+  #8 / #9 / #11 will move the cluster card from Active to Shipped. Skipping
+  this leaves orphan issues and stale project columns.
+
+    Spec:   specs/NNN-<short>/spec.md
+    Closes: #<issue-number>     ← exact format, no other text on the line
+    Refs:   #<n> (use when the cluster covers multiple slices and this PR
+                  only completes one of them)
+
+  If this PR has no spec (typo fix, dependency bump, etc.), still link any
+  related issue or write `Refs: none`.
 -->
 
 - Spec:
@@ -60,6 +70,7 @@
 
 - [ ] PR title follows Conventional Commits (`feat(scope): ...`, `fix(scope): ...`, etc.)
 - [ ] Branch follows `feature/slice-<N>-<short>`, `fix/<issue>-<short>`, or `refactor/<scope>-<short>`
+- [ ] `Closes:` (or `Refs:`) line above references the cluster issue this PR completes — required so the project card auto-moves to Shipped
 - [ ] `pnpm format:check` passes
 - [ ] `pnpm lint` passes (zero warnings — `--max-warnings=0`)
 - [ ] `pnpm typecheck` passes

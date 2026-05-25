@@ -184,6 +184,7 @@ If you're not Claude Code, follow the same shape conceptually: plan first, imple
 - **No co-author trailers:** Never add `Co-authored-by:` lines to commit messages. This applies to all agents (Claude, Copilot, any automation).
 - **PR title:** `[slice S<N>] <short description>`
 - **PR:** open as draft. Fill every section of `.github/PULL_REQUEST_TEMPLATE.md`. Link spec and issue.
+- **`Closes:` is required:** every slice PR MUST include `Closes: #<cluster-issue-number>` on its own line in the body. Without it the project card stays in `Active` after merge and the cluster issue stays open. Use `Refs: #<n>` instead when the cluster covers multiple slices and this PR finishes only one of them.
 - **Mark ready:** only after CI green and self-review passes.
 - **Never push to `main` directly.**
 
