@@ -213,14 +213,14 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `022-search-and-focus-depth`
+**Branch**: `026-entry-point-tagging-and-layer` (implementation)
 
-- Spec: [`specs/022-search-and-focus-depth/spec.md`](../specs/022-search-and-focus-depth/spec.md)
-- Plan: [`specs/022-search-and-focus-depth/plan.md`](../specs/022-search-and-focus-depth/plan.md)
-- Research: [`specs/022-search-and-focus-depth/research.md`](../specs/022-search-and-focus-depth/research.md)
-- Contracts: [`specs/022-search-and-focus-depth/contracts/`](../specs/022-search-and-focus-depth/contracts/)
-- Quickstart: [`specs/022-search-and-focus-depth/quickstart.md`](../specs/022-search-and-focus-depth/quickstart.md)
+- Plan (026): [`specs/026-entry-point-tagging-and-layer/plan.md`](../specs/026-entry-point-tagging-and-layer/plan.md)
+- Spec (026): [`specs/026-entry-point-tagging-and-layer/spec.md`](../specs/026-entry-point-tagging-and-layer/spec.md)
+- Research (026): [`specs/026-entry-point-tagging-and-layer/research.md`](../specs/026-entry-point-tagging-and-layer/research.md)
+- Contracts (026): [`specs/026-entry-point-tagging-and-layer/contracts/`](../specs/026-entry-point-tagging-and-layer/contracts/)
+- Quickstart (026): [`specs/026-entry-point-tagging-and-layer/quickstart.md`](../specs/026-entry-point-tagging-and-layer/quickstart.md)
 
-Review focus for this slice: new `SearchBar.tsx` + `SearchBar.test.tsx` + `SearchBar.module.css`; new `DepthSlider.tsx` + `DepthSlider.test.tsx` + `DepthSlider.module.css`; modified `GraphToolbar.tsx` (search + depth props); modified `GraphView.tsx` (search/depth state + nodeReducer, replace `computeDescendantSelection` with `graphology-traversal.bfsFromNode`); updated `graphViewTypes.ts` (new types). No schema, indexing, or cross-package changes.
+Review focus for 026: modified `packages/core/src/types.ts` (EntryKind / ArchitecturalLayer / GraphNode metadata); new symbol classification helper under `packages/core/src/extractors/classification/`; modified `packages/core/src/index.ts` (classification during pass 1 indexing); modified `packages/core/src/storage/schema.ts`, `repository.ts`, and migration runner with a new symbol classification migration; modified `packages/core/src/query/subgraph.ts` (entry/layer projection); modified `packages/extension/src/webview/components/GraphView.tsx` and `graphViewTypes.ts` for entry-node styling and graceful missing-field fallback; modified `packages/extension/package.json` for Sigma node add-ons; updated core and webview tests. No new commands, remote services, or host↔webview protocol messages.
 
 <!-- SPECKIT END -->
