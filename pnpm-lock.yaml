@@ -150,6 +150,9 @@ importers:
       '@dextree/core':
         specifier: workspace:*
         version: link:../core
+      graphology:
+        specifier: ^0.26.0
+        version: 0.26.0(graphology-types@0.24.8)
       graphology-operators:
         specifier: ^1.6.1
         version: 1.6.1(graphology-types@0.24.8)

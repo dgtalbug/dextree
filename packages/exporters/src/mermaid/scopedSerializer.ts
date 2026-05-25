@@ -1,6 +1,9 @@
 import type { GraphEdge, GraphNode, WorkspaceSubgraph } from "@dextree/core";
 
+import { extractMermaidScope } from "./scope.js";
 import { MERMAID_INIT_DIRECTIVE, type MermaidTheme } from "./theme.js";
+
+export { extractMermaidScope };
 
 /**
  * Discriminated union describing which portion of the indexed workspace graph
@@ -75,18 +78,11 @@ export type ScopeExtractionResult =
 // ---------------------------------------------------------------------------
 // Pass-through implementations.
 //
-// US1 (T010) replaces extractMermaidScope with workspace + file logic.
+// US1 replaced extractMermaidScope via scope.ts (re-exported above).
 // US2 (T016) replaces applyMermaidGranularity with file + package collapse.
 // US3 (T021) replaces inferMermaidDirection with per-scope inference.
 // US3 (T022) replaces validateScopedMermaidExport with real cap logic.
 // ---------------------------------------------------------------------------
-
-export function extractMermaidScope(
-  subgraph: WorkspaceSubgraph,
-  _scope: MermaidScope,
-): ScopeExtractionResult {
-  return { status: "ok", subgraph };
-}
 
 export function applyMermaidGranularity(
   subgraph: WorkspaceSubgraph,

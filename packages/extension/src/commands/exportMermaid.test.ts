@@ -159,9 +159,141 @@ describe("createExportMermaidCommand — harness", () => {
   });
 });
 
-// US1 will add: scope picker (Workspace / Current file), cancel-at-scope behavior,
-// relativePath resolution from activeTextEditor.
-//
+// ---------------------------------------------------------------------------
+// US1 — Scope picker (Workspace / Current file)
+// ---------------------------------------------------------------------------
+
+function makeIndexerStubFromNodes(
+  nodes: Array<{ id: string; type: "file" | "symbol"; label: string; filePath: string }>,
+) {
+  return {
+    getWorkspaceSubgraph: vi.fn(async () => ({
+      nodes: nodes.map((n) => ({ ...n, startLine: 0 })),
+      edges: [],
+      frameworks: [],
+    })),
+  };
+}
+
+describe("createExportMermaidCommand — US1 scope picker", () => {
+  beforeEach(() => {
+    resetMocks();
+  });
+
+  afterEach(() => {
+    resetMocks();
+  });
+
+  it("offers Workspace + Current file when an active editor sits inside the workspace", async () => {
+    setActiveTextEditor("/workspace/src/a.ts");
+    showQuickPick.mockResolvedValueOnce(undefined); // cancel at scope step
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () =>
+        makeIndexerStubFromNodes([
+          { id: "n1", type: "file", label: "src/a.ts", filePath: "/workspace/src/a.ts" },
+        ]),
+    });
+    await command();
+
+    expect(showQuickPick).toHaveBeenCalledTimes(1);
+    const items = showQuickPick.mock.calls[0]?.[0] as Array<{ label: string }>;
+    expect(items.map((i) => i.label)).toEqual(["Workspace", "Current file"]);
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("offers Workspace only when no active editor matches the workspace root", async () => {
+    setActiveTextEditor(undefined);
+    showQuickPick.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () =>
+        makeIndexerStubFromNodes([
+          { id: "n1", type: "file", label: "src/a.ts", filePath: "/workspace/src/a.ts" },
+        ]),
+    });
+    await command();
+
+    const items = showQuickPick.mock.calls[0]?.[0] as Array<{ label: string }>;
+    expect(items.map((i) => i.label)).toEqual(["Workspace"]);
+  });
+
+  it("exits silently when the user cancels at the scope step (no save dialog, no write)", async () => {
+    showQuickPick.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+    });
+    await command();
+
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("threads { kind: 'workspace' } through to the serializer and writes the file", async () => {
+    showQuickPick.mockResolvedValueOnce({ label: "Workspace", scope: { kind: "workspace" } });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+    writeFile.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(2),
+    });
+    await command();
+
+    expect(writeFile).toHaveBeenCalledTimes(1);
+    expect(showInformationMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Mermaid diagram saved to"),
+    );
+  });
+
+  it("threads { kind: 'file', relativePath } when Current file is picked", async () => {
+    setActiveTextEditor("/workspace/src/a.ts");
+    showQuickPick.mockResolvedValueOnce({
+      label: "Current file",
+      scope: { kind: "file", relativePath: "src/a.ts" },
+    });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+    writeFile.mockResolvedValueOnce(undefined);
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () =>
+        makeIndexerStubFromNodes([
+          { id: "n1", type: "file", label: "src/a.ts", filePath: "/workspace/src/a.ts" },
+          { id: "n2", type: "symbol", label: "foo", filePath: "/workspace/src/a.ts" },
+        ]),
+    });
+    await command();
+
+    expect(writeFile).toHaveBeenCalledTimes(1);
+    const written = writeFile.mock.calls[0]?.[1] as Uint8Array;
+    const text = new TextDecoder().decode(written);
+    expect(text).toContain("graph TB");
+    expect(text).toContain("src/a.ts");
+  });
+
+  it("surfaces serializer errors via showWarningMessage and writes no file when the scope resolves to unsupported", async () => {
+    setActiveTextEditor("/workspace/src/missing.ts");
+    showQuickPick.mockResolvedValueOnce({
+      label: "Current file",
+      scope: { kind: "file", relativePath: "src/missing.ts" },
+    });
+    showSaveDialog.mockResolvedValueOnce({ fsPath: "/workspace/out.mmd" });
+
+    const command = createExportMermaidCommand({
+      getIndexer: async () =>
+        makeIndexerStubFromNodes([
+          { id: "n1", type: "file", label: "src/a.ts", filePath: "/workspace/src/a.ts" },
+        ]),
+    });
+    await command();
+
+    expect(showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("File not found in indexed graph"),
+    );
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+});
+
 // US2 will add: granularity picker (Package / File / Symbol), cancel-at-granularity.
 //
 // US3 will add: direction picker (Auto / TB / LR / BT / RL), validator-failure

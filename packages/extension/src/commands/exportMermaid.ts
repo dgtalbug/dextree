@@ -1,9 +1,18 @@
-import { DEFAULT_MERMAID_THEME, isMermaidTheme, serializeToMermaid } from "@dextree/exporters";
+import {
+  DEFAULT_MERMAID_THEME,
+  isMermaidTheme,
+  serializeToScopedMermaid,
+  type MermaidScope,
+} from "@dextree/exporters";
 import type { Indexer } from "@dextree/core";
 import * as vscode from "vscode";
 
 export interface ExportMermaidCommandDependencies {
   getIndexer: () => Promise<Pick<Indexer, "getWorkspaceSubgraph">>;
+}
+
+interface ScopePickItem extends vscode.QuickPickItem {
+  scope: MermaidScope;
 }
 
 export function createExportMermaidCommand(
@@ -26,6 +35,12 @@ export function createExportMermaidCommand(
       return;
     }
 
+    const scope = await pickScope(root.uri.fsPath);
+    if (scope === undefined) {
+      // User cancelled at scope step — exit silently (FR-007).
+      return;
+    }
+
     const defaultUri = vscode.Uri.joinPath(root.uri, "dextree-graph.mmd");
     const saveUri = await vscode.window.showSaveDialog({
       defaultUri,
@@ -33,7 +48,6 @@ export function createExportMermaidCommand(
       title: "Save Mermaid Diagram",
     });
 
-    // User cancelled — exit silently (FR-007).
     if (saveUri === undefined) {
       return;
     }
@@ -41,10 +55,22 @@ export function createExportMermaidCommand(
     const rawTheme = vscode.workspace
       .getConfiguration("dextree.exporters")
       .get<string>("theme", "Light");
-    // note: theme hardcoded to Light here for US1; FR-008 fully satisfied after T014
     const theme = isMermaidTheme(rawTheme) ? rawTheme : DEFAULT_MERMAID_THEME;
 
-    const content = serializeToMermaid(subgraph, { theme });
+    let content: string;
+    try {
+      content = serializeToScopedMermaid(subgraph, {
+        scope,
+        granularity: "symbol",
+        direction: "auto",
+        theme,
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      await vscode.window.showWarningMessage("Dextree: " + reason);
+      return;
+    }
+
     const encoded = new TextEncoder().encode(content);
 
     try {
@@ -65,4 +91,45 @@ export function createExportMermaidCommand(
       "Dextree: Mermaid diagram saved to " + saveUri.fsPath,
     );
   };
+}
+
+/**
+ * First QuickPick step. "Current file" is offered only when the active editor
+ * sits inside the workspace root; otherwise just "Workspace" is shown. US2
+ * (Granularity) and US3 (Direction) layer additional steps after this one.
+ */
+async function pickScope(workspaceRoot: string): Promise<MermaidScope | undefined> {
+  const items: ScopePickItem[] = [
+    {
+      label: "Workspace",
+      description: "Export every indexed file and symbol",
+      scope: { kind: "workspace" },
+    },
+  ];
+
+  const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
+  const relativePath = activePath ? toWorkspaceRelative(activePath, workspaceRoot) : undefined;
+  if (relativePath !== undefined) {
+    items.push({
+      label: "Current file",
+      description: relativePath,
+      scope: { kind: "file", relativePath },
+    });
+  }
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: "Mermaid Export — Scope",
+    placeHolder: "Pick what to export",
+    canPickMany: false,
+  });
+
+  return picked?.scope;
+}
+
+function toWorkspaceRelative(absolutePath: string, workspaceRoot: string): string | undefined {
+  const normalizedRoot = workspaceRoot.endsWith("/") ? workspaceRoot : workspaceRoot + "/";
+  if (!absolutePath.startsWith(normalizedRoot)) {
+    return undefined;
+  }
+  return absolutePath.slice(normalizedRoot.length);
 }
