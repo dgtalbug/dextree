@@ -80,6 +80,7 @@ export function createExportMermaidCommand(
     let content: string;
     try {
       content = serializeToScopedMermaid(subgraph, {
+        diagram: "flowchart",
         scope,
         granularity,
         direction,

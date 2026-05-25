@@ -32,6 +32,7 @@ export function serializeToMermaid(
   }
 
   const output = serializeToScopedMermaid(subgraph, {
+    diagram: "flowchart",
     scope: { kind: "workspace" },
     granularity: "symbol",
     direction: "auto",

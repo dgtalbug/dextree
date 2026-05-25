@@ -329,6 +329,44 @@ const MIGRATION_006: Migration = {
   apply: runMigration006,
 };
 
+// Same DuckDB constraint chain as migration 006: drop indexes → bare ADD COLUMN
+// → recreate indexes. No backfill UPDATE — pre-v7 symbol rows carry NULL
+// enclosing_symbol_id briefly. The schema-version bump invalidates the workspace
+// cache (validateWorkspaceCache compares metadata.schemaVersion to
+// SCHEMA_VERSION), which forces a reindex on the next session. That reindex
+// rewrites every symbol row with the parent class id populated by
+// ClassRelationExtractor's tree-sitter parent walk (slice 028 T022). NULL is
+// also the correct steady-state value for any top-level symbol that is not a
+// member of a class-like parent.
+async function runMigration007(connection: DuckDBConnection): Promise<void> {
+  const hasEnclosingId = await columnExists(connection, "symbol", "enclosing_symbol_id");
+
+  if (!hasEnclosingId) {
+    await connection.run("DROP INDEX IF EXISTS idx_symbol_fqn");
+    await connection.run("DROP INDEX IF EXISTS idx_symbol_file_id");
+    await connection.run("DROP INDEX IF EXISTS idx_symbol_kind");
+
+    await connection.run("ALTER TABLE symbol ADD COLUMN enclosing_symbol_id VARCHAR");
+
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_symbol_fqn ON symbol(fqn)");
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_symbol_file_id ON symbol(file_id)");
+    await connection.run("CREATE INDEX IF NOT EXISTS idx_symbol_kind ON symbol(kind)");
+  }
+
+  await connection.run(`
+    INSERT INTO _schema_version (version, description)
+    SELECT 7, 'add symbol.enclosing_symbol_id classification column'
+    WHERE NOT EXISTS (SELECT 1 FROM _schema_version WHERE version = 7)
+  `);
+}
+
+const MIGRATION_007: Migration = {
+  version: 7,
+  description: "add symbol.enclosing_symbol_id classification column",
+  sql: "",
+  apply: runMigration007,
+};
+
 const MIGRATIONS: readonly Migration[] = [
   MIGRATION_001,
   MIGRATION_002,
@@ -336,6 +374,7 @@ const MIGRATIONS: readonly Migration[] = [
   MIGRATION_004,
   MIGRATION_005,
   MIGRATION_006,
+  MIGRATION_007,
 ];
 
 export interface MigrationResultOk {

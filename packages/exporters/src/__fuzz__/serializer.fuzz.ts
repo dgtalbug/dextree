@@ -67,6 +67,7 @@ export function fuzz(data: Buffer): void {
     let scoped = "";
     try {
       scoped = serializeToScopedMermaid(subgraph, {
+        diagram: "flowchart",
         scope,
         granularity,
         direction,

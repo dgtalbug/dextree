@@ -67,7 +67,8 @@ export const SCHEMA_STATEMENTS = [
       labels VARCHAR[],
       metadata JSON,
       entry_kind VARCHAR NOT NULL DEFAULT 'unclassified',
-      arch_layer VARCHAR NOT NULL DEFAULT 'unknown'
+      arch_layer VARCHAR NOT NULL DEFAULT 'unknown',
+      enclosing_symbol_id VARCHAR
     )
   `,
   `

@@ -220,6 +220,7 @@ describe("serializeToScopedMermaid — workspace scope parity with shim", () => 
     const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
     const shimOut = serializeToMermaid(sg, { theme: "Light" });
     const scopedOut = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "workspace" },
       granularity: "symbol",
       direction: "auto",
@@ -287,6 +288,7 @@ describe("serializeToScopedMermaid — file scope", () => {
   it("emits only the focused file's nodes and intra-file edges", () => {
     const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
     const out = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "file", relativePath: "src/a.ts" },
       granularity: "symbol",
       direction: "auto",
@@ -302,6 +304,7 @@ describe("serializeToScopedMermaid — file scope", () => {
   it("drops cross-file edges where one endpoint is outside the file scope", () => {
     const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
     const out = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "file", relativePath: "src/a.ts" },
       granularity: "symbol",
       direction: "auto",
@@ -317,12 +320,14 @@ describe("serializeToScopedMermaid — file scope", () => {
   it("produces strictly fewer nodes than the workspace scope when other files exist", () => {
     const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
     const workspaceOut = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "workspace" },
       granularity: "symbol",
       direction: "auto",
       theme: "Light",
     });
     const fileOut = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "file", relativePath: "src/a.ts" },
       granularity: "symbol",
       direction: "auto",
@@ -338,6 +343,7 @@ describe("serializeToScopedMermaid — file scope", () => {
     const sg = subgraph([FILE_X], []);
     expect(() =>
       serializeToScopedMermaid(sg, {
+        diagram: "flowchart",
         scope: { kind: "file", relativePath: "src/missing.ts" },
         granularity: "symbol",
         direction: "auto",
@@ -351,6 +357,7 @@ describe("serializeToScopedMermaid — determinism", () => {
   it("same input produces identical output across repeated calls", () => {
     const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
     const options = {
+      diagram: "flowchart" as const,
       scope: { kind: "workspace" as const },
       granularity: "symbol" as const,
       direction: "auto" as const,
