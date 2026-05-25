@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -61,7 +61,7 @@ const cleanup: string[] = [];
 afterEach(() => {
   for (const p of cleanup.splice(0)) {
     try {
-      rmSync(p, { force: true });
+      rmSync(p, { force: true, recursive: true });
     } catch {
       // best effort
     }
@@ -113,9 +113,10 @@ describe("readWorkspaceIndexSummary", () => {
   });
 
   it("returns null when the file is not a valid DuckDB database", async () => {
-    const dbPath = join(tmpdir(), `dextree-corrupt-${randomUUID()}.duckdb`);
+    const scratchDir = mkdtempSync(join(tmpdir(), `dextree-corrupt-`));
+    const dbPath = join(scratchDir, "corrupt.duckdb");
     writeFileSync(dbPath, "not a duckdb file");
-    cleanup.push(dbPath);
+    cleanup.push(scratchDir);
 
     const summary = await readWorkspaceIndexSummary(dbPath);
 
