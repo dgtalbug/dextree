@@ -98,6 +98,13 @@ export interface GraphNode {
   entryKind?: EntryKind;
   /** Set on `type: "symbol"` nodes only. Absent on file nodes. */
   archLayer?: ArchitecturalLayer;
+  /**
+   * Set on `type: "symbol"` nodes only. Points at the GraphNode.id of the
+   * enclosing class / interface / enum WHEN that parent is also present in
+   * the queried subgraph; absent for top-level symbols and for symbols whose
+   * parent is out of scope.
+   */
+  enclosingSymbolId?: string;
 }
 
 export interface GraphEdge {
