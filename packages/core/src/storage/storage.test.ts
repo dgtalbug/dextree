@@ -599,3 +599,90 @@ describe("repository defaults (no hardcoded literals)", () => {
     }
   });
 });
+
+describe("symbol classification fields (entry_kind, arch_layer)", () => {
+  it("defaults to 'unclassified' / 'unknown' when no classification map is provided", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("greet"));
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT entry_kind, arch_layer FROM symbol WHERE id = 'symbol-greet'",
+        )
+      ).getRowObjectsJS();
+
+      const row = rows[0] as { entry_kind: string; arch_layer: string };
+      expect(row.entry_kind).toBe("unclassified");
+      expect(row.arch_layer).toBe("unknown");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("writes per-symbol classification when a map is provided", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await replaceFileGraph(
+        database.connection,
+        makeExtractedData("greet"),
+        [],
+        new Map([["symbol-greet", { entryKind: "public-api", archLayer: "application" }]]),
+      );
+
+      const rows = await (
+        await database.connection.run(
+          "SELECT entry_kind, arch_layer FROM symbol WHERE id = 'symbol-greet'",
+        )
+      ).getRowObjectsJS();
+
+      const row = rows[0] as { entry_kind: string; arch_layer: string };
+      expect(row.entry_kind).toBe("public-api");
+      expect(row.arch_layer).toBe("application");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("refreshes classification on every reindex (overwrites prior values)", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+
+      // First index: tag the symbol as a runtime entry in the application layer.
+      await replaceFileGraph(
+        database.connection,
+        makeExtractedData("greet"),
+        [],
+        new Map([["symbol-greet", { entryKind: "runtime", archLayer: "application" }]]),
+      );
+
+      // Reindex the same file with a different symbol name AND new classification.
+      // The new symbol id replaces the prior one because deleteExistingRows wipes
+      // the file's symbols before reinsert.
+      await replaceFileGraph(
+        database.connection,
+        makeExtractedData("wave"),
+        [],
+        new Map([["symbol-wave", { entryKind: "handler", archLayer: "presentation" }]]),
+      );
+
+      const rows = await (
+        await database.connection.run("SELECT id, entry_kind, arch_layer FROM symbol ORDER BY id")
+      ).getRowObjectsJS();
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0] as { id: string; entry_kind: string; arch_layer: string };
+      expect(row.id).toBe("symbol-wave");
+      expect(row.entry_kind).toBe("handler");
+      expect(row.arch_layer).toBe("presentation");
+    } finally {
+      database.close();
+    }
+  });
+});

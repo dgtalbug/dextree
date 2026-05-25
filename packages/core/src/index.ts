@@ -43,10 +43,12 @@ import {
 
 export { EmptyGraphError } from "./types.js";
 export type {
+  ArchitecturalLayer,
   ClearAllSummary,
   ClearFileSummary,
   ClearWorkspaceSummary,
   EdgeKindCount,
+  EntryKind,
   ExtractedFileRecord,
   ExtractedIndexData,
   FileRecord,
@@ -61,6 +63,7 @@ export type {
   SessionSummary,
   StoredFile,
   StoredSymbol,
+  SymbolClassificationRecord,
   SymbolKind,
   SymbolRange,
   TopFile,

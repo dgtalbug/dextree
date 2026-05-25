@@ -1,4 +1,10 @@
-import type { GraphEdge, GraphNode, SymbolKind } from "@dextree/core";
+import type {
+  ArchitecturalLayer,
+  EntryKind,
+  GraphEdge,
+  GraphNode,
+  SymbolKind,
+} from "@dextree/core";
 
 // ---------------------------------------------------------------------------
 // Layout presets (slice 025)
@@ -103,6 +109,21 @@ export interface GraphNodeAttributes {
   baseSize: number;
   color: string;
   baseColor: string;
+  /** Set on symbol nodes only. File nodes never carry classification. */
+  entryKind?: EntryKind;
+  /** Set on symbol nodes only. File nodes never carry classification. */
+  archLayer?: ArchitecturalLayer;
+}
+
+/**
+ * GraphView-local rendering state for an entry symbol. Computed on the fly
+ * from `GraphNodeAttributes.entryKind` — symbols with `unclassified` or
+ * missing entryKind keep the standard symbol rendering.
+ */
+export interface EntryNodeVisualState {
+  entryKind: EntryKind | undefined;
+  usesEntryShape: boolean;
+  usesEntryBorder: boolean;
 }
 
 export interface GraphEdgeAttributes {

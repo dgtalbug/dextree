@@ -4,7 +4,8 @@
 //   3 — unifies call_site + import_ref into edge with kind/metadata (migration 003)
 //   4 — adds workspace_cache table (migration 004)
 //   5 — adds workspace_framework table + file.framework columns (migration 005)
-export const SCHEMA_VERSION = 5;
+//   6 — adds symbol.entry_kind + symbol.arch_layer classification columns (migration 006)
+export const SCHEMA_VERSION = 6;
 
 export interface WorkspaceCacheIdentity {
   cacheKey: string;

@@ -7,6 +7,7 @@ import type {
   ExtractedIndexData,
   FrameworkDetectionSource,
   StoredSymbol,
+  SymbolClassificationRecord,
 } from "../types.js";
 import { runInTransaction } from "./db.js";
 
@@ -132,10 +133,23 @@ async function updateFile(connection: DuckDBConnection, input: ExtractedIndexDat
   );
 }
 
-async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol): Promise<void> {
+const DEFAULT_CLASSIFICATION: SymbolClassificationRecord = {
+  entryKind: "unclassified",
+  archLayer: "unknown",
+};
+
+async function insertSymbol(
+  connection: DuckDBConnection,
+  symbol: StoredSymbol,
+  classification: SymbolClassificationRecord = DEFAULT_CLASSIFICATION,
+): Promise<void> {
   // _schema_version, fan_in, is_core are omitted — column defaults handle them.
   // The pass-2 enrichment columns (visibility, signature, return_type, etc.) are
   // also omitted; they're nullable and stay NULL until LSP enrichment (S8) runs.
+  //
+  // entry_kind and arch_layer are always written explicitly so migrated v5→v6
+  // databases (where the columns are bare-added without DEFAULT) get the same
+  // initial state as fresh ones.
   await connection.run(
     `
       INSERT INTO symbol (
@@ -145,7 +159,9 @@ async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol):
         kind,
         file_id,
         range,
-        language
+        language,
+        entry_kind,
+        arch_layer
       ) VALUES (
         $id,
         $fqn,
@@ -158,7 +174,9 @@ async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol):
           end_line := $end_line,
           end_col := $end_col
         ),
-        $language
+        $language,
+        $entry_kind,
+        $arch_layer
       )
     `,
     {
@@ -169,6 +187,8 @@ async function insertSymbol(connection: DuckDBConnection, symbol: StoredSymbol):
       file_id: symbol.fileId,
       language: symbol.language,
       ...rangeParams(symbol),
+      entry_kind: classification.entryKind,
+      arch_layer: classification.archLayer,
     },
   );
 }
@@ -392,6 +412,7 @@ export async function replaceFileGraph(
   connection: DuckDBConnection,
   input: ExtractedIndexData,
   extraEdges: readonly EdgeRow[] = [],
+  classifications: ReadonlyMap<string, SymbolClassificationRecord> = new Map(),
 ): Promise<void> {
   await runInTransaction(connection, async () => {
     const existingFileId = await findExistingFileId(connection, input.file.path);
@@ -420,7 +441,7 @@ export async function replaceFileGraph(
     }
 
     for (const symbol of normalizedInput.symbols) {
-      await insertSymbol(connection, symbol);
+      await insertSymbol(connection, symbol, classifications.get(symbol.id));
     }
 
     await insertImportRefs(connection, normalizedInput);
