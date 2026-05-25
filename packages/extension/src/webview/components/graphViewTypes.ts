@@ -97,6 +97,14 @@ export interface GraphViewProps {
   onWorkspaceSwitcherClick?: () => void;
 }
 
+/**
+ * Per-node Sigma program selector. Sigma 3 dispatches the WebGL renderer for
+ * each node based on this attribute. `entry` is the slice-026 program (gold
+ * border around the node's existing color); `square` is registered alongside
+ * for future architectural-layer differentiation.
+ */
+export type SigmaNodeProgramType = "circle" | "square" | "entry";
+
 export interface GraphNodeAttributes {
   label: string;
   filePath: string;
@@ -113,6 +121,8 @@ export interface GraphNodeAttributes {
   entryKind?: EntryKind;
   /** Set on symbol nodes only. File nodes never carry classification. */
   archLayer?: ArchitecturalLayer;
+  /** Omitted to use Sigma's defaultNodeType. */
+  type?: SigmaNodeProgramType;
 }
 
 /**
@@ -124,6 +134,22 @@ export interface EntryNodeVisualState {
   entryKind: EntryKind | undefined;
   usesEntryShape: boolean;
   usesEntryBorder: boolean;
+}
+
+/**
+ * Decide GraphView's per-symbol entry styling from the persisted entry kind.
+ * Pure function — exported so tests can pin the contract without spinning up
+ * a Sigma instance. Conservative: only classified, non-`unclassified` entries
+ * receive the distinct entry treatment; everything else keeps neutral
+ * rendering.
+ */
+export function entryVisualState(entryKind: EntryKind | undefined): EntryNodeVisualState {
+  const isClassifiedEntry = entryKind !== undefined && entryKind !== "unclassified";
+  return {
+    entryKind,
+    usesEntryShape: isClassifiedEntry,
+    usesEntryBorder: isClassifiedEntry,
+  };
 }
 
 export interface GraphEdgeAttributes {

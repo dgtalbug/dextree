@@ -2,6 +2,8 @@ import type { DuckDBConnection } from "@duckdb/node-api";
 import { MultiDirectedGraph } from "graphology";
 
 import type {
+  ArchitecturalLayer,
+  EntryKind,
   FrameworkDetectionSource,
   FrameworkInfo,
   GraphEdge,
@@ -40,6 +42,41 @@ function normalizeStringArray(value: unknown): readonly string[] | undefined {
     return value.map((v) => String(v));
   }
   return undefined;
+}
+
+const ENTRY_KIND_VALUES = new Set<EntryKind>([
+  "runtime",
+  "handler",
+  "test",
+  "public-api",
+  "unclassified",
+]);
+
+const ARCH_LAYER_VALUES = new Set<ArchitecturalLayer>([
+  "presentation",
+  "application",
+  "domain",
+  "infrastructure",
+  "test",
+  "unknown",
+]);
+
+/**
+ * Pre-v6 rows carry NULL until the next reindex rewrites them; unknown
+ * persisted values would mean a future writer wrote a string this build
+ * doesn't recognize. Both fall back to undefined so the renderer treats
+ * them like `unclassified` — the conservative degradation path.
+ */
+function normalizeEntryKind(value: unknown): EntryKind | undefined {
+  if (typeof value !== "string") return undefined;
+  return ENTRY_KIND_VALUES.has(value as EntryKind) ? (value as EntryKind) : undefined;
+}
+
+function normalizeArchLayer(value: unknown): ArchitecturalLayer | undefined {
+  if (typeof value !== "string") return undefined;
+  return ARCH_LAYER_VALUES.has(value as ArchitecturalLayer)
+    ? (value as ArchitecturalLayer)
+    : undefined;
 }
 
 export async function getWorkspaceSubgraph(
@@ -95,7 +132,9 @@ export async function getWorkspaceSubgraph(
           s.is_core AS isCore,
           s.flags AS flags,
           s.signature AS signature,
-          s.docstring AS docstring
+          s.docstring AS docstring,
+          s.entry_kind AS entryKind,
+          s.arch_layer AS archLayer
         FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
         WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix
@@ -252,6 +291,8 @@ export async function getWorkspaceSubgraph(
       const flags = normalizeStringArray(row.flags);
       const signature = typeof row.signature === "string" ? row.signature : undefined;
       const docstring = typeof row.docstring === "string" ? row.docstring : undefined;
+      const entryKind = normalizeEntryKind(row.entryKind);
+      const archLayer = normalizeArchLayer(row.archLayer);
 
       return {
         id: String(row.id),
@@ -265,6 +306,8 @@ export async function getWorkspaceSubgraph(
         ...(flags === undefined ? {} : { flags }),
         ...(signature === undefined ? {} : { signature }),
         ...(docstring === undefined ? {} : { docstring }),
+        ...(entryKind === undefined ? {} : { entryKind }),
+        ...(archLayer === undefined ? {} : { archLayer }),
       };
     }),
   ];

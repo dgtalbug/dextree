@@ -352,4 +352,131 @@ describe("getWorkspaceSubgraph", () => {
       database.close();
     }
   });
+
+  it("projects entryKind / archLayer onto symbol nodes when persisted", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+      await replaceFileGraph(
+        database.connection,
+        makeExtractedData("greet"),
+        [],
+        new Map([["symbol-greet", { entryKind: "public-api", archLayer: "application" }]]),
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const symbolNode = graph.nodes.find((n) => n.id === "symbol-greet");
+
+      expect(symbolNode).toBeDefined();
+      expect(symbolNode?.entryKind).toBe("public-api");
+      expect(symbolNode?.archLayer).toBe("application");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("refreshes entryKind / archLayer on reindex (slice 026)", async () => {
+    const database = await openDatabase(":memory:");
+
+    // Local helper: a single stable file with a swappable symbol so reindex
+    // can land on the same file row.
+    function reindexedFile(symbolName: string): ExtractedIndexData {
+      return {
+        file: {
+          id: "file-stable",
+          path: "/workspace/src/stable.ts",
+          relativePath: "src/stable.ts",
+          language: "typescript",
+          loc: 3,
+          hash: `hash-${symbolName}`,
+        },
+        symbols: [
+          {
+            id: `symbol-${symbolName}`,
+            fqn: `src/stable.ts:${symbolName}`,
+            name: symbolName,
+            kind: "function",
+            fileId: "file-stable",
+            range: { startLine: 0, startCol: 0, endLine: 0, endCol: 10 },
+            language: "typescript",
+          },
+        ],
+        imports: [],
+      };
+    }
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+
+      await replaceFileGraph(
+        database.connection,
+        reindexedFile("greet"),
+        [],
+        new Map([["symbol-greet", { entryKind: "runtime", archLayer: "application" }]]),
+      );
+
+      await replaceFileGraph(
+        database.connection,
+        reindexedFile("wave"),
+        [],
+        new Map([["symbol-wave", { entryKind: "handler", archLayer: "presentation" }]]),
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const symbolNodes = graph.nodes.filter((n) => n.type === "symbol");
+
+      expect(symbolNodes).toHaveLength(1);
+      expect(symbolNodes[0]?.id).toBe("symbol-wave");
+      expect(symbolNodes[0]?.entryKind).toBe("handler");
+      expect(symbolNodes[0]?.archLayer).toBe("presentation");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("file nodes never carry entryKind or archLayer", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+      await replaceFileGraph(
+        database.connection,
+        makeExtractedData("greet"),
+        [],
+        new Map([["symbol-greet", { entryKind: "public-api", archLayer: "application" }]]),
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const fileNode = graph.nodes.find((n) => n.id === "file-greet");
+
+      expect(fileNode).toBeDefined();
+      expect(fileNode?.entryKind).toBeUndefined();
+      expect(fileNode?.archLayer).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("projects defaults when no classification map is provided", async () => {
+    const database = await openDatabase(":memory:");
+
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+      await replaceFileGraph(database.connection, makeExtractedData("greet"));
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const symbolNode = graph.nodes.find((n) => n.id === "symbol-greet");
+
+      expect(symbolNode).toBeDefined();
+      expect(symbolNode?.entryKind).toBe("unclassified");
+      expect(symbolNode?.archLayer).toBe("unknown");
+    } finally {
+      database.close();
+    }
+  });
 });

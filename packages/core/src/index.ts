@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
 
+import { classifySymbol } from "./extractors/classification/classifySymbol.js";
 import { detectFrameworks } from "./extractors/frameworks/detector.js";
 import { createNodeFsIO } from "./extractors/frameworks/fsIO.js";
 import { resolveFileFramework } from "./extractors/frameworks/resolveFileFramework.js";
@@ -38,6 +39,7 @@ import {
   type SessionSummary,
   type StoredFile,
   type StoredSymbol,
+  type SymbolClassificationRecord,
   type WorkspaceCacheIdentity,
 } from "./types.js";
 
@@ -198,14 +200,42 @@ class DuckTreeIndexer implements Indexer {
       // (which `replaceFileGraph` writes itself) flow through `extraEdges`.
       const extraEdges = [...result.edges];
 
-      await replaceFileGraph(database.connection, extracted, extraEdges);
-
-      // Per-file framework attribution (slice 018). Runs against the cached
-      // detection list populated by `detectWorkspaceFrameworks` — no work if
-      // detection was never invoked or returned nothing.
+      // Per-file framework attribution (slice 018) is needed before classification
+      // so the classifier can use it as one of its local structural inputs.
       const detected = this.frameworkCache.get(workspaceRoot) ?? [];
+      const attribution =
+        detected.length > 0
+          ? resolveFileFramework(extracted.file.relativePath, source, detected)
+          : null;
+      const detectedHit = attribution
+        ? (detected.find((f) => f.frameworkName === attribution.framework) ?? null)
+        : null;
+      const frameworkInfo: FrameworkInfo | undefined = detectedHit
+        ? {
+            name: detectedHit.frameworkName,
+            detectionSource: detectedHit.detectionSource,
+            confidence: detectedHit.confidence,
+          }
+        : undefined;
+
+      const classifications = new Map<string, SymbolClassificationRecord>();
+      for (const symbol of extracted.symbols) {
+        classifications.set(
+          symbol.id,
+          classifySymbol({
+            relativePath: extracted.file.relativePath,
+            language: symbol.language,
+            symbolKind: symbol.kind,
+            symbolName: symbol.name,
+            source,
+            ...(frameworkInfo === undefined ? {} : { framework: frameworkInfo }),
+          }),
+        );
+      }
+
+      await replaceFileGraph(database.connection, extracted, extraEdges, classifications);
+
       if (detected.length > 0) {
-        const attribution = resolveFileFramework(extracted.file.relativePath, source, detected);
         await setFileFramework(
           database.connection,
           extracted.file.id,
