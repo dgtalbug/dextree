@@ -51,6 +51,21 @@ export type SymbolKind =
   | "variable"
   | "method";
 
+export type EntryKind = "runtime" | "handler" | "test" | "public-api" | "unclassified";
+
+export type ArchitecturalLayer =
+  | "presentation"
+  | "application"
+  | "domain"
+  | "infrastructure"
+  | "test"
+  | "unknown";
+
+export interface SymbolClassificationRecord {
+  entryKind: EntryKind;
+  archLayer: ArchitecturalLayer;
+}
+
 export type GraphNodeType = "file" | "symbol";
 
 export type GraphEdgeKind = "DEFINES" | "IMPORTS" | "CALLS" | "INHERITS" | "INSTANTIATES";
@@ -77,6 +92,10 @@ export interface GraphNode {
   flags?: readonly string[];
   signature?: string;
   docstring?: string;
+  /** Set on `type: "symbol"` nodes only. Absent on file nodes. */
+  entryKind?: EntryKind;
+  /** Set on `type: "symbol"` nodes only. Absent on file nodes. */
+  archLayer?: ArchitecturalLayer;
 }
 
 export interface GraphEdge {
