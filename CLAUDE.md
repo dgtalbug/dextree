@@ -16,12 +16,13 @@ A VS Code extension that indexes codebases into a semantic graph (DuckDB + DuckP
 
 Dextree is built **spec-first**. Every change starts as a spec in `specs/NNN-<slice>/`, gets a plan and task breakdown, and only then turns into code. Any agent (Claude, Copilot, or a human) can pick up a spec and implement it. The spec is the contract; the agent is interchangeable.
 
-**The spec → plan → tasks → implementation flow:**
+**The spec → issue → plan → tasks → implementation flow:**
 
 1. A slice spec is authored under `specs/NNN-<slice>/spec.md` (managed via the SpecKit toolchain in `.specify/`)
-2. A plan is generated next to it (`plan.md`) — design, contracts, data model
-3. A tasks file (`tasks.md`) breaks the plan into ordered, dependency-aware work items
-4. An implementation PR delivers the slice, links back to the spec, and follows the file-domain lanes below
+2. **Immediately after** the spec is created, run `bash scripts/spec-to-issue/create.sh --phase <N>` to register a GitHub tracking issue. The script is idempotent — re-running on a spec that already has a `<!-- tracking-issue: #N -->` marker is a no-op. The issue is what the project board displays; without it, work is invisible to anyone looking at GitHub.
+3. A plan is generated next to it (`plan.md`) — design, contracts, data model
+4. A tasks file (`tasks.md`) breaks the plan into ordered, dependency-aware work items
+5. An implementation PR delivers the slice, includes `Closes: #<tracking-issue>` in its body, and follows the file-domain lanes below
 
 You are reading `CLAUDE.md` because you're an agent operating in this repo. The rules apply to any agent — the file is named for Claude only because Claude Code reads this filename by default. Copilot reads the same rules from `.github/copilot-instructions.md`.
 
