@@ -9,6 +9,11 @@ import { motion } from "framer-motion";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 
+import {
+  applyLayoutPreset,
+  restoreNodePositions,
+  snapshotNodePositions,
+} from "./graphLayoutPresets.js";
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
 import { InspectorPanel } from "./InspectorPanel.js";
@@ -25,6 +30,8 @@ import {
   type GraphEdgeAttributes,
   type GraphNodeAttributes,
   type GraphViewProps,
+  type LayoutPresetId,
+  type LayoutSelectionState,
   type OverlaySegment,
   type SearchResultItem,
   type SelectionTraversal,
@@ -1118,6 +1125,77 @@ export function GraphView({
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(false);
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(new Set());
+  // Slice 025 — layout preset selection. ForceAtlas2 is the session default
+  // for every fresh GraphView open per FR-003; preset state is local to this
+  // component and never persisted or sent to the extension host.
+  const [layoutSelection, setLayoutSelection] = useState<LayoutSelectionState>({
+    activePreset: "forceAtlas2",
+    notice: null,
+  });
+
+  const handleSelectLayoutPreset = useCallback(
+    (preset: LayoutPresetId) => {
+      const graph = graphRef.current;
+      if (graph === null) {
+        // Graph not initialised yet — nothing to lay out.
+        return;
+      }
+
+      // Whole-graph visibility for slice 025. Filter-aware visibility can
+      // be plumbed in later if a filter-active preset run produces awkward
+      // results; until then noverlap operates on every node, but only the
+      // currently rendered ones impact the user-visible arrangement.
+      const visibleNodeIds = new Set<string>(graph.nodes());
+      const visibleEdgeIds = new Set<string>(graph.edges());
+
+      // Snapshot the prior coordinates before any Hierarchical attempt so
+      // we can restore them if the DAG suitability check rejects (FR-009).
+      // Other presets don't need this — they either apply or no-op without
+      // ever touching coordinates.
+      const snapshot = preset === "hierarchical" ? snapshotNodePositions(graph) : null;
+
+      const result = applyLayoutPreset(graph, preset, {
+        activePreset: layoutSelection.activePreset,
+        visibleNodeIds,
+        visibleEdgeIds,
+      });
+
+      if (result.status === "applied") {
+        setLayoutSelection({ activePreset: result.preset, notice: null });
+        sigmaRef.current?.refresh();
+        return;
+      }
+
+      if (result.status === "rejected") {
+        // Restore prior coordinates as a defensive measure even though the
+        // helper currently rejects before mutating — keeps the contract
+        // promise that a failed attempt preserves the previous layout.
+        if (snapshot !== null) {
+          restoreNodePositions(graph, snapshot);
+        }
+        setLayoutSelection({
+          activePreset: layoutSelection.activePreset,
+          notice: result.notice,
+        });
+        return;
+      }
+
+      // status === "noop" — re-selecting the active preset or trivial graph.
+      // Don't touch state so the toolbar value remains stable.
+    },
+    [layoutSelection.activePreset],
+  );
+
+  // Auto-dismiss the Hierarchical fallback notice after a few seconds so it
+  // stays non-blocking (FR-009). New notices replace older ones immediately
+  // because setLayoutSelection always re-runs this effect with a new value.
+  useEffect(() => {
+    if (layoutSelection.notice === null) return undefined;
+    const handle = window.setTimeout(() => {
+      setLayoutSelection((prev) => (prev.notice === null ? prev : { ...prev, notice: null }));
+    }, 6000);
+    return () => window.clearTimeout(handle);
+  }, [layoutSelection.notice]);
   const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(new Set());
   const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
@@ -2124,7 +2202,20 @@ export function GraphView({
           {...(workspaceName !== undefined && { workspaceName })}
           {...(workspaceFrameworks !== undefined && { workspaceFrameworks })}
           {...(onWorkspaceSwitcherClick !== undefined && { onWorkspaceSwitcherClick })}
+          activeLayoutPreset={layoutSelection.activePreset}
+          onSelectLayoutPreset={handleSelectLayoutPreset}
         />
+        {layoutSelection.notice !== null && (
+          <div
+            className="dxt-layout-notice"
+            role="status"
+            aria-live="polite"
+            data-preset={layoutSelection.notice.preset}
+          >
+            <span className="codicon codicon-info" aria-hidden="true" />
+            <span className="dxt-layout-notice__text">{layoutSelection.notice.message}</span>
+          </div>
+        )}
         <canvas
           className={`dxt-minimap-canvas${showMinimap ? "" : " dxt-minimap-canvas--hidden"}`}
           ref={minimapCanvasRef}

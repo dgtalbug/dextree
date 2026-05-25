@@ -16,6 +16,7 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
   const onDepthChange = vi.fn();
   const onTraceToggle = vi.fn();
   const onTraceExit = vi.fn();
+  const onSelectLayoutPreset = vi.fn();
 
   const result = render(
     <GraphToolbar
@@ -43,6 +44,8 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
       tracePhase="idle"
       onTraceToggle={onTraceToggle}
       onTraceExit={onTraceExit}
+      activeLayoutPreset="forceAtlas2"
+      onSelectLayoutPreset={onSelectLayoutPreset}
       {...overrides}
     />,
   );
@@ -59,6 +62,7 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
     onDepthChange,
     onTraceToggle,
     onTraceExit,
+    onSelectLayoutPreset,
   };
 }
 
@@ -136,6 +140,8 @@ describe("GraphToolbar", () => {
         tracePhase="idle"
         onTraceToggle={vi.fn()}
         onTraceExit={vi.fn()}
+        activeLayoutPreset="forceAtlas2"
+        onSelectLayoutPreset={vi.fn()}
       />,
     );
 
@@ -269,6 +275,8 @@ describe("GraphToolbar", () => {
         tracePhase="picking-start"
         onTraceToggle={vi.fn()}
         onTraceExit={vi.fn()}
+        activeLayoutPreset="forceAtlas2"
+        onSelectLayoutPreset={vi.fn()}
       />,
     );
     expect(
@@ -310,6 +318,8 @@ describe("GraphToolbar", () => {
         tracePhase="picking-end"
         onTraceToggle={vi.fn()}
         onTraceExit={vi.fn()}
+        activeLayoutPreset="forceAtlas2"
+        onSelectLayoutPreset={vi.fn()}
       />,
     );
     expect(screen.getByRole("button", { name: "Exit trace mode" })).toBeTruthy();
@@ -367,5 +377,81 @@ describe("GraphToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: /switch workspace/i }));
 
     expect(onWorkspaceSwitcherClick).toHaveBeenCalledTimes(1);
+  });
+
+  // Slice 025 — layout preset dropdown
+  it("renders the layout dropdown showing the active preset (FR-001, FR-004)", () => {
+    renderToolbar({ activeLayoutPreset: "forceAtlas2" });
+
+    const dropdown = screen.getByRole("combobox", { name: /layout/i }) as HTMLSelectElement;
+    expect(dropdown).toBeTruthy();
+    expect(dropdown.value).toBe("forceAtlas2");
+  });
+
+  it("exposes exactly three preset options in spec order (FR-002)", () => {
+    renderToolbar();
+
+    const dropdown = screen.getByRole("combobox", { name: /layout/i }) as HTMLSelectElement;
+    const ids = Array.from(dropdown.options).map((o) => o.value);
+    expect(ids).toEqual(["forceAtlas2", "circular", "hierarchical"]);
+  });
+
+  it("reflects the active preset when re-rendered with a different value (FR-004)", () => {
+    const { rerender } = renderToolbar({ activeLayoutPreset: "forceAtlas2" });
+    expect((screen.getByRole("combobox", { name: /layout/i }) as HTMLSelectElement).value).toBe(
+      "forceAtlas2",
+    );
+
+    rerender(
+      <GraphToolbar
+        onExportMermaid={vi.fn()}
+        showMinimap={false}
+        onToggleMinimap={vi.fn()}
+        edgeKinds={["DEFINES"]}
+        hiddenEdgeKinds={new Set()}
+        onToggleEdgeKind={vi.fn()}
+        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
+        hiddenNodeKinds={new Set()}
+        onToggleNodeKind={vi.fn()}
+        searchQuery=""
+        searchResults={[]}
+        searchFocusedIndex={0}
+        onSearchQueryChange={vi.fn()}
+        onSearchSelectResult={vi.fn()}
+        onSearchClear={vi.fn()}
+        depth={3}
+        depthEnabled={false}
+        onDepthChange={vi.fn()}
+        tracePhase="idle"
+        onTraceToggle={vi.fn()}
+        onTraceExit={vi.fn()}
+        activeLayoutPreset="circular"
+        onSelectLayoutPreset={vi.fn()}
+      />,
+    );
+    expect((screen.getByRole("combobox", { name: /layout/i }) as HTMLSelectElement).value).toBe(
+      "circular",
+    );
+  });
+
+  it("calls onSelectLayoutPreset with the chosen preset id when changed", () => {
+    const { onSelectLayoutPreset } = renderToolbar({ activeLayoutPreset: "forceAtlas2" });
+
+    fireEvent.change(screen.getByRole("combobox", { name: /layout/i }), {
+      target: { value: "circular" },
+    });
+
+    expect(onSelectLayoutPreset).toHaveBeenCalledWith("circular");
+  });
+
+  it("still calls onSelectLayoutPreset when the user picks the active preset (no-op handled by GraphView)", () => {
+    const { onSelectLayoutPreset } = renderToolbar({ activeLayoutPreset: "forceAtlas2" });
+
+    fireEvent.change(screen.getByRole("combobox", { name: /layout/i }), {
+      target: { value: "forceAtlas2" },
+    });
+
+    // Toolbar surfaces every selection; safe-no-op is decided in GraphView.
+    expect(onSelectLayoutPreset).toHaveBeenCalledWith("forceAtlas2");
   });
 });

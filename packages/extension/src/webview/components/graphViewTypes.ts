@@ -1,5 +1,68 @@
 import type { GraphEdge, GraphNode, SymbolKind } from "@dextree/core";
 
+// ---------------------------------------------------------------------------
+// Layout presets (slice 025)
+// ---------------------------------------------------------------------------
+
+/** Toolbar layout preset identifiers exposed by slice 025. */
+export type LayoutPresetId = "forceAtlas2" | "circular" | "hierarchical";
+
+/** Static metadata used to render the layout dropdown option list. */
+export interface LayoutPresetOption {
+  id: LayoutPresetId;
+  label: "ForceAtlas2" | "Circular" | "Hierarchical";
+  description: string;
+}
+
+/**
+ * Non-blocking local notice surfaced inside GraphView when a preset request
+ * is rejected. Slice 025 only emits this for the Hierarchical fallback path.
+ */
+export interface LayoutNotice {
+  level: "info";
+  preset: "hierarchical";
+  message: string;
+}
+
+/** Tracks the active preset and any pending fallback notice. */
+export interface LayoutSelectionState {
+  activePreset: LayoutPresetId;
+  notice: LayoutNotice | null;
+}
+
+/** Coordinate snapshot used to restore the prior layout on Hierarchical rejection. */
+export type GraphLayoutSnapshot = Map<string, { x: number; y: number }>;
+
+/** Layered placement output from graphology-dag topological generations. */
+export interface HierarchicalGeneration {
+  layerIndex: number;
+  nodeIds: readonly string[];
+}
+
+/** Result of applying a layout preset to the currently visible graph. */
+export type LayoutApplicationResult =
+  | {
+      status: "applied";
+      preset: LayoutPresetId;
+      ranReadabilityPass: boolean;
+      notice: null;
+    }
+  | {
+      status: "noop";
+      preset: LayoutPresetId;
+      reason: "already-active" | "trivial-graph";
+      ranReadabilityPass: false;
+      notice: null;
+    }
+  | {
+      status: "rejected";
+      preset: "hierarchical";
+      fallbackPreset: LayoutPresetId;
+      reason: "cyclic" | "no-directed-edges" | "single-generation" | "overfull-generation";
+      ranReadabilityPass: false;
+      notice: LayoutNotice;
+    };
+
 export interface ThemeColors {
   backgroundColor: string;
   labelColor: string;
