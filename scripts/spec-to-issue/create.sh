@@ -10,6 +10,7 @@
 #   bash scripts/spec-to-issue/create.sh specs/024-workspace-switcher
 #   bash scripts/spec-to-issue/create.sh --dry-run specs/024-workspace-switcher
 #   bash scripts/spec-to-issue/create.sh --phase 2 specs/024-workspace-switcher
+#   bash scripts/spec-to-issue/create.sh --no-project specs/024-workspace-switcher
 #
 # Convention:
 # - One issue per slice spec, granular (vs the historical cluster cards).
@@ -17,9 +18,18 @@
 #   issue is created. On re-run, the marker is detected and the script
 #   exits 0 without duplicate-creating.
 # - The body template lives in scripts/spec-to-issue/template.md.
+# - After creating the issue, the script also adds it to the Dextree
+#   project board (number 4 under owner `dgtalbug` by default). The
+#   project's auto-add workflow filters by `label:cluster`, so a `slice`-
+#   labelled issue would not land there without this explicit add.
+#
+# Environment:
+# - DEXTREE_PROJECT_NUMBER (default: 4)   GitHub project number
+# - DEXTREE_PROJECT_OWNER  (default: dgtalbug)   project owner
 #
 # Requires:
-# - gh CLI authenticated (`gh auth status`)
+# - gh CLI authenticated (`gh auth status`) with the `project` scope
+#   (`gh auth refresh -s project` if needed)
 # - The current directory is inside the dextree git repo
 
 set -euo pipefail
@@ -27,6 +37,9 @@ set -euo pipefail
 DRY_RUN=false
 PHASE=""
 SPEC_DIR=""
+ADD_TO_PROJECT=true
+PROJECT_NUMBER="${DEXTREE_PROJECT_NUMBER:-4}"
+PROJECT_OWNER="${DEXTREE_PROJECT_OWNER:-dgtalbug}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -41,6 +54,10 @@ while [ $# -gt 0 ]; do
       fi
       PHASE="$2"
       shift 2
+      ;;
+    --no-project)
+      ADD_TO_PROJECT=false
+      shift
       ;;
     --help|-h)
       sed -n '1,/^set -euo/p' "$0" | head -n -1 | sed 's/^# //; s/^#//'
@@ -203,6 +220,11 @@ if [ "$DRY_RUN" = true ]; then
   echo "=== DRY RUN — would create issue ==="
   echo "title: $ISSUE_TITLE"
   echo "label: slice${PHASE:+, phase-$PHASE}"
+  if [ "$ADD_TO_PROJECT" = true ]; then
+    echo "project: $PROJECT_OWNER/$PROJECT_NUMBER (would be added after creation)"
+  else
+    echo "project: SKIPPED (--no-project)"
+  fi
   echo "body:"
   echo "$ISSUE_BODY"
   echo "==="
@@ -235,6 +257,28 @@ ISSUE_NUM=$(echo "$ISSUE_URL" | grep -Eo '[0-9]+$')
 if [ -z "$ISSUE_NUM" ]; then
   echo "Error: failed to parse issue number from gh output: $ISSUE_URL" >&2
   exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Add the issue to the Dextree project board
+#
+# The project's auto-add workflow (#13) filters by `label:cluster`, so a
+# `slice`-labelled issue would not land there without this explicit add.
+# Best-effort: warn if it fails (e.g. missing `project` scope on gh token)
+# but don't abort — the issue and the marker are already in place, and
+# the user can manually add the issue to the project later via the UI.
+# ---------------------------------------------------------------------------
+
+if [ "$ADD_TO_PROJECT" = true ]; then
+  if ! gh project item-add "$PROJECT_NUMBER" \
+        --owner "$PROJECT_OWNER" \
+        --url "$ISSUE_URL" >/dev/null 2>&1; then
+    echo "Warning: created issue #$ISSUE_NUM but failed to add it to project $PROJECT_OWNER/$PROJECT_NUMBER." >&2
+    echo "         Add it manually via the UI, or check that 'gh auth status' shows the 'project' scope." >&2
+    echo "         (Run 'gh auth refresh -s project' to grant.)" >&2
+  else
+    echo "Added issue #$ISSUE_NUM to project $PROJECT_OWNER/$PROJECT_NUMBER."
+  fi
 fi
 
 # ---------------------------------------------------------------------------
