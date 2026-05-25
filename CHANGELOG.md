@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/dgtalbug/dextree/compare/v1.9.0...v1.10.0) (2026-05-25)
+
+
+### Features
+
+* **exporters,extension:** mermaid scoped serializer with scope+granularity+direction (slice 027) ([#121](https://github.com/dgtalbug/dextree/issues/121)) ([9e42cd9](https://github.com/dgtalbug/dextree/commit/9e42cd9be88956e91c9fb2141b69a2f5b565f488)), closes [#120](https://github.com/dgtalbug/dextree/issues/120)
+
 ## [1.9.0](https://github.com/dgtalbug/dextree/compare/v1.8.0...v1.9.0) (2026-05-25)
 
 ### Features
