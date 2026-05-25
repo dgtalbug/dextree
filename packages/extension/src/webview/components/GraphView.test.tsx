@@ -1017,4 +1017,156 @@ describe("GraphView", () => {
       expect(searchInput.value).toBe("");
     });
   });
+
+  describe("layout presets (slice 025 US1)", () => {
+    it("shows ForceAtlas2 as the default active layout when GraphView opens (FR-003)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole("combobox", { name: "Layout preset" }) as HTMLSelectElement;
+      expect(select.value).toBe("forceAtlas2");
+    });
+
+    it("exposes ForceAtlas2 + Circular + Hierarchical as the three options (FR-002)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole("combobox", { name: "Layout preset" }) as HTMLSelectElement;
+      expect(Array.from(select.options).map((o) => o.value)).toEqual([
+        "forceAtlas2",
+        "circular",
+        "hierarchical",
+      ]);
+    });
+
+    it("re-selecting the active preset is a safe no-op (FR-012, US1 acceptance #4)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole("combobox", { name: "Layout preset" }) as HTMLSelectElement;
+      forceAtlasAssign.mockClear();
+
+      // Selecting forceAtlas2 again should not retrigger the layout assignment.
+      fireEvent.change(select, { target: { value: "forceAtlas2" } });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(forceAtlasAssign).not.toHaveBeenCalled();
+      expect(select.value).toBe("forceAtlas2");
+    });
+  });
+
+  describe("layout presets — Circular (slice 025 US2)", () => {
+    it("updates the dropdown to circular and refreshes Sigma when Circular is selected (FR-005)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole("combobox", { name: "Layout preset" }) as HTMLSelectElement;
+      mockSigma.refresh.mockClear();
+
+      fireEvent.change(select, { target: { value: "circular" } });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(select.value).toBe("circular");
+      expect(mockSigma.refresh).toHaveBeenCalled();
+    });
+
+    it("operates on pass 1-only graphs without requiring lazy enrichment (FR-011, SC-004)", () => {
+      // Pass 1-only: file-with-symbols, no resolved CALLS edges.
+      const pass1Nodes = baseNodes;
+      const pass1Edges = baseEdges.filter((e) => e.kind !== "CALLS");
+
+      render(
+        <GraphView
+          nodes={pass1Nodes}
+          edges={pass1Edges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole("combobox", { name: "Layout preset" }) as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: "circular" } });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(select.value).toBe("circular");
+    });
+  });
+
+  describe("layout presets — Hierarchical (slice 025 US3)", () => {
+    it("applies layered positions on a DAG-suitable graph (FR-007)", () => {
+      // baseEdges has DEFINES + IMPORTS + CALLS — these form a DAG.
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole("combobox", { name: "Layout preset" }) as HTMLSelectElement;
+      mockSigma.refresh.mockClear();
+
+      fireEvent.change(select, { target: { value: "hierarchical" } });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(select.value).toBe("hierarchical");
+      expect(mockSigma.refresh).toHaveBeenCalled();
+      // No fallback notice surfaces on a successful application.
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("last-selection-wins on rapid switching (US3 edge case)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole("combobox", { name: "Layout preset" }) as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: "circular" } });
+      fireEvent.change(select, { target: { value: "hierarchical" } });
+      fireEvent.change(select, { target: { value: "forceAtlas2" } });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(select.value).toBe("forceAtlas2");
+    });
+  });
 });

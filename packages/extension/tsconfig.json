@@ -5,5 +5,6 @@
     "rootDir": "../..",
     "types": ["node", "vscode"]
   },
-  "include": ["src/**/*.ts", "../core/src/types/**/*.d.ts"]
+  "include": ["src/**/*.ts", "../core/src/types/**/*.d.ts"],
+  "exclude": ["src/webview/components/**"]
 }

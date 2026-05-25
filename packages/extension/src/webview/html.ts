@@ -902,6 +902,98 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
         flex-shrink: 0;
       }
 
+      /* Slice 025 — layout preset dropdown */
+      .dxt-layout-preset {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 8px;
+        border: 1px solid var(--vscode-panel-border, transparent);
+        border-radius: 4px;
+        background: transparent;
+        color: var(--vscode-foreground);
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+
+      .dxt-layout-preset:hover {
+        border-color: var(--vscode-focusBorder, var(--vscode-panel-border, transparent));
+      }
+
+      .dxt-layout-preset__label-text {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+      }
+
+      .dxt-layout-preset__select {
+        background: transparent;
+        color: var(--vscode-foreground);
+        border: none;
+        font: inherit;
+        cursor: pointer;
+        outline: none;
+        appearance: none;
+        padding-right: 14px;
+        background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                          linear-gradient(135deg, currentColor 50%, transparent 50%);
+        background-position: calc(100% - 7px) center, calc(100% - 3px) center;
+        background-size: 4px 4px;
+        background-repeat: no-repeat;
+      }
+
+      .dxt-layout-preset__select:focus-visible {
+        outline: 1px solid var(--vscode-focusBorder);
+        outline-offset: 1px;
+      }
+
+      .dxt-layout-preset__select option {
+        background: var(--vscode-dropdown-background, var(--vscode-editor-background));
+        color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+      }
+
+      /* Slice 025 — non-blocking notice for Hierarchical fallback (FR-009) */
+      .dxt-layout-notice {
+        position: absolute;
+        top: 56px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 5;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        max-width: min(560px, calc(100% - 32px));
+        padding: 6px 12px;
+        border-radius: 4px;
+        background: var(--vscode-notifications-background, var(--vscode-editor-background));
+        color: var(--vscode-notifications-foreground, var(--vscode-foreground));
+        border: 1px solid var(--vscode-notifications-border, var(--vscode-panel-border));
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        font-size: 12px;
+        pointer-events: none;
+        animation: dxt-layout-notice-in 0.18s ease-out;
+      }
+
+      .dxt-layout-notice .codicon {
+        color: var(--vscode-notificationsInfoIcon-foreground, currentColor);
+      }
+
+      .dxt-layout-notice__text {
+        white-space: normal;
+      }
+
+      @keyframes dxt-layout-notice-in {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -6px);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+      }
+
       .dxt-minimap-toggle {
         background: transparent;
         border: 1px solid var(--vscode-panel-border, transparent);

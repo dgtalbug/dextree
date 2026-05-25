@@ -156,6 +156,15 @@ importers:
       graphology:
         specifier: ^0.26.0
         version: 0.26.0(graphology-types@0.24.8)
+      graphology-dag:
+        specifier: ^0.4.1
+        version: 0.4.1(graphology-types@0.24.8)
+      graphology-layout:
+        specifier: ^0.6.1
+        version: 0.6.1(graphology-types@0.24.8)
+      graphology-layout-noverlap:
+        specifier: ^0.4.2
+        version: 0.4.2(graphology-types@0.24.8)
       graphology-shortest-path:
         specifier: ^2.1.0
         version: 2.1.0(graphology-types@0.24.8)
@@ -2946,6 +2955,11 @@ packages:
     peerDependencies:
       graphology-types: '>=0.19.0'
 
+  graphology-dag@0.4.1:
+    resolution: {integrity: sha512-3ch9oOAnHZDoT043vyg7ukmSkKJ505nFzaHaYOn0IF2PgGo5VtIavyVK4UpbIa4tli3hhGm1ZTdBsubTmaxu/w==}
+    peerDependencies:
+      graphology-types: '>=0.19.0'
+
   graphology-indices@0.17.0:
     resolution: {integrity: sha512-A7RXuKQvdqSWOpn7ZVQo4S33O0vCfPBnUSf7FwE0zNCasqwZVUaCXePuWo5HBpWw68KJcwObZDHpFk6HKH6MYQ==}
     peerDependencies:
@@ -2953,6 +2967,16 @@ packages:
 
   graphology-layout-forceatlas2@0.10.1:
     resolution: {integrity: sha512-ogzBeF1FvWzjkikrIFwxhlZXvD2+wlY54lqhsrWprcdPjopM2J9HoMweUmIgwaTvY4bUYVimpSsOdvDv1gPRFQ==}
+    peerDependencies:
+      graphology-types: '>=0.19.0'
+
+  graphology-layout-noverlap@0.4.2:
+    resolution: {integrity: sha512-13WwZSx96zim6l1dfZONcqLh3oqyRcjIBsqz2c2iJ3ohgs3605IDWjldH41Gnhh462xGB1j6VGmuGhZ2FKISXA==}
+    peerDependencies:
+      graphology-types: '>=0.19.0'
+
+  graphology-layout@0.6.1:
+    resolution: {integrity: sha512-m9aMvbd0uDPffUCFPng5ibRkb2pmfNvdKjQWeZrf71RS1aOoat5874+DcyNfMeCT4aQguKC7Lj9eCbqZj/h8Ag==}
     peerDependencies:
       graphology-types: '>=0.19.0'
 
@@ -7639,6 +7663,12 @@ snapshots:
       graphology-types: 0.24.8
       graphology-utils: 2.5.2(graphology-types@0.24.8)
 
+  graphology-dag@0.4.1(graphology-types@0.24.8):
+    dependencies:
+      graphology-types: 0.24.8
+      graphology-utils: 2.5.2(graphology-types@0.24.8)
+      mnemonist: 0.39.8
+
   graphology-indices@0.17.0(graphology-types@0.24.8):
     dependencies:
       graphology-types: 0.24.8
@@ -7649,6 +7679,17 @@ snapshots:
     dependencies:
       graphology-types: 0.24.8
       graphology-utils: 2.5.2(graphology-types@0.24.8)
+
+  graphology-layout-noverlap@0.4.2(graphology-types@0.24.8):
+    dependencies:
+      graphology-types: 0.24.8
+      graphology-utils: 2.5.2(graphology-types@0.24.8)
+
+  graphology-layout@0.6.1(graphology-types@0.24.8):
+    dependencies:
+      graphology-types: 0.24.8
+      graphology-utils: 2.5.2(graphology-types@0.24.8)
+      pandemonium: 2.4.1
 
   graphology-metrics@2.4.0(graphology-types@0.24.8):
     dependencies:

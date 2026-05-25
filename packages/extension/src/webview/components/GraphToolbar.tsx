@@ -4,7 +4,8 @@ import { DepthSlider } from "./DepthSlider.js";
 import { NodeFilterPanel } from "./NodeFilterPanel.js";
 import type { NodeFilterEntry } from "./NodeFilterPanel.js";
 import { SearchBar } from "./SearchBar.js";
-import type { SearchResultItem, TracePhase } from "./graphViewTypes.js";
+import type { LayoutPresetId, SearchResultItem, TracePhase } from "./graphViewTypes.js";
+import { LAYOUT_PRESET_OPTIONS } from "./graphLayoutPresets.js";
 
 const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
   DEFINES: "Defines",
@@ -45,6 +46,9 @@ export interface GraphToolbarProps {
   workspaceName?: string;
   workspaceFrameworks?: readonly string[];
   onWorkspaceSwitcherClick?: () => void;
+  // Layout presets (new — slice 025):
+  activeLayoutPreset: LayoutPresetId;
+  onSelectLayoutPreset: (preset: LayoutPresetId) => void;
 }
 
 function EdgeFilterBar({
@@ -118,6 +122,8 @@ export function GraphToolbar({
   workspaceName,
   workspaceFrameworks,
   onWorkspaceSwitcherClick,
+  activeLayoutPreset,
+  onSelectLayoutPreset,
 }: GraphToolbarProps) {
   const traceActive = tracePhase !== "idle";
   return (
@@ -207,6 +213,24 @@ export function GraphToolbar({
         />
       </div>
       <DepthSlider depth={depth} enabled={depthEnabled} onDepthChange={onDepthChange} />
+      <label className="dxt-layout-preset" title="Switch graph layout">
+        <span className="codicon codicon-layout" aria-hidden="true" />
+        <span className="dxt-layout-preset__label-text">Layout</span>
+        <select
+          className="dxt-layout-preset__select"
+          value={activeLayoutPreset}
+          aria-label="Layout preset"
+          onChange={(event) => {
+            onSelectLayoutPreset(event.target.value as LayoutPresetId);
+          }}
+        >
+          {LAYOUT_PRESET_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id} title={option.description}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <button
         type="button"
         className="dxt-minimap-toggle dxt-toolbar__minimap-toggle"
