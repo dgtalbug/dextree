@@ -50,21 +50,21 @@
   "devDependencies": {
     "@dextree/core": "workspace:*",
     "@dextree/exporters": "workspace:*",
-    "@duckdb/node-api": "^1.5.2-r.1",
+    "@duckdb/node-api": "^1.5.2-r.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^4.3.4",
     "@vscode/codicons": "^0.0.45",
     "@vscode/vsce": "^3.4.0",
-    "framer-motion": "^12.38.0",
+    "framer-motion": "^12.40.0",
     "graphology-layout-forceatlas2": "^0.10.1",
     "jsdom": "^29.1.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "vite": "^5.4.11",
-    "web-tree-sitter": "^0.26.8"
+    "web-tree-sitter": "^0.26.9"
   },
   "scripts": {
     "build": "node esbuild.mjs && vite build",
