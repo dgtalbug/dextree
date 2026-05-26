@@ -11,3 +11,7 @@ LOD = "LOD"
 # "ba" appears as a suffix in commit hash 99a46ba in CHANGELOG.md.
 # Typos misidentifies it as an incomplete word.
 ba = "ba"
+# "inh" appears in slice 028's classDiagram test fixtures (e.g. `edge("e-inh",
+# ..., "INHERITS")` for synthetic INHERITS edges). Typos flags it as a
+# misspelling of "in" — wrong in our context.
+inh = "inh"
