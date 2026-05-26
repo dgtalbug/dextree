@@ -12,6 +12,7 @@ export {
   MERMAID_GRANULARITY_CAPS,
   serializeToScopedMermaid,
   validateScopedMermaidExport,
+  type MermaidDiagram,
   type MermaidDirection,
   type MermaidGranularity,
   type MermaidScope,
@@ -19,3 +20,11 @@ export {
   type ScopedExportValidation,
   type ScopedMermaidOptions,
 } from "./mermaid/scopedSerializer.js";
+export {
+  groupClassDiagramEntries,
+  MERMAID_CLASS_DIAGRAM_CAPS,
+  serializeToClassDiagram,
+  validateClassDiagramExport,
+  type ClassDiagramEntry,
+  type ClassDiagramValidation,
+} from "./mermaid/classDiagram.js";

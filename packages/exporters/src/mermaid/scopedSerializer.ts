@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode, WorkspaceSubgraph } from "@dextree/core";
 
+import { serializeToClassDiagram } from "./classDiagram.js";
 import { inferMermaidDirection } from "./direction.js";
 import { applyMermaidGranularity } from "./granularity.js";
 import { extractMermaidScope } from "./scope.js";
@@ -13,6 +14,14 @@ export {
   MERMAID_GRANULARITY_CAPS,
   validateScopedMermaidExport,
 };
+
+/**
+ * Bounded discriminator for the diagram shape produced by
+ * {@link serializeToScopedMermaid}. `flowchart` is the slice-016/027 default;
+ * `classDiagram` lands in slice 028; `sequenceDiagram` is reserved for slice
+ * 031.
+ */
+export type MermaidDiagram = "flowchart" | "classDiagram";
 
 /**
  * Discriminated union describing which portion of the indexed workspace graph
@@ -37,6 +46,13 @@ export type MermaidDirection = "auto" | "TB" | "LR" | "BT" | "RL";
 
 /** Full option payload accepted by the scoped serializer. */
 export interface ScopedMermaidOptions {
+  /**
+   * Required since slice 028. The `flowchart` branch is byte-identical to the
+   * slice-027 path; the `classDiagram` branch delegates to
+   * `serializeToClassDiagram` and ignores `granularity` (forced to `"symbol"`)
+   * and `direction` (Mermaid classDiagram has no direction token).
+   */
+  diagram: MermaidDiagram;
   scope: MermaidScope;
   granularity: MermaidGranularity;
   direction: MermaidDirection;
@@ -146,6 +162,15 @@ export function serializeToScopedMermaid(
   subgraph: WorkspaceSubgraph,
   options: ScopedMermaidOptions,
 ): string {
+  switch (options.diagram) {
+    case "flowchart":
+      return serializeFlowchart(subgraph, options);
+    case "classDiagram":
+      return serializeToClassDiagram(subgraph, options);
+  }
+}
+
+function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {
   const extracted = extractMermaidScope(subgraph, options.scope);
   if (extracted.status === "unsupported") {
     throw new Error(extracted.reason);

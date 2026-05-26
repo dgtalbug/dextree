@@ -220,6 +220,7 @@ describe("serializeToScopedMermaid — workspace scope parity with shim", () => 
     const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
     const shimOut = serializeToMermaid(sg, { theme: "Light" });
     const scopedOut = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "workspace" },
       granularity: "symbol",
       direction: "auto",
@@ -287,6 +288,7 @@ describe("serializeToScopedMermaid — file scope", () => {
   it("emits only the focused file's nodes and intra-file edges", () => {
     const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
     const out = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "file", relativePath: "src/a.ts" },
       granularity: "symbol",
       direction: "auto",
@@ -302,6 +304,7 @@ describe("serializeToScopedMermaid — file scope", () => {
   it("drops cross-file edges where one endpoint is outside the file scope", () => {
     const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
     const out = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "file", relativePath: "src/a.ts" },
       granularity: "symbol",
       direction: "auto",
@@ -317,12 +320,14 @@ describe("serializeToScopedMermaid — file scope", () => {
   it("produces strictly fewer nodes than the workspace scope when other files exist", () => {
     const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
     const workspaceOut = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "workspace" },
       granularity: "symbol",
       direction: "auto",
       theme: "Light",
     });
     const fileOut = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
       scope: { kind: "file", relativePath: "src/a.ts" },
       granularity: "symbol",
       direction: "auto",
@@ -338,6 +343,7 @@ describe("serializeToScopedMermaid — file scope", () => {
     const sg = subgraph([FILE_X], []);
     expect(() =>
       serializeToScopedMermaid(sg, {
+        diagram: "flowchart",
         scope: { kind: "file", relativePath: "src/missing.ts" },
         granularity: "symbol",
         direction: "auto",
@@ -351,6 +357,7 @@ describe("serializeToScopedMermaid — determinism", () => {
   it("same input produces identical output across repeated calls", () => {
     const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
     const options = {
+      diagram: "flowchart" as const,
       scope: { kind: "workspace" as const },
       granularity: "symbol" as const,
       direction: "auto" as const,
@@ -359,5 +366,42 @@ describe("serializeToScopedMermaid — determinism", () => {
     const a = serializeToScopedMermaid(sg, options);
     const b = serializeToScopedMermaid(sg, options);
     expect(a).toBe(b);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slice 028 US3 T027 — flowchart path is byte-identical to its slice-027
+// behavior. The diagram discriminator must not perturb the flowchart output.
+// ---------------------------------------------------------------------------
+
+describe("serializeToScopedMermaid — flowchart path unchanged by slice 028 (US3 T027)", () => {
+  it("emits a byte-identical workspace+symbol+light output across the discriminator switch", () => {
+    const sg = subgraph([FILE_A, FILE_B, FUNC_FOO, CLASS_BAR], [EDGE_DEFINES, EDGE_IMPORTS]);
+    const baseline = [
+      "%%{init: {'theme': 'default'}}%%",
+      "graph TB",
+      '  naaaa_1111_aaaa_1111_aaaaaaaaaaaa["src/a.ts"]',
+      '  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb["src/b.ts"]',
+      '  ncccc_3333_cccc_3333_cccccccccccc["foo [function]"]',
+      '  ndddd_4444_dddd_4444_dddddddddddd["Bar [class]"]',
+      "  naaaa_1111_aaaa_1111_aaaaaaaaaaaa -->|DEFINES| ncccc_3333_cccc_3333_cccccccccccc",
+      "  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb -->|IMPORTS| naaaa_1111_aaaa_1111_aaaaaaaaaaaa",
+    ].join("\n");
+
+    const out = serializeToScopedMermaid(sg, {
+      diagram: "flowchart",
+      scope: { kind: "workspace" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+
+    expect(out).toBe(baseline);
+  });
+
+  it("the slice-016 shim's 'graph TD' post-process still fires unchanged", () => {
+    const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
+    const shimOut = serializeToMermaid(sg, { theme: "Light" });
+    expect(shimOut.split("\n")[1]).toBe("graph TD");
   });
 });

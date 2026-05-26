@@ -5,7 +5,8 @@
 //   4 — adds workspace_cache table (migration 004)
 //   5 — adds workspace_framework table + file.framework columns (migration 005)
 //   6 — adds symbol.entry_kind + symbol.arch_layer classification columns (migration 006)
-export const SCHEMA_VERSION = 6;
+//   7 — adds symbol.enclosing_symbol_id classification column (migration 007)
+export const SCHEMA_VERSION = 7;
 
 export interface WorkspaceCacheIdentity {
   cacheKey: string;
@@ -97,6 +98,13 @@ export interface GraphNode {
   entryKind?: EntryKind;
   /** Set on `type: "symbol"` nodes only. Absent on file nodes. */
   archLayer?: ArchitecturalLayer;
+  /**
+   * Set on `type: "symbol"` nodes only. Points at the GraphNode.id of the
+   * enclosing class / interface / enum WHEN that parent is also present in
+   * the queried subgraph; absent for top-level symbols and for symbols whose
+   * parent is out of scope.
+   */
+  enclosingSymbolId?: string;
 }
 
 export interface GraphEdge {
@@ -128,6 +136,13 @@ export interface StoredSymbol {
   fileId: string;
   range: SymbolRange;
   language: string;
+  /**
+   * Optional pointer to the enclosing class / interface / enum symbol id.
+   * Populated by `buildMethodSymbols` for class methods; undefined for
+   * top-level declarations. The classDiagram serializer reads this through
+   * the projected `GraphNode.enclosingSymbolId` field.
+   */
+  enclosingSymbolId?: string;
 }
 
 export interface FileRecord {

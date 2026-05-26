@@ -134,7 +134,8 @@ export async function getWorkspaceSubgraph(
           s.signature AS signature,
           s.docstring AS docstring,
           s.entry_kind AS entryKind,
-          s.arch_layer AS archLayer
+          s.arch_layer AS archLayer,
+          s.enclosing_symbol_id AS enclosingSymbolId
         FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
         WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix
@@ -293,6 +294,9 @@ export async function getWorkspaceSubgraph(
       const docstring = typeof row.docstring === "string" ? row.docstring : undefined;
       const entryKind = normalizeEntryKind(row.entryKind);
       const archLayer = normalizeArchLayer(row.archLayer);
+      const rawEnclosing = row.enclosingSymbolId;
+      const enclosingSymbolId =
+        typeof rawEnclosing === "string" && rawEnclosing.length > 0 ? rawEnclosing : undefined;
 
       return {
         id: String(row.id),
@@ -308,9 +312,26 @@ export async function getWorkspaceSubgraph(
         ...(docstring === undefined ? {} : { docstring }),
         ...(entryKind === undefined ? {} : { entryKind }),
         ...(archLayer === undefined ? {} : { archLayer }),
+        ...(enclosingSymbolId === undefined ? {} : { enclosingSymbolId }),
       };
     }),
   ];
+
+  // In-scope-parent filter: a symbol's enclosingSymbolId only makes sense
+  // when the parent class is also present in the projected node set. If the
+  // parent is out of scope (e.g. file-scoped query that didn't include the
+  // class definition), clear the field so consumers like the classDiagram
+  // serializer don't dangle a pointer at a phantom id.
+  const projectedNodeIds = new Set(nodes.map((n) => n.id));
+  for (const node of nodes) {
+    if (
+      node.type === "symbol" &&
+      node.enclosingSymbolId !== undefined &&
+      !projectedNodeIds.has(node.enclosingSymbolId)
+    ) {
+      delete node.enclosingSymbolId;
+    }
+  }
 
   const edges: GraphEdge[] = [
     ...definesRows.map((row) => ({

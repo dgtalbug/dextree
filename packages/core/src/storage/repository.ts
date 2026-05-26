@@ -161,7 +161,8 @@ async function insertSymbol(
         range,
         language,
         entry_kind,
-        arch_layer
+        arch_layer,
+        enclosing_symbol_id
       ) VALUES (
         $id,
         $fqn,
@@ -176,7 +177,8 @@ async function insertSymbol(
         ),
         $language,
         $entry_kind,
-        $arch_layer
+        $arch_layer,
+        $enclosing_symbol_id
       )
     `,
     {
@@ -189,6 +191,7 @@ async function insertSymbol(
       ...rangeParams(symbol),
       entry_kind: classification.entryKind,
       arch_layer: classification.archLayer,
+      enclosing_symbol_id: symbol.enclosingSymbolId ?? null,
     },
   );
 }

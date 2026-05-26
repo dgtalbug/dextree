@@ -2,6 +2,7 @@ import {
   DEFAULT_MERMAID_THEME,
   isMermaidTheme,
   serializeToScopedMermaid,
+  type MermaidDiagram,
   type MermaidDirection,
   type MermaidGranularity,
   type MermaidScope,
@@ -11,6 +12,10 @@ import * as vscode from "vscode";
 
 export interface ExportMermaidCommandDependencies {
   getIndexer: () => Promise<Pick<Indexer, "getWorkspaceSubgraph">>;
+}
+
+interface DiagramPickItem extends vscode.QuickPickItem {
+  diagram: MermaidDiagram;
 }
 
 interface ScopePickItem extends vscode.QuickPickItem {
@@ -45,20 +50,37 @@ export function createExportMermaidCommand(
       return;
     }
 
+    const diagram = await pickDiagram();
+    if (diagram === undefined) {
+      // User cancelled at diagram step — exit silently (FR-007).
+      return;
+    }
+
     const scope = await pickScope(root.uri.fsPath);
     if (scope === undefined) {
-      // User cancelled at scope step — exit silently (FR-007).
       return;
     }
 
-    const granularity = await pickGranularity();
-    if (granularity === undefined) {
-      return;
-    }
+    // Class diagrams require symbol-level detail and have no direction token,
+    // so the Granularity + Direction picker steps are skipped when Class
+    // diagram is chosen.
+    let granularity: MermaidGranularity;
+    let direction: MermaidDirection;
+    if (diagram === "classDiagram") {
+      granularity = "symbol";
+      direction = "auto";
+    } else {
+      const pickedGranularity = await pickGranularity();
+      if (pickedGranularity === undefined) {
+        return;
+      }
+      granularity = pickedGranularity;
 
-    const direction = await pickDirection();
-    if (direction === undefined) {
-      return;
+      const pickedDirection = await pickDirection();
+      if (pickedDirection === undefined) {
+        return;
+      }
+      direction = pickedDirection;
     }
 
     const defaultUri = vscode.Uri.joinPath(root.uri, "dextree-graph.mmd");
@@ -80,6 +102,7 @@ export function createExportMermaidCommand(
     let content: string;
     try {
       content = serializeToScopedMermaid(subgraph, {
+        diagram,
         scope,
         granularity,
         direction,
@@ -114,9 +137,35 @@ export function createExportMermaidCommand(
 }
 
 /**
- * First QuickPick step. "Current file" is offered only when the active editor
- * sits inside the workspace root; otherwise just "Workspace" is shown. US2
- * (Granularity) and US3 (Direction) layer additional steps after this one.
+ * First QuickPick step (slice 028). Picks the diagram shape; Flowchart keeps
+ * the slice-027 four-step flow, Class diagram skips Granularity + Direction.
+ */
+async function pickDiagram(): Promise<MermaidDiagram | undefined> {
+  const items: DiagramPickItem[] = [
+    {
+      label: "Flowchart",
+      description: "Files, symbols, and edges with scope + granularity + direction controls",
+      diagram: "flowchart",
+    },
+    {
+      label: "Class diagram",
+      description: "Class / interface / enum boxes with method stubs and inheritance",
+      diagram: "classDiagram",
+    },
+  ];
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: "Mermaid Export — Diagram",
+    placeHolder: "Pick the diagram shape",
+    canPickMany: false,
+  });
+
+  return picked?.diagram;
+}
+
+/**
+ * Second QuickPick step. "Current file" is offered only when the active editor
+ * sits inside the workspace root; otherwise just "Workspace" is shown.
  */
 async function pickScope(workspaceRoot: string): Promise<MermaidScope | undefined> {
   const items: ScopePickItem[] = [

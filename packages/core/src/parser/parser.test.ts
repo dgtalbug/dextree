@@ -37,6 +37,52 @@ describe("extractTypeScriptSource", () => {
     expect(result.imports).toEqual([]);
   });
 
+  // Slice 028 US2: class methods carry the parent class symbol id via
+  // enclosingSymbolId so the classDiagram serializer can group methods under
+  // their owning class without name-matching FQNs. Top-level symbols leave
+  // enclosingSymbolId undefined. The change lives in buildMethodSymbols in
+  // packages/core/src/parser/extractor.ts; the dependency-task description
+  // (T018) names ClassRelationExtractor by mistake — class-relation
+  // extraction emits edges only, not symbols.
+  it("stamps every class method's enclosingSymbolId with the parent class symbol id (slice 028)", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "dextree-parser-cls-"));
+    const filePath = join(workspaceRoot, "Animal.ts");
+    try {
+      const source =
+        "export class Animal {\n" + "  eat() { return 1; }\n" + "  sleep() { return 2; }\n" + "}\n";
+      await writeFile(filePath, source, "utf8");
+
+      const result = await extractTypeScriptSource(filePath, workspaceRoot, source, wasmDir);
+      const classSym = result.symbols.find((s) => s.name === "Animal");
+      const eatSym = result.symbols.find((s) => s.name === "Animal.eat");
+      const sleepSym = result.symbols.find((s) => s.name === "Animal.sleep");
+
+      expect(classSym).toBeDefined();
+      expect(eatSym?.enclosingSymbolId).toBe(classSym?.id);
+      expect(sleepSym?.enclosingSymbolId).toBe(classSym?.id);
+      // The class itself is top-level → undefined.
+      expect(classSym?.enclosingSymbolId).toBeUndefined();
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves enclosingSymbolId undefined for top-level functions and variables (slice 028)", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "dextree-parser-top-"));
+    const filePath = join(workspaceRoot, "top.ts");
+    try {
+      const source = "export function greet() {}\nexport const value = 1;\n";
+      await writeFile(filePath, source, "utf8");
+
+      const result = await extractTypeScriptSource(filePath, workspaceRoot, source, wasmDir);
+      for (const sym of result.symbols) {
+        expect(sym.enclosingSymbolId).toBeUndefined();
+      }
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it("extracts relative import refs that resolve within the workspace", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "dextree-parser-"));
     const srcDir = join(workspaceRoot, "src");
