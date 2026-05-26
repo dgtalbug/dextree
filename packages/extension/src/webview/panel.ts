@@ -1,3 +1,4 @@
+import type { MermaidPreviewResult } from "@dextree/exporters";
 import * as vscode from "vscode";
 import { getWebviewContent } from "./html.js";
 import type {
@@ -6,6 +7,7 @@ import type {
   HostToWebviewMessage,
   IndexedWorkspaceRecord,
   IndexingMessage,
+  MermaidPreviewMessage,
   WorkspaceListMessage,
 } from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
@@ -192,6 +194,17 @@ export const WebviewPanelManager = {
       }),
     };
     postCachedState();
+  },
+
+  /**
+   * Slice 029 — push a Mermaid preview result to the open webview. The
+   * webview reacts by switching to the mermaid-preview scene and rendering
+   * the source/SVG pair (or fail-closed reason for non-ok statuses).
+   * No-op if no panel is currently open.
+   */
+  pushMermaidPreview(preview: MermaidPreviewResult): void {
+    const message: MermaidPreviewMessage = { type: "mermaidPreview", preview };
+    postMessage(message);
   },
 
   pushIndexing(indexing: Omit<IndexingMessage, "type">): void {

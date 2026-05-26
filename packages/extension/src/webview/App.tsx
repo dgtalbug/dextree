@@ -1,8 +1,10 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { MermaidPreviewResult } from "@dextree/exporters";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { EmptyState } from "./components/EmptyState.js";
 import { GraphView } from "./components/GraphView.js";
 import { LoadingState } from "./components/LoadingState.js";
+import { MermaidPreviewPanel } from "./components/MermaidPreviewPanel.js";
 import { WorkspacesPage } from "./components/WorkspacesPage.js";
 import type {
   CommandMessage,
@@ -14,7 +16,7 @@ import type {
 } from "./protocol/messages.js";
 import { isHostToWebviewMessage } from "./protocol/messages.js";
 
-type AppScene = "graph" | "workspaces";
+type AppScene = "graph" | "workspaces" | "mermaid-preview";
 
 // ---------------------------------------------------------------------------
 // State model — discriminated union (FR-002, FR-008)
@@ -96,6 +98,7 @@ export function App({ vscodeApi }: AppProps) {
   const [showSourceOnly, setShowSourceOnly] = useState(false);
   const [activeScene, setActiveScene] = useState<AppScene>("graph");
   const [workspaceList, setWorkspaceList] = useState<IndexedWorkspaceRecord[] | null>(null);
+  const [mermaidPreview, setMermaidPreview] = useState<MermaidPreviewResult | null>(null);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -134,6 +137,12 @@ export function App({ vscodeApi }: AppProps) {
 
       if (msg.type === "workspaceList") {
         setWorkspaceList(msg.workspaces);
+        return;
+      }
+
+      if (msg.type === "mermaidPreview") {
+        setMermaidPreview(msg.preview);
+        setActiveScene("mermaid-preview");
         return;
       }
 
@@ -179,6 +188,10 @@ export function App({ vscodeApi }: AppProps) {
   }
 
   function handleWorkspacesBack() {
+    setActiveScene("graph");
+  }
+
+  function handlePreviewBack() {
     setActiveScene("graph");
   }
 
@@ -246,6 +259,25 @@ export function App({ vscodeApi }: AppProps) {
         onBack={handleWorkspacesBack}
         onSwitch={handleSwitchWorkspace}
       />
+    );
+  }
+
+  if (activeScene === "mermaid-preview") {
+    return (
+      <div className="dxt-app-shell">
+        <header className="dxt-preview-topbar">
+          <button
+            type="button"
+            className="dxt-panel-button"
+            onClick={handlePreviewBack}
+            aria-label="Back to graph"
+          >
+            <span className="codicon codicon-arrow-left" aria-hidden="true" />
+            Back to graph
+          </button>
+        </header>
+        <MermaidPreviewPanel preview={mermaidPreview} />
+      </div>
     );
   }
 
