@@ -213,15 +213,15 @@ replace them with generic prose.
 
 ## Active implementation plan
 
-**Branch**: `028-enclosing-symbol-classdiagram` (implementation)
+**Branch**: `029-mermaid-preview-panel` (implementation — PR-A: Phase 1+2+US1 MVP)
 
-- Plan (028): [`specs/028-enclosing-symbol-classdiagram/plan.md`](../specs/028-enclosing-symbol-classdiagram/plan.md)
-- Spec (028): [`specs/028-enclosing-symbol-classdiagram/spec.md`](../specs/028-enclosing-symbol-classdiagram/spec.md)
-- Research (028): [`specs/028-enclosing-symbol-classdiagram/research.md`](../specs/028-enclosing-symbol-classdiagram/research.md)
-- Data model (028): [`specs/028-enclosing-symbol-classdiagram/data-model.md`](../specs/028-enclosing-symbol-classdiagram/data-model.md)
-- Contracts (028): [`specs/028-enclosing-symbol-classdiagram/contracts/`](../specs/028-enclosing-symbol-classdiagram/contracts/)
-- Quickstart (028): [`specs/028-enclosing-symbol-classdiagram/quickstart.md`](../specs/028-enclosing-symbol-classdiagram/quickstart.md)
+- Plan (029): [`specs/029-mermaid-preview-panel/plan.md`](../specs/029-mermaid-preview-panel/plan.md)
+- Spec (029): [`specs/029-mermaid-preview-panel/spec.md`](../specs/029-mermaid-preview-panel/spec.md)
+- Research (029): [`specs/029-mermaid-preview-panel/research.md`](../specs/029-mermaid-preview-panel/research.md)
+- Data model (029): [`specs/029-mermaid-preview-panel/data-model.md`](../specs/029-mermaid-preview-panel/data-model.md)
+- Contracts (029): [`specs/029-mermaid-preview-panel/contracts/`](../specs/029-mermaid-preview-panel/contracts/)
+- Quickstart (029): [`specs/029-mermaid-preview-panel/quickstart.md`](../specs/029-mermaid-preview-panel/quickstart.md)
 
-Review focus for 028: add a nullable `symbol.enclosing_symbol_id` column via migration 007 (drop-indexes / bare ADD COLUMN / recreate-indexes pattern from slice 026's migration 006, no backfill UPDATE — the schema-version bump invalidates the workspace cache and forces a reindex); populate it during pass-1 extraction inside `packages/core/src/extractors/ClassRelationExtractor.ts` via tree-sitter parent walking (no FQN parsing); add `enclosingSymbolId?` to `StoredSymbol` + `GraphNode` and project through `packages/core/src/storage/repository.ts` and `packages/core/src/query/subgraph.ts`; add a `diagram: MermaidDiagram` discriminator (`"flowchart" | "classDiagram"`) to `ScopedMermaidOptions` and switch in `packages/exporters/src/mermaid/scopedSerializer.ts`; new `packages/exporters/src/mermaid/classDiagram.ts` with `serializeToClassDiagram`, `validateClassDiagramExport`, `groupClassDiagramEntries`, and `MERMAID_CLASS_DIAGRAM_CAPS` (80 classes / 200 methods); extend the fuzz harness in `packages/exporters/src/__fuzz__/serializer.fuzz.ts` with a classDiagram branch; add a Diagram QuickPick step in `packages/extension/src/commands/exportMermaid.ts` (Flowchart / Class diagram) that skips Granularity + Direction when Class diagram is picked. No new commands, host↔webview protocol messages, remote services, full UML signatures, visibility, implements arrows, sequence diagrams, preview panel, or context menus.
+Review focus for 029 (PR-A, US1 MVP scope only): add a preview-only `mermaid` runtime dependency to `packages/extension/package.json` — narrow exception to `.dextree/rules.md`'s webview ban, justified in plan.md Complexity Tracking, must not leak outside the preview path; new `packages/exporters/src/mermaid/preview.ts` router with `generateMermaidPreview`, `MermaidDiagramKind`, `MermaidTheme`, `MermaidPreviewOptions`, `MermaidPreviewResult` types delegating flowchart to slice-027 scoped serializer; extend the host↔webview protocol in `packages/extension/src/webview/protocol/messages.ts` with `MermaidPreviewMessage`, `RequestMermaidPreviewMessage`, `SaveMermaidPreviewMessage`; repurpose `packages/extension/src/commands/exportMermaid.ts` to open the preview scene instead of immediately writing a file (no more QuickPick chain); add `MermaidRenderState`, `MermaidPreviewExportFormat`, `MermaidPreviewTabState`, scene switching, and resolved-theme handling in `packages/extension/src/webview/App.tsx` and `packages/extension/src/webview/panel.ts`; new `packages/extension/src/webview/preview/renderMermaid.ts` for string→SVG rendering with deterministic theme mapping; new `packages/extension/src/webview/components/MermaidPreviewPanel.tsx` + `.module.css` showing source pane alongside rendered SVG. PR-A scope is US1 only — class-diagram routing (T017), inline controls (T018), unavailable-sequence handling, and export actions (`.mmd`/`.svg`/`.png`/clipboard image/Markdown snippet) ship in PR-B (US2) and PR-C (US3 + polish).
 
 <!-- SPECKIT END -->
