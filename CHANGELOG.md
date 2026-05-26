@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.0](https://github.com/dgtalbug/dextree/compare/v1.12.0...v1.13.0) (2026-05-26)
+
+### Features
+
+- **export:** mermaid context menus and click links (slice 030) ([#131](https://github.com/dgtalbug/dextree/issues/131)) ([ba3fecc](https://github.com/dgtalbug/dextree/commit/ba3fecc971338d0fcf519c9d5d936da4dc960466))
+
 ## [1.12.0](https://github.com/dgtalbug/dextree/compare/v1.11.0...v1.12.0) (2026-05-26)
 
 ### Features
