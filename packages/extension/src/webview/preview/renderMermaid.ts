@@ -29,7 +29,13 @@ export interface ThemeKindBody {
  */
 export function resolveMermaidThemeFromBody(body: ThemeKindBody): MermaidPreviewTheme {
   const kind = body.dataset["vscodeThemeKind"] ?? "";
-  if (kind.includes("dark") && !kind.includes("light")) return "dark";
+  // VS Code emits one of: vscode-light, vscode-dark, vscode-high-contrast,
+  // vscode-high-contrast-light. The bare "vscode-high-contrast" is the HC
+  // *dark* theme — checking for the "light" substring first guarantees the
+  // HC-light variant maps to light and everything else with "dark" or "high-
+  // contrast" semantics resolves to dark.
+  if (kind.includes("light")) return "light";
+  if (kind.includes("dark") || kind.includes("high-contrast")) return "dark";
   return "light";
 }
 
