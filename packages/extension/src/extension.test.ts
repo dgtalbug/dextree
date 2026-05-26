@@ -139,6 +139,8 @@ describe("activate", () => {
     resolveCacheIdentity.mockReset();
     createTreeView.mockClear();
     withProgress.mockClear();
+    setMermaidPreviewHandler.mockReset();
+    pushMermaidPreview.mockReset();
     isPanelOpen.mockReturnValue(false);
     resolveCacheIdentity.mockResolvedValue({
       cacheKey: "/workspace",

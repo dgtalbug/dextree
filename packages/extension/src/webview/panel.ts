@@ -67,17 +67,37 @@ interface ParsedSaveMermaidPreviewMessage {
   bytes: Uint8Array;
 }
 
+const VALID_DIAGRAMS = new Set(["flowchart", "classDiagram", "sequenceDiagram"]);
+const VALID_GRANULARITIES = new Set(["package", "file", "symbol"]);
+const VALID_DIRECTIONS = new Set(["auto", "TB", "LR", "BT", "RL"]);
+const VALID_THEMES = new Set(["light", "dark"]);
+
 function isMermaidPreviewOptionsLike(value: unknown): value is MermaidPreviewOptions {
   if (typeof value !== "object" || value === null) return false;
   const opts = value as Record<string, unknown>;
-  return (
-    typeof opts["diagram"] === "string" &&
-    typeof opts["granularity"] === "string" &&
-    typeof opts["direction"] === "string" &&
-    typeof opts["theme"] === "string" &&
-    typeof opts["scope"] === "object" &&
-    opts["scope"] !== null
-  );
+
+  const diagram = opts["diagram"];
+  const granularity = opts["granularity"];
+  const direction = opts["direction"];
+  const theme = opts["theme"];
+  const scope = opts["scope"];
+
+  if (
+    typeof diagram !== "string" ||
+    !VALID_DIAGRAMS.has(diagram) ||
+    typeof granularity !== "string" ||
+    !VALID_GRANULARITIES.has(granularity) ||
+    typeof direction !== "string" ||
+    !VALID_DIRECTIONS.has(direction) ||
+    typeof theme !== "string" ||
+    !VALID_THEMES.has(theme) ||
+    typeof scope !== "object" ||
+    scope === null
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function parseSaveMermaidPreviewMessage(

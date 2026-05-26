@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import type {
   MermaidDiagramKind,
@@ -127,6 +127,26 @@ export function MermaidPreviewPanel({
 
   const okPreview = useMemo(() => (preview?.status === "ok" ? preview : null), [preview]);
   const renderedSvg = renderState.status === "ok" ? renderState.svg : null;
+  const exportResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function scheduleExportStatusReset(): void {
+    if (exportResetTimerRef.current !== null) {
+      clearTimeout(exportResetTimerRef.current);
+    }
+    exportResetTimerRef.current = setTimeout(() => {
+      setExportStatus({ type: "idle" });
+      exportResetTimerRef.current = null;
+    }, 3000);
+  }
+
+  useEffect(
+    () => () => {
+      if (exportResetTimerRef.current !== null) {
+        clearTimeout(exportResetTimerRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (okPreview === null) {
@@ -182,8 +202,7 @@ export function MermaidPreviewPanel({
         type: "success",
         message: `${format.toUpperCase()} ready — choose where to save.`,
       });
-      // Clear success after a few seconds
-      setTimeout(() => setExportStatus({ type: "idle" }), 3000);
+      scheduleExportStatusReset();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setExportStatus({ type: "error", message: `Export failed: ${message}` });
@@ -196,7 +215,7 @@ export function MermaidPreviewPanel({
     try {
       await copyClipboardImage(renderedSvg, writeClipboardImage);
       setExportStatus({ type: "success", message: "Image copied to clipboard." });
-      setTimeout(() => setExportStatus({ type: "idle" }), 3000);
+      scheduleExportStatusReset();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setExportStatus({ type: "error", message: `Copy failed: ${message}` });
@@ -211,7 +230,7 @@ export function MermaidPreviewPanel({
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(snippet);
         setExportStatus({ type: "success", message: "Markdown snippet copied." });
-        setTimeout(() => setExportStatus({ type: "idle" }), 3000);
+        scheduleExportStatusReset();
       } else {
         throw new Error("Clipboard text API unavailable");
       }
