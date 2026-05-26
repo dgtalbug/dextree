@@ -71,6 +71,7 @@ const VALID_DIAGRAMS = new Set(["flowchart", "classDiagram", "sequenceDiagram"])
 const VALID_GRANULARITIES = new Set(["package", "file", "symbol"]);
 const VALID_DIRECTIONS = new Set(["auto", "TB", "LR", "BT", "RL"]);
 const VALID_THEMES = new Set(["light", "dark"]);
+const VALID_SCOPE_KINDS = new Set(["workspace", "file", "symbol-callers", "symbol-callees"]);
 
 function isMermaidPreviewOptionsLike(value: unknown): value is MermaidPreviewOptions {
   if (typeof value !== "object" || value === null) return false;
@@ -94,6 +95,12 @@ function isMermaidPreviewOptionsLike(value: unknown): value is MermaidPreviewOpt
     typeof scope !== "object" ||
     scope === null
   ) {
+    return false;
+  }
+
+  const scopeRecord = scope as Record<string, unknown>;
+  const kind = scopeRecord["kind"];
+  if (typeof kind !== "string" || !VALID_SCOPE_KINDS.has(kind)) {
     return false;
   }
 
