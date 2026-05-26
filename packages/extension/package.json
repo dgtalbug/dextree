@@ -50,6 +50,7 @@
     "graphology-shortest-path": "^2.1.0",
     "graphology-traversal": "^0.3.1",
     "graphology-types": "^0.24.8",
+    "mermaid": "^11.15.0",
     "sigma": "^3.0.2"
   },
   "devDependencies": {

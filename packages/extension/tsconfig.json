@@ -6,5 +6,5 @@
     "types": ["node", "vscode"]
   },
   "include": ["src/**/*.ts", "../core/src/types/**/*.d.ts"],
-  "exclude": ["src/webview/components/**"]
+  "exclude": ["src/webview/components/**", "src/webview/preview/**"]
 }
