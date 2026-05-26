@@ -6,17 +6,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // `showInformationMessage` for the two early-exit conditions.
 // ---------------------------------------------------------------------------
 
-const { showInformationMessage, getWorkspaceFolders, setWorkspaceFolders } = vi.hoisted(() => {
-  let workspaceFolders: Array<{ uri: { fsPath: string } }> | undefined = [
-    { uri: { fsPath: "/workspace" } },
-  ];
+const { showInformationMessage, getWorkspaceFolders, setWorkspaceFolders, generateMermaidPreview } =
+  vi.hoisted(() => {
+    let workspaceFolders: Array<{ uri: { fsPath: string } }> | undefined = [
+      { uri: { fsPath: "/workspace" } },
+    ];
 
+    return {
+      showInformationMessage: vi.fn(),
+      getWorkspaceFolders: () => workspaceFolders,
+      setWorkspaceFolders: (folders: Array<{ uri: { fsPath: string } }> | undefined) => {
+        workspaceFolders = folders;
+      },
+      generateMermaidPreview: vi.fn(),
+    };
+  });
+
+vi.mock("@dextree/exporters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@dextree/exporters")>();
+  generateMermaidPreview.mockImplementation(actual.generateMermaidPreview);
   return {
-    showInformationMessage: vi.fn(),
-    getWorkspaceFolders: () => workspaceFolders,
-    setWorkspaceFolders: (folders: Array<{ uri: { fsPath: string } }> | undefined) => {
-      workspaceFolders = folders;
-    },
+    ...actual,
+    generateMermaidPreview,
   };
 });
 
@@ -55,8 +66,17 @@ function makeIndexerStub(nodeCount: number) {
 
 function resetMocks(): void {
   showInformationMessage.mockReset();
+  generateMermaidPreview.mockClear();
   setWorkspaceFolders([{ uri: { fsPath: "/workspace" } }]);
 }
+
+const DEFAULT_PREVIEW_OPTIONS = {
+  diagram: "flowchart",
+  scope: { kind: "workspace" },
+  granularity: "symbol",
+  direction: "auto",
+  theme: "light",
+} as const;
 
 // ---------------------------------------------------------------------------
 // Harness smoke tests
@@ -178,5 +198,74 @@ describe("createExportMermaidCommand — slice 029 PR-A: opens preview scene", (
     // those surfaces.
     // The presence of one openMermaidPreview call is the positive signal.
     expect(openMermaidPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes through an explicit empty preview result from the exporter router", async () => {
+    const openMermaidPreview = vi.fn();
+    generateMermaidPreview.mockReturnValueOnce({
+      status: "empty",
+      options: DEFAULT_PREVIEW_OPTIONS,
+      reason: "Preview request resolved to zero nodes.",
+    });
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+      openMermaidPreview,
+    });
+
+    await command();
+
+    expect(openMermaidPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "empty",
+        options: DEFAULT_PREVIEW_OPTIONS,
+      }),
+    );
+    expect(showInformationMessage).not.toHaveBeenCalled();
+  });
+
+  it("passes through an explicit oversized preview result from the exporter router", async () => {
+    const openMermaidPreview = vi.fn();
+    generateMermaidPreview.mockReturnValueOnce({
+      status: "oversized",
+      options: DEFAULT_PREVIEW_OPTIONS,
+      reason: "Scoped graph has 201 nodes which exceeds the symbol cap of 200 nodes.",
+    });
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+      openMermaidPreview,
+    });
+
+    await command();
+
+    expect(openMermaidPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "oversized",
+        options: DEFAULT_PREVIEW_OPTIONS,
+      }),
+    );
+    expect(showInformationMessage).not.toHaveBeenCalled();
+  });
+
+  it("passes through an explicit unsupported preview result from the exporter router", async () => {
+    const openMermaidPreview = vi.fn();
+    generateMermaidPreview.mockReturnValueOnce({
+      status: "unsupported",
+      options: DEFAULT_PREVIEW_OPTIONS,
+      reason: "Sequence preview is unavailable until slice 031.",
+    });
+    const command = createExportMermaidCommand({
+      getIndexer: async () => makeIndexerStub(1),
+      openMermaidPreview,
+    });
+
+    await command();
+
+    expect(openMermaidPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "unsupported",
+        options: DEFAULT_PREVIEW_OPTIONS,
+      }),
+    );
+    expect(showInformationMessage).not.toHaveBeenCalled();
   });
 });

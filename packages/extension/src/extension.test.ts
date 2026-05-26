@@ -59,6 +59,8 @@ vi.mock("@dextree/core", () => ({
 
 const setWorkspaceHandlers = vi.fn();
 const setLogger = vi.fn();
+const setMermaidPreviewHandler = vi.fn();
+const pushMermaidPreview = vi.fn();
 
 vi.mock("./webview/panel.js", () => ({
   WebviewPanelManager: {
@@ -66,8 +68,10 @@ vi.mock("./webview/panel.js", () => ({
     isOpen: isPanelOpen,
     pushGraph,
     pushIndexing,
+    pushMermaidPreview,
     setWorkspaceHandlers,
     setLogger,
+    setMermaidPreviewHandler,
   },
 }));
 

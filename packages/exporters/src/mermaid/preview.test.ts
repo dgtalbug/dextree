@@ -18,6 +18,33 @@ function symbolNode(id: string, label: string): GraphNode {
   };
 }
 
+function classNode(
+  id: string,
+  label: string,
+  symbolKind: "class" | "interface" | "enum" = "class",
+): GraphNode {
+  return {
+    id,
+    type: "symbol",
+    label,
+    filePath: "/workspace/src/a.ts",
+    startLine: 1,
+    symbolKind,
+  };
+}
+
+function methodNode(id: string, label: string, parentClassId: string): GraphNode {
+  return {
+    id,
+    type: "symbol",
+    label,
+    filePath: "/workspace/src/a.ts",
+    startLine: 1,
+    symbolKind: "function",
+    enclosingSymbolId: parentClassId,
+  };
+}
+
 function edge(id: string, source: string, target: string, kind: GraphEdge["kind"]): GraphEdge {
   return { id, source, target, kind };
 }
@@ -99,16 +126,84 @@ describe("generateMermaidPreview — flowchart routing (slice 029 PR-A)", () => 
   });
 });
 
-describe("generateMermaidPreview — non-flowchart diagrams return explicit unsupported", () => {
-  it("classDiagram routes to unsupported with PR-B reason (slice 029 PR-A scope)", () => {
-    const sg = subgraph([fileNode("f-1", "src/a.ts")]);
-    const result = generateMermaidPreview(sg, { ...FLOWCHART_DEFAULTS, diagram: "classDiagram" });
-    expect(result.status).toBe("unsupported");
-    if (result.status === "unsupported") {
-      expect(result.reason).toMatch(/PR-B|slice 029|inline-controls/);
+describe("generateMermaidPreview — classDiagram routing (slice 029 PR-B / US2)", () => {
+  it("returns ok with classDiagram source for a subgraph with class-like symbols", () => {
+    const sg = subgraph([
+      classNode("c-1", "Foo"),
+      classNode("c-2", "Bar", "interface"),
+      methodNode("m-1", "doThing", "c-1"),
+    ]);
+    const result = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      diagram: "classDiagram",
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.source).toContain("classDiagram");
+      expect(result.source).toContain("class Foo");
+      expect(result.source).toContain("class Bar");
+      expect(result.source).toContain("+doThing()");
+      expect(result.title).toContain("classDiagram");
     }
   });
 
+  it("classifies 'no class symbols in scope' as unsupported", () => {
+    // Subgraph has nodes but none are class/interface/enum — the validator
+    // returns unsupported with "No class, interface, or enum symbols…" which
+    // classifyFailure maps to status: "unsupported".
+    const sg = subgraph([fileNode("f-1", "src/a.ts"), symbolNode("s-1", "foo")]);
+    const result = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      diagram: "classDiagram",
+    });
+    expect(result.status).toBe("unsupported");
+    if (result.status === "unsupported") {
+      expect(result.reason).toMatch(/class|interface|enum/i);
+    }
+  });
+
+  it("classifies a fully-empty subgraph as empty for classDiagram too", () => {
+    const sg = subgraph([]);
+    const result = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      diagram: "classDiagram",
+    });
+    expect(result.status).toBe("empty");
+  });
+
+  it("threads the resolved theme through the class-diagram serializer", () => {
+    const sg = subgraph([classNode("c-1", "Foo")]);
+    const light = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      diagram: "classDiagram",
+    });
+    const dark = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      diagram: "classDiagram",
+      theme: "dark",
+    });
+    if (light.status === "ok" && dark.status === "ok") {
+      expect(light.source).toContain("'theme': 'default'");
+      expect(dark.source).toContain("'theme': 'dark'");
+    } else {
+      throw new Error("expected both light and dark class-diagram routes to succeed");
+    }
+  });
+
+  it("is pure — same (subgraph, options) yields the same class-diagram source across calls", () => {
+    const sg = subgraph([classNode("c-1", "Foo"), methodNode("m-1", "doThing", "c-1")]);
+    const opts: MermaidPreviewOptions = { ...FLOWCHART_DEFAULTS, diagram: "classDiagram" };
+    const first = generateMermaidPreview(sg, opts);
+    const second = generateMermaidPreview(sg, opts);
+    if (first.status === "ok" && second.status === "ok") {
+      expect(first.source).toBe(second.source);
+    } else {
+      throw new Error("expected both class-diagram calls to succeed");
+    }
+  });
+});
+
+describe("generateMermaidPreview — sequenceDiagram stays explicit-unsupported until slice 031", () => {
   it("sequenceDiagram routes to unsupported with slice-031 reason", () => {
     const sg = subgraph([fileNode("f-1", "src/a.ts")]);
     const result = generateMermaidPreview(sg, {

@@ -1,20 +1,24 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
-import type { MermaidPreviewResult } from "@dextree/exporters";
+import type { MermaidPreviewOptions, MermaidPreviewResult } from "@dextree/exporters";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { EmptyState } from "./components/EmptyState.js";
 import { GraphView } from "./components/GraphView.js";
 import { LoadingState } from "./components/LoadingState.js";
 import { MermaidPreviewPanel } from "./components/MermaidPreviewPanel.js";
+import { resolveMermaidThemeFromBody } from "./preview/renderMermaid.js";
 import { WorkspacesPage } from "./components/WorkspacesPage.js";
 import type {
   CommandMessage,
   GraphCommandId,
   IndexedWorkspaceRecord,
   IndexingMessage,
+  RequestMermaidPreviewMessage,
   RequestWorkspaceListMessage,
+  SaveMermaidPreviewMessage,
   SwitchWorkspaceMessage,
 } from "./protocol/messages.js";
 import { isHostToWebviewMessage } from "./protocol/messages.js";
+import type { MermaidPreviewFileFormat } from "./preview/exportPreview.js";
 
 type AppScene = "graph" | "workspaces" | "mermaid-preview";
 
@@ -213,6 +217,32 @@ export function App({ vscodeApi }: AppProps) {
     setActiveScene("graph");
   }
 
+  function handleMermaidOptionsChange(options: MermaidPreviewOptions) {
+    // Resolve the live VS Code theme at send-time so the host preview source
+    // stays deterministic for the same (graph, options, theme) tuple even if
+    // the editor theme has changed since the last preview.
+    const resolvedTheme = resolveMermaidThemeFromBody(document.body);
+    const message: RequestMermaidPreviewMessage = {
+      type: "requestMermaidPreview",
+      options: { ...options, theme: resolvedTheme },
+    };
+    vscodeApi.postMessage(message);
+  }
+
+  function handleMermaidSaveRequest(
+    format: MermaidPreviewFileFormat,
+    suggestedName: string,
+    content: string,
+  ): void {
+    const message: SaveMermaidPreviewMessage = {
+      type: "saveMermaidPreview",
+      format,
+      suggestedName,
+      content,
+    };
+    vscodeApi.postMessage(message);
+  }
+
   function handleSwitchWorkspace(workspaceRoot: string) {
     if (state.workspaceName !== null) {
       const activeRoot = workspaceList?.find((w) => w.isActive)?.workspaceRoot;
@@ -294,7 +324,11 @@ export function App({ vscodeApi }: AppProps) {
             Back to graph
           </button>
         </header>
-        <MermaidPreviewPanel preview={mermaidPreview} />
+        <MermaidPreviewPanel
+          preview={mermaidPreview}
+          onOptionsChange={handleMermaidOptionsChange}
+          onSaveRequest={handleMermaidSaveRequest}
+        />
       </div>
     );
   }

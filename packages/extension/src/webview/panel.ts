@@ -1,4 +1,4 @@
-import type { MermaidPreviewResult } from "@dextree/exporters";
+import type { MermaidPreviewOptions, MermaidPreviewResult } from "@dextree/exporters";
 import * as vscode from "vscode";
 import type { Logger } from "../logger.js";
 import { getWebviewContent } from "./html.js";
@@ -12,6 +12,17 @@ import type {
   WorkspaceListMessage,
 } from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
+
+/**
+ * Host-side resolver for `requestMermaidPreview` messages. Wired in
+ * `extension.ts` to read the latest indexed workspace subgraph and call
+ * `generateMermaidPreview` against the requested options. Returning a value
+ * directly or via Promise is both acceptable so the wiring can stay sync
+ * during tests and async in production.
+ */
+export type MermaidPreviewHandler = (
+  options: MermaidPreviewOptions,
+) => Promise<MermaidPreviewResult> | MermaidPreviewResult;
 
 // Whitelisted webview→host commands. Only these command IDs are allowed.
 const WEBVIEW_COMMANDS: Record<string, string> = {
@@ -40,6 +51,98 @@ let isWebviewReady = false;
 // undefined (the webview just sees no response).
 let listIndexedWorkspacesHandler: (() => Promise<IndexedWorkspaceRecord[]>) | undefined;
 let switchWorkspaceHandler: ((workspaceRoot: string) => Promise<void>) | undefined;
+
+// Slice 029 PR-B — injected by extension.ts so panel.ts stays decoupled from
+// the indexer. Resolves a `requestMermaidPreview` from the webview against the
+// current workspace subgraph. Undefined means no handler is registered yet, in
+// which case incoming requests are silently dropped (useful in unit tests and
+// during activation before wiring completes).
+let mermaidPreviewHandler: MermaidPreviewHandler | undefined;
+
+type MermaidPreviewSaveFormat = "mmd" | "svg" | "png";
+
+interface ParsedSaveMermaidPreviewMessage {
+  format: MermaidPreviewSaveFormat;
+  suggestedName: string;
+  bytes: Uint8Array;
+}
+
+function isMermaidPreviewOptionsLike(value: unknown): value is MermaidPreviewOptions {
+  if (typeof value !== "object" || value === null) return false;
+  const opts = value as Record<string, unknown>;
+  return (
+    typeof opts["diagram"] === "string" &&
+    typeof opts["granularity"] === "string" &&
+    typeof opts["direction"] === "string" &&
+    typeof opts["theme"] === "string" &&
+    typeof opts["scope"] === "object" &&
+    opts["scope"] !== null
+  );
+}
+
+function parseSaveMermaidPreviewMessage(
+  value: Record<string, unknown>,
+): ParsedSaveMermaidPreviewMessage | null {
+  const format = value["format"];
+  const suggestedName = value["suggestedName"];
+  const content = value["content"];
+
+  if (
+    (format !== "mmd" && format !== "svg" && format !== "png") ||
+    typeof suggestedName !== "string" ||
+    suggestedName.length === 0 ||
+    typeof content !== "string"
+  ) {
+    return null;
+  }
+
+  if (format === "png") {
+    const bytes = decodePngDataUrl(content);
+    if (bytes === null) {
+      return null;
+    }
+    return { format, suggestedName, bytes };
+  }
+
+  return {
+    format,
+    suggestedName,
+    bytes: new TextEncoder().encode(content),
+  };
+}
+
+function decodePngDataUrl(content: string): Uint8Array | null {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(content);
+  if (match === null) {
+    return null;
+  }
+
+  const base64 = match[1];
+  if (base64 === undefined || base64.length === 0 || base64.length % 4 !== 0) {
+    return null;
+  }
+
+  return Uint8Array.from(Buffer.from(base64, "base64"));
+}
+
+async function saveMermaidPreview(message: ParsedSaveMermaidPreviewMessage): Promise<void> {
+  const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+  const defaultUri =
+    workspaceUri !== undefined
+      ? vscode.Uri.joinPath(workspaceUri, message.suggestedName)
+      : vscode.Uri.file(message.suggestedName);
+
+  const targetUri = await vscode.window.showSaveDialog({
+    defaultUri,
+    saveLabel: "Save Mermaid Preview",
+  });
+
+  if (targetUri === undefined) {
+    return;
+  }
+
+  await vscode.workspace.fs.writeFile(targetUri, message.bytes);
+}
 
 // Optional logger injected by extension.ts. Used to surface webview-side
 // `console.*` calls bridged through the `webviewLog` protocol message.
@@ -162,6 +265,49 @@ export const WebviewPanelManager = {
           return;
         }
 
+        // Slice 029 PR-B — webview asks the host to build a fresh preview from
+        // the latest indexed graph and the current inline-control selection.
+        // Any throw from the handler is converted into a fail-closed
+        // `mermaidPreview` reply so the preview tab never silently hangs in
+        // "rendering" — `pushMermaidPreview` updates the cached message too,
+        // so a panel re-open after a failed request shows the failure reason
+        // instead of the previous successful preview.
+        if (record["type"] === "requestMermaidPreview") {
+          const handler = mermaidPreviewHandler;
+          const options = record["options"];
+          if (handler === undefined || !isMermaidPreviewOptionsLike(options)) {
+            return;
+          }
+          void Promise.resolve()
+            .then(() => handler(options))
+            .then((preview) => {
+              WebviewPanelManager.pushMermaidPreview(preview);
+            })
+            .catch((err: unknown) => {
+              const reason = err instanceof Error ? err.message : String(err);
+              WebviewPanelManager.pushMermaidPreview({
+                status: "unsupported",
+                options,
+                reason,
+              });
+            });
+          return;
+        }
+
+        if (record["type"] === "saveMermaidPreview") {
+          const saveRequest = parseSaveMermaidPreviewMessage(record);
+          if (saveRequest === null) {
+            return;
+          }
+
+          void saveMermaidPreview(saveRequest).catch(() => {
+            // File-write failures stay local to the host save flow. The webview
+            // keeps the current preview visible; explicit user-facing failure
+            // handling for save/copy actions lands in the US3 polish slice.
+          });
+          return;
+        }
+
         // Diagnostic — webview-side console.* / error events bridged here.
         // Routes through the same logger the rest of the extension uses, so
         // everything lands in the Dextree output channel and follows the
@@ -202,6 +348,9 @@ export const WebviewPanelManager = {
         cachedIndexing = undefined;
         cachedMermaidPreview = undefined;
         isWebviewReady = false;
+        // Preview handler is intentionally kept across panel lifecycle so a
+        // re-opened panel inherits the same indexer wiring without requiring
+        // extension.ts to re-inject on every create() call.
       },
       undefined,
       context.subscriptions,
@@ -291,6 +440,16 @@ export const WebviewPanelManager = {
   }): void {
     listIndexedWorkspacesHandler = handlers.onRequestWorkspaceList;
     switchWorkspaceHandler = handlers.onSwitchWorkspace;
+  },
+
+  /**
+   * Slice 029 PR-B — register the host-side resolver for inline-control
+   * preview rerenders. Wired once during extension activation against the
+   * shared indexer; subsequent calls overwrite. Pass `undefined` to clear
+   * (used by tests between cases).
+   */
+  setMermaidPreviewHandler(handler: MermaidPreviewHandler | undefined): void {
+    mermaidPreviewHandler = handler;
   },
 };
 
