@@ -19,6 +19,7 @@ const IMPLEMENTS_TOOLTIP = "Available when ImplementsExtractor ships (slice 031)
 
 export interface GraphToolbarProps {
   onExportMermaid: () => void;
+  onExportCurrentView: () => void;
   showMinimap: boolean;
   onToggleMinimap: () => void;
   edgeKinds: GraphEdge["kind"][];
@@ -99,6 +100,7 @@ function EdgeFilterBar({
 
 export function GraphToolbar({
   onExportMermaid,
+  onExportCurrentView,
   showMinimap,
   onToggleMinimap,
   edgeKinds,
@@ -157,6 +159,15 @@ export function GraphToolbar({
         aria-label="Export as Mermaid"
       >
         <span className="codicon codicon-export" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="dxt-export-mermaid dxt-toolbar__export"
+        onClick={onExportCurrentView}
+        title="Export current view as Mermaid"
+        aria-label="Export current view"
+      >
+        <span className="codicon codicon-eye" aria-hidden="true" />
       </button>
       <button
         type="button"

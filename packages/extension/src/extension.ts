@@ -1,5 +1,5 @@
 import { createIndexer, readWorkspaceGraph, type Indexer } from "@dextree/core";
-import { generateMermaidPreview } from "@dextree/exporters";
+import { generateMermaidPreview, type MermaidPreviewResult } from "@dextree/exporters";
 import { basename, join } from "node:path";
 import * as vscode from "vscode";
 
@@ -15,7 +15,15 @@ import {
   createClearWorkspaceIndexCommand,
 } from "./commands/clearIndex.js";
 import { createExportSessionSummaryCommand } from "./commands/exportSessionSummary.js";
-import { createExportMermaidCommand } from "./commands/exportMermaid.js";
+import {
+  createExportMermaidCommand,
+  executeInferredMermaidExport,
+  startInferredMermaidExport,
+} from "./commands/exportMermaid.js";
+import {
+  createExportCurrentViewCommand,
+  createExportTraceCommand,
+} from "./commands/exportCurrentView.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import {
   createIndexWorkspaceCommand,
@@ -271,6 +279,34 @@ export async function activate(context: ActivationContext): Promise<void> {
     });
   };
 
+  const openPreview = (preview: MermaidPreviewResult): void => {
+    WebviewPanelManager.create(context as unknown as vscode.ExtensionContext);
+    WebviewPanelManager.pushMermaidPreview(preview);
+  };
+
+  async function pickSymbol(): Promise<{ id: string; filePath: string } | undefined> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot === undefined) return undefined;
+    const indexer = await getIndexer();
+    const files = await indexer.getAllFiles();
+    const symbols: { id: string; name: string; filePath: string }[] = [];
+    for (const file of files) {
+      const fileSymbols = await indexer.getSymbols(file.relativePath);
+      for (const s of fileSymbols) {
+        symbols.push({
+          id: s.id,
+          name: `${s.name} (${s.kind}) — ${file.relativePath}`,
+          filePath: file.relativePath,
+        });
+      }
+    }
+    const picked = await vscode.window.showQuickPick(
+      symbols.map((s) => ({ label: s.name, value: s })),
+      { placeHolder: "Pick a symbol to export" },
+    );
+    return picked?.value;
+  }
+
   context.subscriptions.push(
     outputChannel,
     registerOpenGraphViewCommand(context as unknown as vscode.ExtensionContext, getIndexer),
@@ -349,6 +385,64 @@ export async function activate(context: ActivationContext): Promise<void> {
         openMermaidPreview: (preview) => {
           WebviewPanelManager.create(context as unknown as vscode.ExtensionContext);
           WebviewPanelManager.pushMermaidPreview(preview);
+        },
+      }),
+    ),
+    // Slice 030 — selection-aware and focused Mermaid export commands.
+    // All commands delegate to the same inferred-export path so behavior
+    // stays consistent and fail-closed.
+    vscode.commands.registerCommand("dextree.exportCallers", async () => {
+      const symbol = await pickSymbol();
+      if (symbol === undefined) return;
+      await startInferredMermaidExport({ getIndexer, openMermaidPreview: openPreview }, "callers", {
+        kind: "symbol",
+        symbolId: symbol.id,
+        filePath: symbol.filePath,
+      });
+    }),
+    vscode.commands.registerCommand("dextree.exportCallees", async () => {
+      const symbol = await pickSymbol();
+      if (symbol === undefined) return;
+      await startInferredMermaidExport({ getIndexer, openMermaidPreview: openPreview }, "callees", {
+        kind: "symbol",
+        symbolId: symbol.id,
+        filePath: symbol.filePath,
+      });
+    }),
+    vscode.commands.registerCommand("dextree.exportClassHierarchy", async () => {
+      const symbol = await pickSymbol();
+      if (symbol === undefined) return;
+      await startInferredMermaidExport(
+        { getIndexer, openMermaidPreview: openPreview },
+        "class-hierarchy",
+        { kind: "symbol", symbolId: symbol.id, filePath: symbol.filePath },
+      );
+    }),
+    vscode.commands.registerCommand("dextree.exportPackage", async () => {
+      await startInferredMermaidExport({ getIndexer, openMermaidPreview: openPreview }, "package", {
+        kind: "folder",
+        relativePath: ".",
+      });
+    }),
+    vscode.commands.registerCommand(
+      "dextree.exportTrace",
+      createExportTraceCommand({
+        exportInferred: async (inferred) => {
+          await executeInferredMermaidExport(
+            { getIndexer, openMermaidPreview: openPreview },
+            inferred,
+          );
+        },
+      }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.exportCurrentView",
+      createExportCurrentViewCommand({
+        exportInferred: async (inferred) => {
+          await executeInferredMermaidExport(
+            { getIndexer, openMermaidPreview: openPreview },
+            inferred,
+          );
         },
       }),
     ),

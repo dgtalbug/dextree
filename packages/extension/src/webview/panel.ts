@@ -334,6 +334,15 @@ export const WebviewPanelManager = {
           return;
         }
 
+        // Slice 030 US3 — webview requests a current-view Mermaid export.
+        if (record["type"] === "exportCurrentView") {
+          const viewId = record["viewId"];
+          if (typeof viewId === "string" && viewId.length > 0) {
+            void vscode.commands.executeCommand("dextree.exportCurrentView", viewId);
+          }
+          return;
+        }
+
         // Diagnostic — webview-side console.* / error events bridged here.
         // Routes through the same logger the rest of the extension uses, so
         // everything lands in the Dextree output channel and follows the

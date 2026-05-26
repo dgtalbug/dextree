@@ -3,6 +3,7 @@
 .DS_Store
 .idea
 .claude
+.commandcode
 .dextree
 .github/agents
 .github/prompts/

@@ -532,4 +532,43 @@ describe("activate", () => {
     // command surface is still registered so the user has a recovery path.
     expect(registerCommand).toHaveBeenCalledWith("dextree.indexFile", expect.any(Function));
   });
+
+  it("registers focused Mermaid export commands (slice 030 US3)", async () => {
+    createIndexer.mockReturnValue({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      indexFile: vi.fn(),
+      validateWorkspaceCache: vi.fn().mockResolvedValue({
+        status: "empty",
+        identity: {
+          cacheKey: "/workspace",
+          workspaceRoot: "/workspace",
+          repoRoot: null,
+          repoRemote: null,
+        },
+        metadata: null,
+      }),
+      getSymbols: vi.fn(),
+      getAllFiles: vi.fn().mockResolvedValue([]),
+      getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      dispose: vi.fn(),
+    });
+
+    const extension = await import("./extension.js");
+    const subscriptions: { dispose(): void }[] = [];
+
+    await extension.activate({
+      subscriptions,
+      storageUri: { fsPath: "/workspace/.storage" },
+      extensionUri: { fsPath: "/workspace/packages/extension" },
+    });
+
+    const registeredCommands = registerCommand.mock.calls.map((c) => c[0]);
+    expect(registeredCommands).toContain("dextree.exportCallers");
+    expect(registeredCommands).toContain("dextree.exportCallees");
+    expect(registeredCommands).toContain("dextree.exportClassHierarchy");
+    expect(registeredCommands).toContain("dextree.exportPackage");
+    expect(registeredCommands).toContain("dextree.exportTrace");
+    expect(registeredCommands).toContain("dextree.exportCurrentView");
+  });
 });
