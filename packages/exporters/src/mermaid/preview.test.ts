@@ -90,14 +90,12 @@ describe("generateMermaidPreview — flowchart routing (slice 029 PR-A)", () => 
   });
 
   it("classifies scoped-serializer empty failures as 'empty'", () => {
-    // file scope against a non-existent path → unsupported extraction → reason
-    // contains 'File not found' which we treat as unsupported by default.
-    // Force the 'empty' branch by validator: a single file node passes
-    // extraction but the granularity validator emits a 'zero nodes' message
-    // when the projection collapses to nothing — replicate that here.
+    // Zero-node workspace subgraph routes through extractMermaidScope (ok with
+    // empty result) and into validateScopedMermaidExport, which emits a
+    // 'zero nodes' reason that classifyFailure maps to status: 'empty'.
     const sg = subgraph([]);
     const result = generateMermaidPreview(sg, FLOWCHART_DEFAULTS);
-    expect(["empty", "unsupported"]).toContain(result.status);
+    expect(result.status).toBe("empty");
   });
 });
 

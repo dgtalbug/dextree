@@ -27,6 +27,12 @@ let currentPanel: vscode.WebviewPanel | undefined;
 // Last graph pushed — re-sent when webview posts 'ready' (handles race condition).
 let cachedGraph: GraphMessage | undefined;
 let cachedIndexing: IndexingMessage | undefined;
+// Last Mermaid preview pushed — same race-handling rationale as cachedGraph.
+// Without caching, the first preview message sent immediately after
+// `WebviewPanelManager.create()` is dropped because the webview hasn't yet
+// posted `ready` and `postMessage` is a no-op until then. Cache lets the
+// `ready` handler replay it.
+let cachedMermaidPreview: MermaidPreviewMessage | undefined;
 let isWebviewReady = false;
 
 // Slice 024 — injected by extension.ts so panel.ts stays decoupled from the
@@ -52,6 +58,10 @@ function postCachedState(): void {
 
   if (cachedIndexing !== undefined) {
     messages.push(cachedIndexing);
+  }
+
+  if (cachedMermaidPreview !== undefined) {
+    messages.push(cachedMermaidPreview);
   }
 
   for (const message of messages) {
@@ -190,6 +200,7 @@ export const WebviewPanelManager = {
         currentPanel = undefined;
         cachedGraph = undefined;
         cachedIndexing = undefined;
+        cachedMermaidPreview = undefined;
         isWebviewReady = false;
       },
       undefined,
@@ -221,11 +232,20 @@ export const WebviewPanelManager = {
    * Slice 029 — push a Mermaid preview result to the open webview. The
    * webview reacts by switching to the mermaid-preview scene and rendering
    * the source/SVG pair (or fail-closed reason for non-ok statuses).
-   * No-op if no panel is currently open.
+   *
+   * Caches the message so `postCachedState` can replay it after the webview
+   * posts `ready`. Without caching the first preview opened immediately after
+   * `WebviewPanelManager.create()` is dropped because `postMessage` is a
+   * no-op until `isWebviewReady` flips true. Same race rationale as
+   * `pushGraph` and `pushIndexing`.
+   *
+   * Subsequent inline-control changes (US2 / PR-B) will overwrite the cache
+   * with the new result so reopens always show the most recent preview.
    */
   pushMermaidPreview(preview: MermaidPreviewResult): void {
     const message: MermaidPreviewMessage = { type: "mermaidPreview", preview };
-    postMessage(message);
+    cachedMermaidPreview = message;
+    postCachedState();
   },
 
   pushIndexing(indexing: Omit<IndexingMessage, "type">): void {

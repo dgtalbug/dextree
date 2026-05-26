@@ -5,9 +5,10 @@ import type { MermaidDirection, MermaidGranularity, MermaidScope } from "./scope
 import { MERMAID_INIT_DIRECTIVE } from "./theme.js";
 
 /**
- * Bounded diagram kind for the preview tab. `flowchart` and `classDiagram`
- * are routable in slice 029; `sequenceDiagram` is reserved for slice 031 and
- * routes to an explicit `unsupported` result.
+ * Bounded diagram kind for the preview tab. `flowchart` is routable in slice
+ * 029 PR-A; `classDiagram` ships in PR-B and currently returns `unsupported`
+ * here; `sequenceDiagram` is reserved for slice 031 and also returns
+ * `unsupported` for now.
  */
 export type MermaidDiagramKind = "flowchart" | "classDiagram" | "sequenceDiagram";
 

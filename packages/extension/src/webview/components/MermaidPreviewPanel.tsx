@@ -40,10 +40,22 @@ export function MermaidPreviewPanel({
     }
     let cancelled = false;
     setRenderState({ status: "rendering" });
-    void renderSource(okPreview.source, okPreview.options.theme).then((next) => {
-      if (cancelled) return;
-      setRenderState(next);
-    });
+    // .then chain must be paired with .catch — `renderSource` is supposed to
+    // resolve to a `render-error` state on failure rather than reject, but a
+    // synchronous throw before its own try/catch (e.g. dynamic import failure)
+    // would bubble as an unhandled rejection and leave the panel stuck in
+    // "rendering". The catch routes any such case through the same
+    // render-error surface so the UI never hangs.
+    renderSource(okPreview.source, okPreview.options.theme)
+      .then((next) => {
+        if (cancelled) return;
+        setRenderState(next);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const reason = err instanceof Error ? err.message : String(err);
+        setRenderState({ status: "render-error", source: okPreview.source, reason });
+      });
     return () => {
       cancelled = true;
     };
