@@ -186,6 +186,9 @@ importers:
       graphology-types:
         specifier: ^0.24.8
         version: 0.24.8
+      mermaid:
+        specifier: ^11.15.0
+        version: 11.15.0
       sigma:
         specifier: ^3.0.2
         version: 3.0.3(graphology-types@0.24.8)

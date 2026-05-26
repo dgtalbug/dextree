@@ -28,3 +28,10 @@ export {
   type ClassDiagramEntry,
   type ClassDiagramValidation,
 } from "./mermaid/classDiagram.js";
+export {
+  generateMermaidPreview,
+  type MermaidDiagramKind,
+  type MermaidPreviewOptions,
+  type MermaidPreviewResult,
+  type MermaidPreviewTheme,
+} from "./mermaid/preview.js";

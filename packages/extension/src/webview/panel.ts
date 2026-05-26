@@ -1,4 +1,6 @@
+import type { MermaidPreviewResult } from "@dextree/exporters";
 import * as vscode from "vscode";
+import type { Logger } from "../logger.js";
 import { getWebviewContent } from "./html.js";
 import type {
   CommandMessage,
@@ -6,6 +8,7 @@ import type {
   HostToWebviewMessage,
   IndexedWorkspaceRecord,
   IndexingMessage,
+  MermaidPreviewMessage,
   WorkspaceListMessage,
 } from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
@@ -24,6 +27,12 @@ let currentPanel: vscode.WebviewPanel | undefined;
 // Last graph pushed — re-sent when webview posts 'ready' (handles race condition).
 let cachedGraph: GraphMessage | undefined;
 let cachedIndexing: IndexingMessage | undefined;
+// Last Mermaid preview pushed — same race-handling rationale as cachedGraph.
+// Without caching, the first preview message sent immediately after
+// `WebviewPanelManager.create()` is dropped because the webview hasn't yet
+// posted `ready` and `postMessage` is a no-op until then. Cache lets the
+// `ready` handler replay it.
+let cachedMermaidPreview: MermaidPreviewMessage | undefined;
 let isWebviewReady = false;
 
 // Slice 024 — injected by extension.ts so panel.ts stays decoupled from the
@@ -31,6 +40,10 @@ let isWebviewReady = false;
 // undefined (the webview just sees no response).
 let listIndexedWorkspacesHandler: (() => Promise<IndexedWorkspaceRecord[]>) | undefined;
 let switchWorkspaceHandler: ((workspaceRoot: string) => Promise<void>) | undefined;
+
+// Optional logger injected by extension.ts. Used to surface webview-side
+// `console.*` calls bridged through the `webviewLog` protocol message.
+let injectedLogger: Logger | undefined;
 
 function postCachedState(): void {
   if (currentPanel === undefined || !isWebviewReady) {
@@ -45,6 +58,10 @@ function postCachedState(): void {
 
   if (cachedIndexing !== undefined) {
     messages.push(cachedIndexing);
+  }
+
+  if (cachedMermaidPreview !== undefined) {
+    messages.push(cachedMermaidPreview);
   }
 
   for (const message of messages) {
@@ -145,6 +162,22 @@ export const WebviewPanelManager = {
           return;
         }
 
+        // Diagnostic — webview-side console.* / error events bridged here.
+        // Routes through the same logger the rest of the extension uses, so
+        // everything lands in the Dextree output channel and follows the
+        // user's preferred logging configuration.
+        if (record["type"] === "webviewLog") {
+          const level = typeof record["level"] === "string" ? record["level"] : "log";
+          const message =
+            typeof record["message"] === "string" ? record["message"] : "<non-string log payload>";
+          if (level === "error") {
+            injectedLogger?.error(`[webview] ${message}`);
+          } else {
+            injectedLogger?.debug(`[webview:${level}] ${message}`);
+          }
+          return;
+        }
+
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const validated = validateNavigateMessage(msg, workspaceRoot);
         if (validated === null) {
@@ -167,6 +200,7 @@ export const WebviewPanelManager = {
         currentPanel = undefined;
         cachedGraph = undefined;
         cachedIndexing = undefined;
+        cachedMermaidPreview = undefined;
         isWebviewReady = false;
       },
       undefined,
@@ -191,6 +225,26 @@ export const WebviewPanelManager = {
         workspaceFrameworks: graph.workspaceFrameworks,
       }),
     };
+    postCachedState();
+  },
+
+  /**
+   * Slice 029 — push a Mermaid preview result to the open webview. The
+   * webview reacts by switching to the mermaid-preview scene and rendering
+   * the source/SVG pair (or fail-closed reason for non-ok statuses).
+   *
+   * Caches the message so `postCachedState` can replay it after the webview
+   * posts `ready`. Without caching the first preview opened immediately after
+   * `WebviewPanelManager.create()` is dropped because `postMessage` is a
+   * no-op until `isWebviewReady` flips true. Same race rationale as
+   * `pushGraph` and `pushIndexing`.
+   *
+   * Subsequent inline-control changes (US2 / PR-B) will overwrite the cache
+   * with the new result so reopens always show the most recent preview.
+   */
+  pushMermaidPreview(preview: MermaidPreviewResult): void {
+    const message: MermaidPreviewMessage = { type: "mermaidPreview", preview };
+    cachedMermaidPreview = message;
     postCachedState();
   },
 
@@ -222,6 +276,15 @@ export const WebviewPanelManager = {
    * Called once during extension activation. Subsequent calls overwrite the
    * stored handlers (useful for tests).
    */
+  /**
+   * Inject a logger so the diagnostic `webviewLog` bridge can write to the
+   * Dextree output channel. Optional — when unset (e.g. unit tests) the
+   * bridge silently drops the bridged messages.
+   */
+  setLogger(logger: Logger): void {
+    injectedLogger = logger;
+  },
+
   setWorkspaceHandlers(handlers: {
     onRequestWorkspaceList?: () => Promise<IndexedWorkspaceRecord[]>;
     onSwitchWorkspace?: (workspaceRoot: string) => Promise<void>;

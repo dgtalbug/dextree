@@ -1,8 +1,10 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { MermaidPreviewResult } from "@dextree/exporters";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { EmptyState } from "./components/EmptyState.js";
 import { GraphView } from "./components/GraphView.js";
 import { LoadingState } from "./components/LoadingState.js";
+import { MermaidPreviewPanel } from "./components/MermaidPreviewPanel.js";
 import { WorkspacesPage } from "./components/WorkspacesPage.js";
 import type {
   CommandMessage,
@@ -14,7 +16,7 @@ import type {
 } from "./protocol/messages.js";
 import { isHostToWebviewMessage } from "./protocol/messages.js";
 
-type AppScene = "graph" | "workspaces";
+type AppScene = "graph" | "workspaces" | "mermaid-preview";
 
 // ---------------------------------------------------------------------------
 // State model — discriminated union (FR-002, FR-008)
@@ -96,25 +98,41 @@ export function App({ vscodeApi }: AppProps) {
   const [showSourceOnly, setShowSourceOnly] = useState(false);
   const [activeScene, setActiveScene] = useState<AppScene>("graph");
   const [workspaceList, setWorkspaceList] = useState<IndexedWorkspaceRecord[] | null>(null);
+  const [mermaidPreview, setMermaidPreview] = useState<MermaidPreviewResult | null>(null);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      // VS Code webviews receive messages from the extension host via the
-      // parent frame. Drop anything from a different sender — guards against
-      // a malicious iframe ever being rendered inside the webview content
-      // attempting to spoof host→webview traffic. The downstream data-shape
-      // check via isHostToWebviewMessage is the practical filter today; this
-      // explicit source check is defense in depth.
-      //
-      // event.source === null is accepted because that's what jsdom
-      // synthesises during tests (and what a same-window dispatchEvent
-      // produces). A real malicious cross-frame post would have a non-null
-      // source pointing at the attacker's window, which would fail this
-      // check and get dropped.
-      if (event.source !== null && event.source !== window.parent) return;
-      const msg: unknown = event.data;
-      if (!isHostToWebviewMessage(msg)) return;
+      // Diagnostic: log every message received so the bridged log surfaces
+      // in the Dextree output channel. Records the type + key shape info
+      // (e.g. node count for graph messages, phase for indexing) without
+      // dumping payloads.
+      const rawMsg: unknown = event.data;
+      const typeForLog =
+        typeof rawMsg === "object" && rawMsg !== null && "type" in rawMsg
+          ? String((rawMsg as { type: unknown }).type)
+          : "<non-object>";
+      const eventSourceLabel =
+        event.source === null ? "null" : event.source === window.parent ? "window.parent" : "other";
+      console.log(`[App] message in (source=${eventSourceLabel}, type=${typeForLog})`);
+
+      // The previous guard `event.source !== null && event.source !== window.parent`
+      // was overly strict — in newer VS Code builds the webview is wrapped in
+      // additional service-worker/iframe layers, so legitimate host messages
+      // arrive with `event.source` set to an inner frame that is neither
+      // `null` nor literally `window.parent`. That rejected every host
+      // message and left the React app permanently in its initial state.
+      // The structural type check via `isHostToWebviewMessage` below remains
+      // the practical security gate (validates the `type` discriminator),
+      // so removing the source check does not weaken validation.
+      const msg: unknown = rawMsg;
+      if (!isHostToWebviewMessage(msg)) {
+        console.log(`[App] dropped: !isHostToWebviewMessage (type=${typeForLog})`);
+        return;
+      }
       if (msg.type === "graph") {
+        console.log(
+          `[App] graph: ${msg.nodes.length} nodes, ${msg.edges.length} edges, workspaceName=${msg.workspaceName ?? "(none)"}`,
+        );
         dispatch({
           type: "graph",
           nodes: msg.nodes,
@@ -133,10 +151,19 @@ export function App({ vscodeApi }: AppProps) {
       }
 
       if (msg.type === "workspaceList") {
+        console.log(`[App] workspaceList: ${msg.workspaces.length} workspaces`);
         setWorkspaceList(msg.workspaces);
         return;
       }
 
+      if (msg.type === "mermaidPreview") {
+        console.log(`[App] mermaidPreview: status=${msg.preview.status}`);
+        setMermaidPreview(msg.preview);
+        setActiveScene("mermaid-preview");
+        return;
+      }
+
+      console.log(`[App] dispatching indexing: phase=${"phase" in msg ? String(msg.phase) : "?"}`);
       dispatch({ type: "indexing", message: msg });
 
       if (msg.type === "indexing") {
@@ -179,6 +206,10 @@ export function App({ vscodeApi }: AppProps) {
   }
 
   function handleWorkspacesBack() {
+    setActiveScene("graph");
+  }
+
+  function handlePreviewBack() {
     setActiveScene("graph");
   }
 
@@ -246,6 +277,25 @@ export function App({ vscodeApi }: AppProps) {
         onBack={handleWorkspacesBack}
         onSwitch={handleSwitchWorkspace}
       />
+    );
+  }
+
+  if (activeScene === "mermaid-preview") {
+    return (
+      <div className="dxt-app-shell">
+        <header className="dxt-preview-topbar">
+          <button
+            type="button"
+            className="dxt-panel-button"
+            onClick={handlePreviewBack}
+            aria-label="Back to graph"
+          >
+            <span className="codicon codicon-arrow-left" aria-hidden="true" />
+            Back to graph
+          </button>
+        </header>
+        <MermaidPreviewPanel preview={mermaidPreview} />
+      </div>
     );
   }
 

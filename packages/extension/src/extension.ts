@@ -200,6 +200,7 @@ export async function activate(context: ActivationContext): Promise<void> {
     });
   };
 
+  WebviewPanelManager.setLogger(logger);
   WebviewPanelManager.setWorkspaceHandlers({
     onRequestWorkspaceList: async () => {
       const globalStoragePath = context.globalStorageUri?.fsPath;
@@ -324,7 +325,13 @@ export async function activate(context: ActivationContext): Promise<void> {
     ),
     vscode.commands.registerCommand(
       "dextree.exportMermaid",
-      createExportMermaidCommand({ getIndexer }),
+      createExportMermaidCommand({
+        getIndexer,
+        openMermaidPreview: (preview) => {
+          WebviewPanelManager.create(context as unknown as vscode.ExtensionContext);
+          WebviewPanelManager.pushMermaidPreview(preview);
+        },
+      }),
     ),
     vscode.commands.registerCommand(
       "dextree.switchWorkspace",

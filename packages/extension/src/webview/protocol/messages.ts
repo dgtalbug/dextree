@@ -8,6 +8,7 @@
  */
 
 import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { MermaidPreviewOptions, MermaidPreviewResult } from "@dextree/exporters";
 
 // ---------------------------------------------------------------------------
 // Shared entity types
@@ -69,8 +70,23 @@ export interface WorkspaceListMessage {
   workspaces: IndexedWorkspaceRecord[];
 }
 
+/**
+ * Sent by the extension host when the Mermaid preview should open or refresh
+ * (slice 029). `preview.status === "ok"` carries source + title for the
+ * webview to render; non-ok statuses are fail-closed and the webview
+ * surfaces the reason without rendering anything.
+ */
+export interface MermaidPreviewMessage {
+  type: "mermaidPreview";
+  preview: MermaidPreviewResult;
+}
+
 /** Union of all messages the extension host can send to the webview. */
-export type HostToWebviewMessage = GraphMessage | IndexingMessage | WorkspaceListMessage;
+export type HostToWebviewMessage =
+  | GraphMessage
+  | IndexingMessage
+  | WorkspaceListMessage
+  | MermaidPreviewMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension Host messages
@@ -119,13 +135,52 @@ export interface SwitchWorkspaceMessage {
   workspaceRoot: string;
 }
 
+/**
+ * Sent by the preview tab when an inline control change should re-request a
+ * preview from the host (slice 029, US2 in PR-B). The webview resolves
+ * `options.theme` from the active VS Code theme before sending.
+ */
+export interface RequestMermaidPreviewMessage {
+  type: "requestMermaidPreview";
+  options: MermaidPreviewOptions;
+}
+
+/**
+ * Sent by the preview tab when the user picks a file-backed save action
+ * (slice 029, US3 in PR-C). For `mmd` / `svg`, `content` is UTF-8 text.
+ * For `png`, `content` is a `data:image/png;base64,...` payload that the
+ * host decodes before writing.
+ */
+export interface SaveMermaidPreviewMessage {
+  type: "saveMermaidPreview";
+  format: "mmd" | "svg" | "png";
+  suggestedName: string;
+  content: string;
+}
+
+/**
+ * Diagnostic-only bridge for webview-side `console.log` / `console.error`
+ * etc. The webview installs a console interceptor in `main.tsx` and posts
+ * the formatted string back to the host, which appends it to the Dextree
+ * output channel. Lets developers see what the React app is doing without
+ * opening the webview devtools.
+ */
+export interface WebviewLogMessage {
+  type: "webviewLog";
+  level: "log" | "debug" | "info" | "warn" | "error";
+  message: string;
+}
+
 /** Union of all messages the webview can send to the extension host. */
 export type WebviewToHostMessage =
   | NavigateMessage
   | ReadyMessage
   | CommandMessage
   | RequestWorkspaceListMessage
-  | SwitchWorkspaceMessage;
+  | SwitchWorkspaceMessage
+  | RequestMermaidPreviewMessage
+  | SaveMermaidPreviewMessage
+  | WebviewLogMessage;
 
 // ---------------------------------------------------------------------------
 // Type guard helpers
@@ -135,7 +190,12 @@ export type WebviewToHostMessage =
 export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMessage {
   if (typeof value !== "object" || value === null) return false;
   const msg = value as Record<string, unknown>;
-  return msg["type"] === "graph" || msg["type"] === "indexing" || msg["type"] === "workspaceList";
+  return (
+    msg["type"] === "graph" ||
+    msg["type"] === "indexing" ||
+    msg["type"] === "workspaceList" ||
+    msg["type"] === "mermaidPreview"
+  );
 }
 
 /** Narrows an unknown value to WebviewToHostMessage. */
@@ -147,6 +207,9 @@ export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMe
     msg["type"] === "ready" ||
     msg["type"] === "command" ||
     msg["type"] === "requestWorkspaceList" ||
-    msg["type"] === "switchWorkspace"
+    msg["type"] === "switchWorkspace" ||
+    msg["type"] === "requestMermaidPreview" ||
+    msg["type"] === "saveMermaidPreview" ||
+    msg["type"] === "webviewLog"
   );
 }
