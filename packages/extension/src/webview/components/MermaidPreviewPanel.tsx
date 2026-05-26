@@ -7,6 +7,7 @@ import type {
   MermaidPreviewOptions,
   MermaidPreviewResult,
 } from "@dextree/exporters";
+import DOMPurify from "dompurify";
 
 import {
   renderMermaidSource,
@@ -78,6 +79,18 @@ const DIRECTION_OPTIONS: ReadonlyArray<{ value: MermaidDirection; label: string 
   { value: "BT", label: "Bottom → Top" },
   { value: "RL", label: "Right → Left" },
 ];
+
+/**
+ * Sanitizes SVG markup through DOMPurify before injection. Mermaid's
+ * `securityLevel:"strict"` already strips harmful content, but this
+ * provides defense-in-depth so the rendered SVG stays safe even if
+ * the Mermaid runtime output were to change.
+ */
+function sanitizeSvgForRender(svg: string): string {
+  return DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+  });
+}
 
 /**
  * Slice 029 preview tab body.
@@ -321,10 +334,9 @@ export function MermaidPreviewPanel({
               <div
                 className={styles.renderSvg}
                 data-testid="mermaid-render-svg"
-                // dangerouslySetInnerHTML is safe here because the SVG comes
-                // from the Mermaid runtime with securityLevel:"strict", and
-                // mermaid sanitizes the input source before producing markup.
-                dangerouslySetInnerHTML={{ __html: renderState.svg }}
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeSvgForRender(renderState.svg),
+                }}
               />
             ) : renderState.status === "render-error" ? (
               <div className={styles.renderError} role="alert">
