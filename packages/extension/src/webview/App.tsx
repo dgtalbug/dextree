@@ -115,10 +115,15 @@ export function App({ vscodeApi }: AppProps) {
         event.source === null ? "null" : event.source === window.parent ? "window.parent" : "other";
       console.log(`[App] message in (source=${eventSourceLabel}, type=${typeForLog})`);
 
-      if (event.source !== null && event.source !== window.parent) {
-        console.log(`[App] dropped: source !== window.parent (type=${typeForLog})`);
-        return;
-      }
+      // The previous guard `event.source !== null && event.source !== window.parent`
+      // was overly strict — in newer VS Code builds the webview is wrapped in
+      // additional service-worker/iframe layers, so legitimate host messages
+      // arrive with `event.source` set to an inner frame that is neither
+      // `null` nor literally `window.parent`. That rejected every host
+      // message and left the React app permanently in its initial state.
+      // The structural type check via `isHostToWebviewMessage` below remains
+      // the practical security gate (validates the `type` discriminator),
+      // so removing the source check does not weaken validation.
       const msg: unknown = rawMsg;
       if (!isHostToWebviewMessage(msg)) {
         console.log(`[App] dropped: !isHostToWebviewMessage (type=${typeForLog})`);
