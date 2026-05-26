@@ -327,10 +327,9 @@ export const WebviewPanelManager = {
             return;
           }
 
-          void saveMermaidPreview(saveRequest).catch(() => {
-            // File-write failures stay local to the host save flow. The webview
-            // keeps the current preview visible; explicit user-facing failure
-            // handling for save/copy actions lands in the US3 polish slice.
+          void saveMermaidPreview(saveRequest).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            void vscode.window.showErrorMessage(`Dextree: Failed to save preview — ${message}`);
           });
           return;
         }

@@ -441,12 +441,8 @@ function ControlBar({ options, onOptionsChange }: ControlBarProps) {
           id={scopeId}
           className={styles.controlSelect}
           value={options.scope.kind}
-          onChange={() => {
-            // Scope is fixed to "workspace" for the inline-control surface in
-            // this slice — file/symbol scopes arrive via entry points (slice
-            // 030 click links / context menus). Render the kind as a single
-            // selectable option so FR-003 is satisfied without faking pickers.
-          }}
+          disabled
+          title="Scope changes from entry points (file right-click, symbol context menu) — slice 030"
         >
           <option value="workspace">Workspace</option>
           {options.scope.kind !== "workspace" ? (
