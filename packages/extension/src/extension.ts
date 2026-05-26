@@ -20,7 +20,10 @@ import {
   executeInferredMermaidExport,
   startInferredMermaidExport,
 } from "./commands/exportMermaid.js";
-import { createExportCurrentViewCommand } from "./commands/exportCurrentView.js";
+import {
+  createExportCurrentViewCommand,
+  createExportTraceCommand,
+} from "./commands/exportCurrentView.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import {
   createIndexWorkspaceCommand,
@@ -423,7 +426,7 @@ export async function activate(context: ActivationContext): Promise<void> {
     }),
     vscode.commands.registerCommand(
       "dextree.exportTrace",
-      createExportCurrentViewCommand({
+      createExportTraceCommand({
         exportInferred: async (inferred) => {
           await executeInferredMermaidExport(
             { getIndexer, openMermaidPreview: openPreview },

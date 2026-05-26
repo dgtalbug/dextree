@@ -1,6 +1,9 @@
 import type { Indexer } from "@dextree/core";
 import {
+  appendMermaidClickLinks,
   generateMermaidPreview,
+  type MermaidClickLinkPolicy,
+  type MermaidClickTarget,
   type MermaidPreviewOptions,
   type MermaidPreviewResult,
 } from "@dextree/exporters";
@@ -11,12 +14,6 @@ import { resolveInferredMermaidExport } from "./inferredMermaidExport.js";
 
 export interface ExportMermaidCommandDependencies {
   getIndexer: () => Promise<Pick<Indexer, "getWorkspaceSubgraph">>;
-  /**
-   * Opens the Mermaid preview scene in the webview with the given preview
-   * result. Wired in `extension.ts` to call `WebviewPanelManager.create(...)`
-   * followed by `WebviewPanelManager.pushMermaidPreview(...)` so the panel
-   * is guaranteed to be open before the message is delivered.
-   */
   openMermaidPreview: (preview: MermaidPreviewResult) => Promise<void> | void;
 }
 
@@ -107,7 +104,35 @@ export async function executeInferredMermaidExport(
     direction: inferred.direction,
     theme: "light",
   });
+
+  if (preview.status === "ok") {
+    const enriched = applyClickLinksToPreview(preview.source, inferred.diagram, subgraph);
+    if (enriched !== preview.source) {
+      await dependencies.openMermaidPreview({ ...preview, source: enriched });
+      return;
+    }
+  }
+
   await dependencies.openMermaidPreview(preview);
+}
+
+function applyClickLinksToPreview(
+  source: string,
+  diagram: "flowchart" | "classDiagram",
+  subgraph: { nodes: Array<{ id: string; filePath?: string; startLine?: number }> },
+): string {
+  const config = vscode.workspace.getConfiguration("dextree.exporters");
+  const includeClickLinks = config.get<boolean>("includeClickLinks", false);
+  if (!includeClickLinks) return source;
+
+  const policy: MermaidClickLinkPolicy = { includeLinks: true };
+  const targets: MermaidClickTarget[] = [];
+  for (const node of subgraph.nodes) {
+    if (node.filePath && node.startLine !== undefined) {
+      targets.push({ nodeId: node.id, filePath: node.filePath, line: node.startLine });
+    }
+  }
+  return appendMermaidClickLinks(source, targets, policy);
 }
 
 /**

@@ -230,6 +230,12 @@
           "default": "Light",
           "description": "Theme applied when exporting a Mermaid diagram.",
           "scope": "resource"
+        },
+        "dextree.exporters.includeClickLinks": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, exported .svg diagrams include click-through links back to source code. Mermaid .mmd source exports are link-free by default regardless of this setting.",
+          "scope": "resource"
         }
       }
     }
