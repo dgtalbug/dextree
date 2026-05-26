@@ -500,3 +500,50 @@ describe("SymbolsTreeProvider — navigation command (US2)", () => {
     expect(opts?.selection?.start?.line).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 030 — Tree node export metadata (resourceUri, tooltip)
+// ---------------------------------------------------------------------------
+
+describe("SymbolsTreeProvider — slice 030 export metadata", () => {
+  it("TreeFileNode sets resourceUri when workspaceUri is provided", () => {
+    const file = {
+      id: "f1",
+      relativePath: "src/greet.ts",
+      language: "typescript",
+      path: "/workspace/src/greet.ts",
+      hash: "abc123",
+    };
+    const node = new TreeFileNode(file, { fsPath: "/workspace" } as never);
+    expect(node.treeItem.resourceUri).toBeDefined();
+    expect((node.treeItem.resourceUri as { fsPath: string })?.fsPath).toBe(
+      "/workspace/src/greet.ts",
+    );
+  });
+
+  it("TreeFileNode does not set resourceUri when workspaceUri is undefined", () => {
+    const file = {
+      id: "f1",
+      relativePath: "src/greet.ts",
+      language: "typescript",
+      path: "/workspace/src/greet.ts",
+      hash: "abc123",
+    };
+    const node = new TreeFileNode(file);
+    expect(node.treeItem.resourceUri).toBeUndefined();
+  });
+
+  it("TreeSymbolNode sets tooltip with name, kind, and id", () => {
+    const symbol = {
+      id: "sym-42",
+      fqn: "src/greet.ts:greet",
+      name: "greet",
+      kind: "function" as const,
+      fileId: "f1",
+      range: { startLine: 0, startCol: 0, endLine: 0, endCol: 1 },
+      language: "typescript",
+    };
+    const node = new TreeSymbolNode(symbol, { fsPath: "/workspace/src/greet.ts" } as never);
+    expect(node.treeItem.tooltip).toBe("greet (function) — sym-42");
+  });
+});

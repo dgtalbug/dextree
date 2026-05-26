@@ -128,6 +128,7 @@ function applyClickLinksToPreview(
   const policy: MermaidClickLinkPolicy = { includeLinks: true };
   const targets: MermaidClickTarget[] = [];
   for (const node of subgraph.nodes) {
+    if (!source.includes(`"${node.id}"`) && !source.includes(`${node.id}`)) continue;
     if (node.filePath && node.startLine !== undefined) {
       targets.push({ nodeId: node.id, filePath: node.filePath, line: node.startLine });
     }
