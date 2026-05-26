@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/dgtalbug/dextree/compare/v1.10.0...v1.11.0) (2026-05-26)
+
+
+### Features
+
+* **exporters,extension:** mermaid class-diagram preview with enclosing-symbol grouping (slice 028) ([#124](https://github.com/dgtalbug/dextree/issues/124)) ([898c271](https://github.com/dgtalbug/dextree/commit/898c271c58e77b0c7aed6340dd8b6f694bf4e098))
+
 ## [1.10.0](https://github.com/dgtalbug/dextree/compare/v1.9.0...v1.10.0) (2026-05-25)
 
 ### Features
