@@ -200,6 +200,7 @@ export async function activate(context: ActivationContext): Promise<void> {
     });
   };
 
+  WebviewPanelManager.setLogger(logger);
   WebviewPanelManager.setWorkspaceHandlers({
     onRequestWorkspaceList: async () => {
       const globalStoragePath = context.globalStorageUri?.fsPath;

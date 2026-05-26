@@ -158,6 +158,19 @@ export interface SaveMermaidPreviewMessage {
   content: string;
 }
 
+/**
+ * Diagnostic-only bridge for webview-side `console.log` / `console.error`
+ * etc. The webview installs a console interceptor in `main.tsx` and posts
+ * the formatted string back to the host, which appends it to the Dextree
+ * output channel. Lets developers see what the React app is doing without
+ * opening the webview devtools.
+ */
+export interface WebviewLogMessage {
+  type: "webviewLog";
+  level: "log" | "debug" | "info" | "warn" | "error";
+  message: string;
+}
+
 /** Union of all messages the webview can send to the extension host. */
 export type WebviewToHostMessage =
   | NavigateMessage
@@ -166,7 +179,8 @@ export type WebviewToHostMessage =
   | RequestWorkspaceListMessage
   | SwitchWorkspaceMessage
   | RequestMermaidPreviewMessage
-  | SaveMermaidPreviewMessage;
+  | SaveMermaidPreviewMessage
+  | WebviewLogMessage;
 
 // ---------------------------------------------------------------------------
 // Type guard helpers
@@ -195,6 +209,7 @@ export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMe
     msg["type"] === "requestWorkspaceList" ||
     msg["type"] === "switchWorkspace" ||
     msg["type"] === "requestMermaidPreview" ||
-    msg["type"] === "saveMermaidPreview"
+    msg["type"] === "saveMermaidPreview" ||
+    msg["type"] === "webviewLog"
   );
 }

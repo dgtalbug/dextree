@@ -102,22 +102,32 @@ export function App({ vscodeApi }: AppProps) {
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      // VS Code webviews receive messages from the extension host via the
-      // parent frame. Drop anything from a different sender — guards against
-      // a malicious iframe ever being rendered inside the webview content
-      // attempting to spoof host→webview traffic. The downstream data-shape
-      // check via isHostToWebviewMessage is the practical filter today; this
-      // explicit source check is defense in depth.
-      //
-      // event.source === null is accepted because that's what jsdom
-      // synthesises during tests (and what a same-window dispatchEvent
-      // produces). A real malicious cross-frame post would have a non-null
-      // source pointing at the attacker's window, which would fail this
-      // check and get dropped.
-      if (event.source !== null && event.source !== window.parent) return;
-      const msg: unknown = event.data;
-      if (!isHostToWebviewMessage(msg)) return;
+      // Diagnostic: log every message received so the bridged log surfaces
+      // in the Dextree output channel. Records the type + key shape info
+      // (e.g. node count for graph messages, phase for indexing) without
+      // dumping payloads.
+      const rawMsg: unknown = event.data;
+      const typeForLog =
+        typeof rawMsg === "object" && rawMsg !== null && "type" in rawMsg
+          ? String((rawMsg as { type: unknown }).type)
+          : "<non-object>";
+      const eventSourceLabel =
+        event.source === null ? "null" : event.source === window.parent ? "window.parent" : "other";
+      console.log(`[App] message in (source=${eventSourceLabel}, type=${typeForLog})`);
+
+      if (event.source !== null && event.source !== window.parent) {
+        console.log(`[App] dropped: source !== window.parent (type=${typeForLog})`);
+        return;
+      }
+      const msg: unknown = rawMsg;
+      if (!isHostToWebviewMessage(msg)) {
+        console.log(`[App] dropped: !isHostToWebviewMessage (type=${typeForLog})`);
+        return;
+      }
       if (msg.type === "graph") {
+        console.log(
+          `[App] graph: ${msg.nodes.length} nodes, ${msg.edges.length} edges, workspaceName=${msg.workspaceName ?? "(none)"}`,
+        );
         dispatch({
           type: "graph",
           nodes: msg.nodes,
@@ -136,16 +146,19 @@ export function App({ vscodeApi }: AppProps) {
       }
 
       if (msg.type === "workspaceList") {
+        console.log(`[App] workspaceList: ${msg.workspaces.length} workspaces`);
         setWorkspaceList(msg.workspaces);
         return;
       }
 
       if (msg.type === "mermaidPreview") {
+        console.log(`[App] mermaidPreview: status=${msg.preview.status}`);
         setMermaidPreview(msg.preview);
         setActiveScene("mermaid-preview");
         return;
       }
 
+      console.log(`[App] dispatching indexing: phase=${"phase" in msg ? String(msg.phase) : "?"}`);
       dispatch({ type: "indexing", message: msg });
 
       if (msg.type === "indexing") {

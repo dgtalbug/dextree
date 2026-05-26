@@ -1,5 +1,6 @@
 import type { MermaidPreviewResult } from "@dextree/exporters";
 import * as vscode from "vscode";
+import type { Logger } from "../logger.js";
 import { getWebviewContent } from "./html.js";
 import type {
   CommandMessage,
@@ -33,6 +34,10 @@ let isWebviewReady = false;
 // undefined (the webview just sees no response).
 let listIndexedWorkspacesHandler: (() => Promise<IndexedWorkspaceRecord[]>) | undefined;
 let switchWorkspaceHandler: ((workspaceRoot: string) => Promise<void>) | undefined;
+
+// Optional logger injected by extension.ts. Used to surface webview-side
+// `console.*` calls bridged through the `webviewLog` protocol message.
+let injectedLogger: Logger | undefined;
 
 function postCachedState(): void {
   if (currentPanel === undefined || !isWebviewReady) {
@@ -147,6 +152,22 @@ export const WebviewPanelManager = {
           return;
         }
 
+        // Diagnostic — webview-side console.* / error events bridged here.
+        // Routes through the same logger the rest of the extension uses, so
+        // everything lands in the Dextree output channel and follows the
+        // user's preferred logging configuration.
+        if (record["type"] === "webviewLog") {
+          const level = typeof record["level"] === "string" ? record["level"] : "log";
+          const message =
+            typeof record["message"] === "string" ? record["message"] : "<non-string log payload>";
+          if (level === "error") {
+            injectedLogger?.error(`[webview] ${message}`);
+          } else {
+            injectedLogger?.debug(`[webview:${level}] ${message}`);
+          }
+          return;
+        }
+
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const validated = validateNavigateMessage(msg, workspaceRoot);
         if (validated === null) {
@@ -235,6 +256,15 @@ export const WebviewPanelManager = {
    * Called once during extension activation. Subsequent calls overwrite the
    * stored handlers (useful for tests).
    */
+  /**
+   * Inject a logger so the diagnostic `webviewLog` bridge can write to the
+   * Dextree output channel. Optional — when unset (e.g. unit tests) the
+   * bridge silently drops the bridged messages.
+   */
+  setLogger(logger: Logger): void {
+    injectedLogger = logger;
+  },
+
   setWorkspaceHandlers(handlers: {
     onRequestWorkspaceList?: () => Promise<IndexedWorkspaceRecord[]>;
     onSwitchWorkspace?: (workspaceRoot: string) => Promise<void>;
