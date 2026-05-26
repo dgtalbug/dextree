@@ -35,6 +35,34 @@ jobs:
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
+      # Mint a short-lived installation token from the Dextree release GitHub App
+      # so the release PR is authored under the App identity. Required to bypass
+      # GitHub's GITHUB_TOKEN cascade safeguard, which suppresses on:pull_request
+      # workflow runs for PRs opened by the default GITHUB_TOKEN. Without this,
+      # CI never fires on the release PR (see PRs #122, #125 history).
+      #
+      # Setup (one-time, documented in the PR that introduced this step):
+      #   1. Register a private GitHub App on the org/account.
+      #   2. Grant it repo permissions: contents=write, pull-requests=write.
+      #   3. Install it on dgtalbug/dextree.
+      #   4. Generate a PEM private key from the App settings.
+      #   5. Add repo secrets:
+      #        - RELEASE_APP_ID            (the App's numeric ID)
+      #        - RELEASE_APP_PRIVATE_KEY   (full PEM file content, including
+      #                                     -----BEGIN/END PRIVATE KEY----- lines)
+      - name: Mint release App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Explicit least-privilege scoping. The App's installation
+          # permissions already match these, but pinning them at the call site
+          # narrows the minted token if the App's scope ever widens. Flagged
+          # by zizmor static analysis (rule: github-app) and CodeRabbit on
+          # PR #126.
+          permission-contents: write
+          permission-pull-requests: write
       - name: release-please
         id: rp
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
@@ -43,7 +71,10 @@ jobs:
           # If you later split into per-package releases, add release-please-config.json
           # and manifest.json files at repo root.
           release-type: node
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # App-minted token (not GITHUB_TOKEN) so the release PR is authored
+          # under the App identity — that triggers on:pull_request workflows on
+          # the bot PR normally instead of hitting the cascade safeguard.
+          token: ${{ steps.app-token.outputs.token }}
 
   build-vsix:
     name: build-vsix (${{ matrix.target }})
