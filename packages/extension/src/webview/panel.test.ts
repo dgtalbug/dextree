@@ -881,3 +881,62 @@ describe("WebviewPanelManager save mermaid preview (slice 029 PR-C)", () => {
     expect(writeFile).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 030 US3 — exportCurrentView message routing
+// ---------------------------------------------------------------------------
+
+describe("WebviewPanelManager exportCurrentView (slice 030 US3)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    createWebviewPanel.mockClear();
+    mockPostMessage.mockClear();
+    mockOnDidReceiveMessage.mockClear();
+    mockOnDidDispose.mockClear();
+    showSaveDialog.mockReset();
+    writeFile.mockReset();
+    triggerReadyOnHtmlAssignment = false;
+    currentMessageHandler = undefined;
+    mockOnDidReceiveMessage.mockImplementation((handler: (message: unknown) => void) => {
+      currentMessageHandler = handler;
+    });
+  });
+
+  function setupPanel(WebviewPanelManager: { create: (context: never) => void }) {
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+    WebviewPanelManager.create(context as never);
+    currentMessageHandler?.({ type: "ready" });
+    mockPostMessage.mockClear();
+  }
+
+  it("delegates exportCurrentView to dextree.exportCurrentView command", async () => {
+    const commands = await import("vscode");
+    const executeCmd = commands.commands.executeCommand as ReturnType<typeof vi.fn>;
+    executeCmd.mockResolvedValue(undefined);
+
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    currentMessageHandler?.({ type: "exportCurrentView", viewId: "v1" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(executeCmd).toHaveBeenCalledWith("dextree.exportCurrentView");
+  });
+
+  it("ignores exportCurrentView with missing viewId", async () => {
+    const commands = await import("vscode");
+    const executeCmd = commands.commands.executeCommand as ReturnType<typeof vi.fn>;
+    executeCmd.mockClear();
+
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    currentMessageHandler?.({ type: "exportCurrentView" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(executeCmd).not.toHaveBeenCalled();
+  });
+});
