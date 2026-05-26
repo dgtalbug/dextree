@@ -137,6 +137,30 @@
       {
         "command": "dextree.switchWorkspace",
         "title": "Dextree: Switch Workspace"
+      },
+      {
+        "command": "dextree.exportCallers",
+        "title": "Dextree: Export Callers as Mermaid"
+      },
+      {
+        "command": "dextree.exportCallees",
+        "title": "Dextree: Export Callees as Mermaid"
+      },
+      {
+        "command": "dextree.exportClassHierarchy",
+        "title": "Dextree: Export Class Hierarchy as Mermaid"
+      },
+      {
+        "command": "dextree.exportPackage",
+        "title": "Dextree: Export Package as Mermaid"
+      },
+      {
+        "command": "dextree.exportTrace",
+        "title": "Dextree: Export Trace as Mermaid"
+      },
+      {
+        "command": "dextree.exportCurrentView",
+        "title": "Dextree: Export Current View as Mermaid"
       }
     ],
     "menus": {
@@ -145,6 +169,23 @@
           "command": "dextree.indexWorkspace",
           "when": "view == dextree.symbolsView",
           "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "dextree.exportMermaid",
+          "when": "view == dextree.symbolsView && viewItem == dextreeSymbol",
+          "group": "dextree@1"
+        },
+        {
+          "command": "dextree.exportMermaid",
+          "when": "view == dextree.symbolsView && viewItem == dextreeFile",
+          "group": "dextree@1"
+        },
+        {
+          "command": "dextree.exportPackage",
+          "when": "view == dextree.symbolsView && viewItem == dextreeFile",
+          "group": "dextree@2"
         }
       ]
     },

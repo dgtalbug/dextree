@@ -6,6 +6,9 @@ import {
 } from "@dextree/exporters";
 import * as vscode from "vscode";
 
+import type { InferredMermaidExport, MermaidSelectionContext } from "./inferredMermaidExport.js";
+import { resolveInferredMermaidExport } from "./inferredMermaidExport.js";
+
 export interface ExportMermaidCommandDependencies {
   getIndexer: () => Promise<Pick<Indexer, "getWorkspaceSubgraph">>;
   /**
@@ -71,4 +74,59 @@ export function createExportMermaidCommand(
     const preview = generateMermaidPreview(subgraph, DEFAULT_PREVIEW_OPTIONS);
     await dependencies.openMermaidPreview(preview);
   };
+}
+
+/**
+ * Execute an inferred Mermaid export. Used by selection-aware entry points
+ * (slice 030, US1) and focused export commands (slice 030, US3).
+ */
+export async function executeInferredMermaidExport(
+  dependencies: ExportMermaidCommandDependencies,
+  inferred: InferredMermaidExport,
+): Promise<void> {
+  const root = vscode.workspace.workspaceFolders?.[0];
+  if (root === undefined) {
+    await vscode.window.showInformationMessage("Dextree requires an open workspace folder.");
+    return;
+  }
+
+  const indexer = await dependencies.getIndexer();
+  const subgraph = await indexer.getWorkspaceSubgraph(root.uri.fsPath);
+
+  if (subgraph.nodes.length === 0) {
+    await vscode.window.showInformationMessage(
+      "Dextree: Index your workspace first before exporting a Mermaid diagram.",
+    );
+    return;
+  }
+
+  const preview = generateMermaidPreview(subgraph, {
+    diagram: inferred.diagram,
+    scope: inferred.scope,
+    granularity: "symbol",
+    direction: inferred.direction,
+    theme: "light",
+  });
+  await dependencies.openMermaidPreview(preview);
+}
+
+/**
+ * Start an inferred Mermaid export from a selection context. Resolves the
+ * intent and context into inferred defaults, then delegates to the shared
+ * export path. Fails closed with a user message when the context cannot be
+ * satisfied.
+ */
+export async function startInferredMermaidExport(
+  dependencies: ExportMermaidCommandDependencies,
+  intent: InferredMermaidExport["intent"],
+  context: MermaidSelectionContext,
+): Promise<void> {
+  const inferred = resolveInferredMermaidExport(intent, context);
+  if (inferred === null) {
+    await vscode.window.showInformationMessage(
+      "Dextree: Cannot export Mermaid diagram from the current selection.",
+    );
+    return;
+  }
+  await executeInferredMermaidExport(dependencies, inferred);
 }

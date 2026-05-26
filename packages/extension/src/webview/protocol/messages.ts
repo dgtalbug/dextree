@@ -159,6 +159,15 @@ export interface SaveMermaidPreviewMessage {
 }
 
 /**
+ * Sent by the graph toolbar when the user requests a Mermaid export of the
+ * current visible view state (slice 030, US3).
+ */
+export interface ExportCurrentViewMessage {
+  type: "exportCurrentView";
+  viewId: string;
+}
+
+/**
  * Diagnostic-only bridge for webview-side `console.log` / `console.error`
  * etc. The webview installs a console interceptor in `main.tsx` and posts
  * the formatted string back to the host, which appends it to the Dextree
@@ -180,6 +189,7 @@ export type WebviewToHostMessage =
   | SwitchWorkspaceMessage
   | RequestMermaidPreviewMessage
   | SaveMermaidPreviewMessage
+  | ExportCurrentViewMessage
   | WebviewLogMessage;
 
 // ---------------------------------------------------------------------------
@@ -210,6 +220,7 @@ export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMe
     msg["type"] === "switchWorkspace" ||
     msg["type"] === "requestMermaidPreview" ||
     msg["type"] === "saveMermaidPreview" ||
+    msg["type"] === "exportCurrentView" ||
     msg["type"] === "webviewLog"
   );
 }

@@ -35,3 +35,8 @@ export {
   type MermaidPreviewResult,
   type MermaidPreviewTheme,
 } from "./mermaid/preview.js";
+export {
+  appendMermaidClickLinks,
+  type MermaidClickLinkPolicy,
+  type MermaidClickTarget,
+} from "./mermaid/clickLinks.js";

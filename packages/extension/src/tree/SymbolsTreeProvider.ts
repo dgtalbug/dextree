@@ -84,6 +84,9 @@ export class TreeFileNode {
     item.description = file.relativePath;
     item.tooltip = file.relativePath;
     item.contextValue = "dextreeFile";
+    if (workspaceUri !== undefined) {
+      item.resourceUri = vscode.Uri.joinPath(workspaceUri, file.relativePath);
+    }
 
     if (workspaceUri !== undefined) {
       const fileUri = vscode.Uri.joinPath(workspaceUri, file.relativePath);
@@ -107,6 +110,7 @@ export class TreeSymbolNode {
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
     item.iconPath = new vscode.ThemeIcon(kindCodicon(symbol.kind));
     item.contextValue = "dextreeSymbol";
+    item.tooltip = `${symbol.name} (${symbol.kind}) — ${symbol.id}`;
 
     const startLine = Math.max(0, symbol.range?.startLine ?? 0);
     const position = new vscode.Position(startLine, 0);
