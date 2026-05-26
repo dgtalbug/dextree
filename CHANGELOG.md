@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/dgtalbug/dextree/compare/v1.11.0...v1.12.0) (2026-05-26)
+
+### Features
+
+- **extension:** mermaid preview panel — PR-A US1 MVP (slice 029) ([#128](https://github.com/dgtalbug/dextree/issues/128)) ([3c73257](https://github.com/dgtalbug/dextree/commit/3c732578435df5016545d298aba0336c36ce03d3))
+- **preview:** inline controls (US2) + export/copy actions (US3) for Mermaid preview panel ([#129](https://github.com/dgtalbug/dextree/issues/129)) ([6c64d4f](https://github.com/dgtalbug/dextree/commit/6c64d4fd2c4f0719fc76bc2b02334d197f0000ed))
+
 ## [1.11.0](https://github.com/dgtalbug/dextree/compare/v1.10.0...v1.11.0) (2026-05-26)
 
 ### Features
