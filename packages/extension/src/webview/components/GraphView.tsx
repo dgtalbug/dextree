@@ -1135,6 +1135,7 @@ export function GraphView({
   edges,
   onNavigate,
   onExportMermaid,
+  onExportCurrentView,
   workspaceName,
   workspaceFrameworks,
   onWorkspaceSwitcherClick,
@@ -2223,6 +2224,7 @@ export function GraphView({
 
         <GraphToolbar
           onExportMermaid={onExportMermaid}
+          onExportCurrentView={onExportCurrentView}
           showMinimap={showMinimap}
           onToggleMinimap={onToggleMinimap}
           edgeKinds={ALL_EDGE_KINDS}

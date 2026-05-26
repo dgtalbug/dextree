@@ -91,6 +91,7 @@ export interface GraphViewProps {
   edges: GraphEdge[];
   onNavigate: (filePath: string, line: number) => void;
   onExportMermaid: () => void;
+  onExportCurrentView: () => void;
   /** Currently displayed workspace name (slice 024). Undefined hides the toolbar button. */
   workspaceName?: string;
   /** Framework chips shown next to the workspace name (slice 024). May be empty. */

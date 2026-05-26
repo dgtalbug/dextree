@@ -348,6 +348,9 @@ export function App({ vscodeApi }: AppProps) {
             onExportMermaid={() => {
               handleCommand("export-mermaid");
             }}
+            onExportCurrentView={() => {
+              vscodeApi.postMessage({ type: "exportCurrentView", viewId: "graph-view" });
+            }}
             {...(state.workspaceName !== null && { workspaceName: state.workspaceName })}
             workspaceFrameworks={state.workspaceFrameworks}
             onWorkspaceSwitcherClick={handleWorkspaceSwitcherClick}

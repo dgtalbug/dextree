@@ -210,6 +210,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -227,6 +228,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -242,12 +244,25 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={onExportMermaid}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Export as Mermaid" }));
 
     expect(onExportMermaid).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onExportCurrentView from the toolbar export-current-view button", () => {
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
+      />,
+    );
   });
 
   it("toggles the minimap visibility from the toolbar button", () => {
@@ -257,6 +272,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -278,6 +294,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -297,6 +314,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -318,6 +336,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -336,6 +355,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -364,6 +384,7 @@ describe("GraphView", () => {
           edges={[customEdge]}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
     }).not.toThrow();
@@ -382,6 +403,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -403,6 +425,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -421,6 +444,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
     mockSigma.setSetting.mockClear();
@@ -446,6 +470,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -469,6 +494,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -501,6 +527,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -521,6 +548,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -536,6 +564,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -559,6 +588,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -581,6 +611,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -598,6 +629,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -632,6 +664,7 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -700,6 +733,7 @@ describe("GraphView", () => {
         edges={toolbarEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -729,6 +763,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -744,6 +779,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -762,6 +798,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -782,6 +819,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -802,6 +840,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -822,6 +861,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -841,6 +881,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -864,6 +905,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -884,6 +926,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -898,6 +941,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -912,6 +956,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -934,6 +979,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
       expect(screen.getByRole("button", { name: "Toggle trace route mode" })).toBeTruthy();
@@ -946,6 +992,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
       expect(screen.queryByTestId("trace-banner")).toBeNull();
@@ -963,6 +1010,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
       const toggle = screen.getByRole("button", { name: "Toggle trace route mode" });
@@ -979,6 +1027,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
       expect(screen.queryByRole("button", { name: "Exit trace mode" })).toBeNull();
@@ -993,6 +1042,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
       fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
@@ -1008,6 +1058,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
       fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
@@ -1023,6 +1074,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
       const searchInput = screen.getByRole("combobox", {
@@ -1046,6 +1098,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1060,6 +1113,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1078,6 +1132,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1103,6 +1158,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1129,6 +1185,7 @@ describe("GraphView", () => {
           edges={pass1Edges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1151,6 +1208,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1175,6 +1233,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1198,6 +1257,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1236,6 +1296,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1266,6 +1327,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1299,6 +1361,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1350,6 +1413,7 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
         />,
       );
 

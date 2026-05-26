@@ -7,6 +7,7 @@ import { CANONICAL_NODE_FILTER_LIST } from "./NodeFilterPanel.js";
 
 function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>) {
   const onExportMermaid = vi.fn();
+  const onExportCurrentView = vi.fn();
   const onToggleMinimap = vi.fn();
   const onToggleEdgeKind = vi.fn();
   const onToggleNodeKind = vi.fn();
@@ -21,6 +22,7 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
   const result = render(
     <GraphToolbar
       onExportMermaid={onExportMermaid}
+      onExportCurrentView={onExportCurrentView}
       showMinimap={false}
       onToggleMinimap={onToggleMinimap}
       edgeKinds={["DEFINES", "CALLS", "IMPORTS"]}
@@ -53,6 +55,7 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
   return {
     ...result,
     onExportMermaid,
+    onExportCurrentView,
     onToggleMinimap,
     onToggleEdgeKind,
     onToggleNodeKind,
@@ -83,6 +86,14 @@ describe("GraphToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Export as Mermaid" }));
 
     expect(onExportMermaid).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onExportCurrentView when the current-view export button is clicked", () => {
+    const { onExportCurrentView } = renderToolbar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Export current view" }));
+
+    expect(onExportCurrentView).toHaveBeenCalledTimes(1);
   });
 
   it("calls onToggleMinimap when the minimap toggle button is clicked", () => {
@@ -120,6 +131,7 @@ describe("GraphToolbar", () => {
     rerender(
       <GraphToolbar
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
         showMinimap={true}
         onToggleMinimap={vi.fn()}
         edgeKinds={["DEFINES", "CALLS", "IMPORTS"]}
@@ -255,6 +267,7 @@ describe("GraphToolbar", () => {
     rerender(
       <GraphToolbar
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
         showMinimap={false}
         onToggleMinimap={vi.fn()}
         edgeKinds={["DEFINES"]}
@@ -298,6 +311,7 @@ describe("GraphToolbar", () => {
     rerender(
       <GraphToolbar
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
         showMinimap={false}
         onToggleMinimap={vi.fn()}
         edgeKinds={["DEFINES"]}
@@ -405,6 +419,7 @@ describe("GraphToolbar", () => {
     rerender(
       <GraphToolbar
         onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
         showMinimap={false}
         onToggleMinimap={vi.fn()}
         edgeKinds={["DEFINES"]}
