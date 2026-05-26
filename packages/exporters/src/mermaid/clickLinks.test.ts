@@ -27,8 +27,8 @@ describe("appendMermaidClickLinks", () => {
     const policy: MermaidClickLinkPolicy = { includeLinks: true };
     const result = appendMermaidClickLinks(source, targets, policy);
     expect(result).toContain(source);
-    expect(result).toContain('click a "vscode://file//src/index.ts:10"');
-    expect(result).toContain('click b "vscode://file//src/utils.ts:42"');
+    expect(result).toContain('click na "vscode://file//src/index.ts:10"');
+    expect(result).toContain('click nb "vscode://file//src/utils.ts:42"');
   });
 
   it("appends click directives for a single target", () => {
@@ -36,5 +36,15 @@ describe("appendMermaidClickLinks", () => {
     const result = appendMermaidClickLinks(source, [targets[0]!], policy);
     expect(result).toContain(source);
     expect(result).not.toContain("/src/utils.ts");
+  });
+
+  it("encodes file paths with special characters", () => {
+    const policy: MermaidClickLinkPolicy = { includeLinks: true };
+    const result = appendMermaidClickLinks(
+      source,
+      [{ nodeId: "x", filePath: "/src/My File with#hash.ts", line: 5 }],
+      policy,
+    );
+    expect(result).toContain('click nx "vscode://file//src/My%20File%20with%23hash.ts:5"');
   });
 });

@@ -7,9 +7,14 @@ export interface ExportCurrentViewDependencies {
 }
 
 export function createExportCurrentViewCommand(
-  _dependencies: ExportCurrentViewDependencies,
-): () => Promise<void> {
-  return async () => {
+  dependencies: ExportCurrentViewDependencies,
+): (...args: unknown[]) => Promise<void> {
+  return async (...args: unknown[]) => {
+    const viewId = args[0];
+    if (typeof viewId === "string" && viewId.length > 0) {
+      await handleExportCurrentViewMessage(viewId, dependencies);
+      return;
+    }
     await vscode.window.showInformationMessage(
       "Dextree: Current-view export requires an active graph view. Open the graph and use the toolbar export button.",
     );
@@ -30,6 +35,11 @@ export async function handleExportCurrentViewMessage(
   viewId: string,
   dependencies: ExportCurrentViewDependencies,
 ): Promise<void> {
-  void viewId;
-  void dependencies;
+  await dependencies.exportInferred({
+    intent: "current-view",
+    context: { kind: "current-view", viewId },
+    scope: { kind: "workspace" },
+    diagram: "flowchart",
+    direction: "auto",
+  });
 }

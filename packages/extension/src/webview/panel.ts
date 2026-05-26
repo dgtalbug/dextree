@@ -338,7 +338,7 @@ export const WebviewPanelManager = {
         if (record["type"] === "exportCurrentView") {
           const viewId = record["viewId"];
           if (typeof viewId === "string" && viewId.length > 0) {
-            void vscode.commands.executeCommand("dextree.exportCurrentView");
+            void vscode.commands.executeCommand("dextree.exportCurrentView", viewId);
           }
           return;
         }

@@ -254,15 +254,18 @@ describe("GraphView", () => {
   });
 
   it("calls onExportCurrentView from the toolbar export-current-view button", () => {
+    const onExportCurrentView = vi.fn();
     render(
       <GraphView
         nodes={baseNodes}
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
+        onExportCurrentView={onExportCurrentView}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Export current view" }));
+    expect(onExportCurrentView).toHaveBeenCalledTimes(1);
   });
 
   it("toggles the minimap visibility from the toolbar button", () => {

@@ -28,7 +28,14 @@ export function appendMermaidClickLinks(
     return source;
   }
 
-  const lines = targets.map((t) => `    click ${t.nodeId} "vscode://file/${t.filePath}:${t.line}"`);
+  const lines = targets.map(
+    (t) =>
+      `    click ${toSafeId(t.nodeId)} "vscode://file/${encodeURI(t.filePath).replace(/#/g, "%23")}:${t.line}"`,
+  );
 
   return `${source}\n\n%% Click-through links\n${lines.join("\n")}`;
+}
+
+function toSafeId(id: string): string {
+  return "n" + id.replace(/-/g, "_");
 }

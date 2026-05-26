@@ -923,7 +923,7 @@ describe("WebviewPanelManager exportCurrentView (slice 030 US3)", () => {
     currentMessageHandler?.({ type: "exportCurrentView", viewId: "v1" });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(executeCmd).toHaveBeenCalledWith("dextree.exportCurrentView");
+    expect(executeCmd).toHaveBeenCalledWith("dextree.exportCurrentView", "v1");
   });
 
   it("ignores exportCurrentView with missing viewId", async () => {
