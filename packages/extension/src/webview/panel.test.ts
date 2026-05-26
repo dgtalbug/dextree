@@ -66,18 +66,22 @@ const createWebviewPanel = vi.fn(() => {
 const showTextDocument = vi.fn();
 const openTextDocument = vi.fn(() => ({ uri: { fsPath: "/workspace/src/file.ts" } }));
 const showErrorMessage = vi.fn();
+const showSaveDialog = vi.fn();
+const writeFile = vi.fn();
 
 vi.mock("vscode", () => ({
   window: {
     createWebviewPanel: createWebviewPanel,
     showTextDocument,
     showErrorMessage,
+    showSaveDialog,
   },
   workspace: {
     get workspaceFolders() {
       return [{ uri: { fsPath: "/workspace" } }];
     },
     openTextDocument,
+    fs: { writeFile },
   },
   Uri: {
     joinPath: (base: { fsPath: string }, ...paths: string[]) => ({
@@ -572,5 +576,308 @@ describe("WebviewPanelManager workspace switcher (slice 024)", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(mockPostMessage).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slice 029 PR-B (US2) — requestMermaidPreview host handling
+// ---------------------------------------------------------------------------
+
+describe("WebviewPanelManager mermaid preview handler (slice 029 PR-B)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    createWebviewPanel.mockClear();
+    mockPostMessage.mockClear();
+    mockOnDidReceiveMessage.mockClear();
+    mockOnDidDispose.mockClear();
+    triggerReadyOnHtmlAssignment = false;
+    currentMessageHandler = undefined;
+    mockOnDidReceiveMessage.mockImplementation((handler: (message: unknown) => void) => {
+      currentMessageHandler = handler;
+    });
+  });
+
+  function setupPanel(WebviewPanelManager: { create: (context: never) => void }) {
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+    WebviewPanelManager.create(context as never);
+    currentMessageHandler?.({ type: "ready" });
+    mockPostMessage.mockClear();
+  }
+
+  const sampleOptions = {
+    diagram: "flowchart" as const,
+    scope: { kind: "workspace" as const },
+    granularity: "symbol" as const,
+    direction: "auto" as const,
+    theme: "light" as const,
+  };
+
+  it("requestMermaidPreview dispatches to the registered handler with the options payload", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    const handler = vi.fn().mockResolvedValue({
+      status: "ok" as const,
+      options: sampleOptions,
+      source: "graph TB\n",
+      title: "flowchart · Workspace",
+    });
+    WebviewPanelManager.setMermaidPreviewHandler(handler);
+
+    await currentMessageHandler?.({ type: "requestMermaidPreview", options: sampleOptions });
+
+    expect(handler).toHaveBeenCalledWith(sampleOptions);
+  });
+
+  it("posts the handler's result back as a mermaidPreview message", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    const okResult = {
+      status: "ok" as const,
+      options: sampleOptions,
+      source: "graph TB\n",
+      title: "flowchart · Workspace",
+    };
+    WebviewPanelManager.setMermaidPreviewHandler(() => okResult);
+
+    await currentMessageHandler?.({ type: "requestMermaidPreview", options: sampleOptions });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPostMessage).toHaveBeenCalledWith({ type: "mermaidPreview", preview: okResult });
+  });
+
+  it("accepts an async handler and posts the resolved result", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    const asyncResult = {
+      status: "ok" as const,
+      options: { ...sampleOptions, diagram: "classDiagram" as const },
+      source: "classDiagram\n  class Foo",
+      title: "classDiagram · Workspace",
+    };
+    WebviewPanelManager.setMermaidPreviewHandler(async () => asyncResult);
+
+    await currentMessageHandler?.({
+      type: "requestMermaidPreview",
+      options: { ...sampleOptions, diagram: "classDiagram" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPostMessage).toHaveBeenCalledWith({ type: "mermaidPreview", preview: asyncResult });
+  });
+
+  it("posts a fail-closed unsupported result when the handler rejects", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    WebviewPanelManager.setMermaidPreviewHandler(async () => {
+      throw new Error("indexer not ready");
+    });
+
+    await currentMessageHandler?.({ type: "requestMermaidPreview", options: sampleOptions });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "mermaidPreview",
+      preview: expect.objectContaining({
+        status: "unsupported",
+        options: sampleOptions,
+        reason: expect.stringContaining("indexer not ready"),
+      }),
+    });
+  });
+
+  it("is a no-op when no preview handler has been registered", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    await currentMessageHandler?.({ type: "requestMermaidPreview", options: sampleOptions });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPostMessage).not.toHaveBeenCalled();
+  });
+
+  it("silently ignores requestMermaidPreview without a valid options object", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    const handler = vi.fn();
+    WebviewPanelManager.setMermaidPreviewHandler(handler);
+
+    await currentMessageHandler?.({ type: "requestMermaidPreview" });
+    await currentMessageHandler?.({ type: "requestMermaidPreview", options: null });
+    await currentMessageHandler?.({ type: "requestMermaidPreview", options: "flowchart" });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(mockPostMessage).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slice 029 PR-C (US3) — saveMermaidPreview host save flow
+// ---------------------------------------------------------------------------
+
+describe("WebviewPanelManager save mermaid preview (slice 029 PR-C)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    createWebviewPanel.mockClear();
+    mockPostMessage.mockClear();
+    mockOnDidReceiveMessage.mockClear();
+    mockOnDidDispose.mockClear();
+    showSaveDialog.mockReset();
+    writeFile.mockReset();
+    triggerReadyOnHtmlAssignment = false;
+    currentMessageHandler = undefined;
+    mockOnDidReceiveMessage.mockImplementation((handler: (message: unknown) => void) => {
+      currentMessageHandler = handler;
+    });
+  });
+
+  function setupPanel(WebviewPanelManager: { create: (context: never) => void }) {
+    const context = {
+      subscriptions: [],
+      extensionUri: { fsPath: "/extension" },
+    };
+    WebviewPanelManager.create(context as never);
+    currentMessageHandler?.({ type: "ready" });
+    mockPostMessage.mockClear();
+  }
+
+  it("writes UTF-8 .mmd contents to the user-picked path", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    showSaveDialog.mockResolvedValue({ fsPath: "/picked/diagram.mmd" });
+    writeFile.mockResolvedValue(undefined);
+
+    await currentMessageHandler?.({
+      type: "saveMermaidPreview",
+      format: "mmd",
+      suggestedName: "dextree-flowchart-workspace.mmd",
+      content: "graph TB\n  a-->b\n",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(showSaveDialog).toHaveBeenCalledTimes(1);
+    expect(writeFile).toHaveBeenCalledTimes(1);
+    const [uri, bytes] = writeFile.mock.calls[0] as [{ fsPath: string }, Uint8Array];
+    expect(uri.fsPath).toBe("/picked/diagram.mmd");
+    expect(new TextDecoder().decode(bytes)).toBe("graph TB\n  a-->b\n");
+  });
+
+  it("writes UTF-8 .svg contents to the user-picked path", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    showSaveDialog.mockResolvedValue({ fsPath: "/picked/diagram.svg" });
+    writeFile.mockResolvedValue(undefined);
+
+    await currentMessageHandler?.({
+      type: "saveMermaidPreview",
+      format: "svg",
+      suggestedName: "dextree-flowchart-workspace.svg",
+      content: '<svg xmlns="http://www.w3.org/2000/svg"><g/></svg>',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const [, bytes] = writeFile.mock.calls[0] as [unknown, Uint8Array];
+    expect(new TextDecoder().decode(bytes)).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg"><g/></svg>',
+    );
+  });
+
+  it("decodes a data:image/png;base64,... payload into bytes for .png writes", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    showSaveDialog.mockResolvedValue({ fsPath: "/picked/diagram.png" });
+    writeFile.mockResolvedValue(undefined);
+
+    // base64("hello") === "aGVsbG8="
+    await currentMessageHandler?.({
+      type: "saveMermaidPreview",
+      format: "png",
+      suggestedName: "dextree-flowchart-workspace.png",
+      content: "data:image/png;base64,aGVsbG8=",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(writeFile).toHaveBeenCalledTimes(1);
+    const [, bytes] = writeFile.mock.calls[0] as [unknown, Uint8Array];
+    expect(Array.from(bytes)).toEqual([0x68, 0x65, 0x6c, 0x6c, 0x6f]);
+  });
+
+  it("does not write when the save dialog returns undefined (user cancelled)", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    showSaveDialog.mockResolvedValue(undefined);
+
+    await currentMessageHandler?.({
+      type: "saveMermaidPreview",
+      format: "mmd",
+      suggestedName: "dextree-flowchart-workspace.mmd",
+      content: "graph TB\n",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(showSaveDialog).toHaveBeenCalledTimes(1);
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("silently ignores a saveMermaidPreview with an unknown format", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    await currentMessageHandler?.({
+      type: "saveMermaidPreview",
+      format: "exe",
+      suggestedName: "dangerous.exe",
+      content: "<svg/>",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("silently ignores a saveMermaidPreview with a malformed png data URL", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    showSaveDialog.mockResolvedValue({ fsPath: "/picked/diagram.png" });
+
+    await currentMessageHandler?.({
+      type: "saveMermaidPreview",
+      format: "png",
+      suggestedName: "dextree-flowchart-workspace.png",
+      content: "<svg>not a data url</svg>",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("silently ignores a saveMermaidPreview missing required fields", async () => {
+    const { WebviewPanelManager } = await import("./panel.js");
+    setupPanel(WebviewPanelManager);
+
+    await currentMessageHandler?.({ type: "saveMermaidPreview" });
+    await currentMessageHandler?.({ type: "saveMermaidPreview", format: "mmd" });
+    await currentMessageHandler?.({
+      type: "saveMermaidPreview",
+      format: "mmd",
+      content: "graph TB",
+      // no suggestedName
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
   });
 });

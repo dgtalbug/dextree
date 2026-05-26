@@ -1,4 +1,5 @@
 import { createIndexer, readWorkspaceGraph, type Indexer } from "@dextree/core";
+import { generateMermaidPreview } from "@dextree/exporters";
 import { basename, join } from "node:path";
 import * as vscode from "vscode";
 
@@ -211,6 +212,24 @@ export async function activate(context: ActivationContext): Promise<void> {
       return listIndexedWorkspaces(globalStoragePath, workspaceRoot);
     },
     onSwitchWorkspace: handleSwitchWorkspace,
+  });
+
+  // Slice 029 PR-B — wire inline-control rerenders. The webview posts
+  // `requestMermaidPreview` whenever the user changes a control; the handler
+  // pulls the latest indexed subgraph for the active workspace and runs it
+  // through the same preview router the `dextree.exportMermaid` command uses.
+  WebviewPanelManager.setMermaidPreviewHandler(async (options) => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot === undefined) {
+      return {
+        status: "unsupported",
+        options,
+        reason: "Open a workspace folder before previewing a Mermaid diagram.",
+      };
+    }
+    const indexer = await getIndexer();
+    const subgraph = await indexer.getWorkspaceSubgraph(workspaceRoot);
+    return generateMermaidPreview(subgraph, options);
   });
 
   const recordSuccessfulIndex = async (): Promise<void> => {

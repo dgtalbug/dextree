@@ -5,10 +5,9 @@ import type { MermaidDirection, MermaidGranularity, MermaidScope } from "./scope
 import { MERMAID_INIT_DIRECTIVE } from "./theme.js";
 
 /**
- * Bounded diagram kind for the preview tab. `flowchart` is routable in slice
- * 029 PR-A; `classDiagram` ships in PR-B and currently returns `unsupported`
- * here; `sequenceDiagram` is reserved for slice 031 and also returns
- * `unsupported` for now.
+ * Bounded diagram kind for the preview tab. `flowchart` and `classDiagram`
+ * are routable since slice 029 PR-B; `sequenceDiagram` stays explicit
+ * `unsupported` until slice 031 ships the sequence serializer.
  */
 export type MermaidDiagramKind = "flowchart" | "classDiagram" | "sequenceDiagram";
 
@@ -69,17 +68,16 @@ function titleForOptions(options: MermaidPreviewOptions): string {
 
 /**
  * Pure preview router. Builds the Mermaid source text for the requested
- * diagram + scope combination by delegating to the slice-027 scoped
- * serializer (and, in PR-B, the slice-028 class-diagram serializer). Never
- * performs filesystem, DOM, or network work.
+ * diagram + scope combination by delegating to the slice-027 scoped flowchart
+ * serializer or the slice-028 class-diagram serializer. Never performs
+ * filesystem, DOM, or network work.
  *
  * Errors raised by the underlying serializer (empty / oversized / unsupported
  * scope) are caught and returned as fail-closed `MermaidPreviewResult`
  * variants so callers can render the failure reason without try/catch noise.
  *
- * Slice 029 PR-A ships the `flowchart` route. `classDiagram` and
- * `sequenceDiagram` are recognised but return explicit `unsupported` until
- * the follow-up PR adds them.
+ * `sequenceDiagram` is recognised but returns explicit `unsupported` until
+ * slice 031 ships the sequence serializer.
  */
 export function generateMermaidPreview(
   subgraph: WorkspaceSubgraph,
@@ -93,17 +91,9 @@ export function generateMermaidPreview(
     };
   }
 
-  if (options.diagram === "classDiagram") {
-    return {
-      status: "unsupported",
-      options,
-      reason: "Class-diagram preview lands in slice 029 PR-B (US2 inline-controls).",
-    };
-  }
-
   try {
     const source = serializeToScopedMermaid(subgraph, {
-      diagram: "flowchart",
+      diagram: options.diagram,
       scope: options.scope,
       granularity: options.granularity,
       direction: options.direction,
