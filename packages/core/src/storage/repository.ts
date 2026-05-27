@@ -496,16 +496,25 @@ interface AnnotationLikeRow {
   range: { start_line: number; start_col: number; end_line: number; end_col: number };
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function isAnnotationLikeRow(row: unknown): row is AnnotationLikeRow {
   if (typeof row !== "object" || row === null) return false;
   const r = row as Record<string, unknown>;
+  const range = r["range"];
+  if (typeof range !== "object" || range === null) return false;
+  const rangeRow = range as Record<string, unknown>;
   return (
     typeof r["id"] === "string" &&
     typeof r["name"] === "string" &&
     typeof r["parentSymbolId"] === "string" &&
     typeof r["language"] === "string" &&
-    typeof r["range"] === "object" &&
-    r["range"] !== null
+    isFiniteNumber(rangeRow["start_line"]) &&
+    isFiniteNumber(rangeRow["start_col"]) &&
+    isFiniteNumber(rangeRow["end_line"]) &&
+    isFiniteNumber(rangeRow["end_col"])
   );
 }
 

@@ -27,22 +27,50 @@ interface DecoratorAnnotation {
   range: { start_line: number; start_col: number; end_line: number; end_col: number };
 }
 
+const NAMED_DECL_TYPES = new Set([
+  "class_declaration",
+  "abstract_class_declaration",
+  "interface_declaration",
+  "enum_declaration",
+  "method_definition",
+  "function_declaration",
+]);
+
+/**
+ * Tree-sitter-typescript parses `@Dec\nexport class Foo {}` as
+ * `export_statement { class_declaration { name: "Foo", ... } }`, with the
+ * decorator as a child of the export_statement (not the class_declaration).
+ * Walking up from the decorator only hits the export_statement, which has no
+ * `name` field of its own — so a naive resolver misses the class name.
+ * This helper walks one level INTO the candidate to find a named declaration
+ * (the wrapped class/interface/enum/function) when the candidate itself is
+ * an export_statement or otherwise an unnamed wrapper.
+ */
+function findNamedDeclaration(candidate: Node): Node | null {
+  if (NAMED_DECL_TYPES.has(candidate.type)) return candidate;
+  if (candidate.type === "export_statement") {
+    for (let i = 0; i < candidate.childCount; i++) {
+      const child = candidate.child(i);
+      if (child && NAMED_DECL_TYPES.has(child.type)) return child;
+    }
+  }
+  return null;
+}
+
 function resolveEnclosingSymbol(node: Node, knownSymbols: readonly KnownSymbol[]): string | null {
   let candidate: Node | null = node.parent;
   while (candidate !== null) {
-    if (
-      candidate.type === "class_declaration" ||
-      candidate.type === "method_definition" ||
-      candidate.type === "function_declaration" ||
-      candidate.type === "variable_declaration" ||
-      candidate.type === "export_statement"
-    ) {
-      const nameNode = candidate.childForFieldName("name");
+    const named = findNamedDeclaration(candidate);
+    if (named !== null) {
+      const nameNode = named.childForFieldName("name");
       const symName = nameNode?.text;
       if (symName) {
-        const s = knownSymbols.find(
-          (k) => k.name === symName && k.startLine === candidate!.startPosition.row,
-        );
+        // KnownSymbol.startLine is 0-based (matches `node.startPosition.row`,
+        // per the type doc in extractors/types.ts). The named declaration's
+        // own startPosition is the line where the `class` / `interface` /
+        // `function` keyword sits, NOT where the export_statement starts.
+        const targetRow = named.startPosition.row;
+        const s = knownSymbols.find((k) => k.name === symName && k.startLine === targetRow);
         if (s) return s.id;
       }
     }
@@ -117,24 +145,31 @@ export class DecoratorExtractor implements Extractor {
         const args: Record<string, unknown> = argsRaw === undefined ? {} : { raw: argsRaw };
 
         const parentSymbolId = resolveEnclosingSymbol(node, input.knownSymbols);
-
-        annotations.push({
-          id: uuidv4(),
-          name,
-          args,
-          parentSymbolId: parentSymbolId ?? "",
-          language: input.language,
-          metadata: {
-            decorator_line: node.startPosition.row + 1,
-            decorator_col: node.startPosition.column,
-          },
-          range: {
-            start_line: node.startPosition.row,
-            start_col: node.startPosition.column,
-            end_line: node.endPosition.row,
-            end_col: node.endPosition.column,
-          },
-        });
+        // Skip decorators whose enclosing symbol cannot be resolved — the
+        // annotation table has a NOT NULL FK to symbol, and per slice 031
+        // contract we must not invent synthetic targets (no `""` fake-id
+        // foreign keys). The downstream repository.ts insert also defends
+        // against this; failing fast here keeps the in-memory result honest
+        // and avoids carrying orphan rows through the pipeline.
+        if (parentSymbolId !== null) {
+          annotations.push({
+            id: uuidv4(),
+            name,
+            args,
+            parentSymbolId,
+            language: input.language,
+            metadata: {
+              decorator_line: node.startPosition.row + 1,
+              decorator_col: node.startPosition.column,
+            },
+            range: {
+              start_line: node.startPosition.row,
+              start_col: node.startPosition.column,
+              end_line: node.endPosition.row,
+              end_col: node.endPosition.column,
+            },
+          });
+        }
       }
 
       for (let i = 0; i < node.childCount; i++) {

@@ -360,10 +360,20 @@ export const WebviewPanelManager = {
         // Slice 031 US1 — webview requests trace-sequence export of the
         // active trace route. The host re-validates the snapshot before
         // serializing and refuses empty / oversized snapshots fail-closed.
+        // Attach a rejection handler so failures inside the command body
+        // surface as a notification instead of disappearing into a silent
+        // dropped Thenable.
         if (record["type"] === "exportTraceSequence") {
           const traceCandidate = record["trace"];
           if (isTraceSequenceSnapshot(traceCandidate)) {
-            void vscode.commands.executeCommand("dextree.exportTraceSequence", traceCandidate);
+            void Promise.resolve(
+              vscode.commands.executeCommand("dextree.exportTraceSequence", traceCandidate),
+            ).then(undefined, (err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err);
+              void vscode.window.showErrorMessage(
+                `Dextree: Failed to export trace sequence — ${message}`,
+              );
+            });
           } else {
             void vscode.window.showWarningMessage(
               "Dextree: Cannot export trace — invalid or empty trace snapshot.",

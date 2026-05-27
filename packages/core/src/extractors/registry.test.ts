@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createDefaultExtractorRegistry } from "./index.js";
+import {
+  createDefaultExtractorRegistry,
+  DecoratorExtractor,
+  ImplementsExtractor,
+} from "./index.js";
 import { createExtractorRegistry } from "./registry.js";
 import type { Extractor, ExtractInput, ExtractionResult } from "./types.js";
 
@@ -187,16 +191,27 @@ describe("ExtractorRegistry", () => {
     expect(result.edges).toEqual([]);
   });
 
-  // Slice 031 T005 — default registry exposes both new pass-1 extractors so a
-  // representative TS input flows through without throwing. Real per-extractor
-  // coverage lives in ImplementsExtractor.test.ts / DecoratorExtractor.test.ts.
-  it("createDefaultExtractorRegistry() includes Implements + Decorator extractors and runs cleanly", async () => {
-    const registry = createDefaultExtractorRegistry();
-    const result = await registry.run(
-      makeInput({ language: "typescript", source: "export const x = 1;" }),
-    );
-    expect(result.edges).toEqual([]);
-    expect(result.annotations).toEqual([]);
+  // Slice 031 T005 — default registry exposes both new pass-1 extractors.
+  // Spies on the extractor prototypes prove they were actually dispatched
+  // (CodeRabbit flagged that the earlier version of this test would pass
+  // even if the extractors were silently dropped from the registry, since
+  // `result.edges`/`result.annotations` are empty for a no-op TS input).
+  it("createDefaultExtractorRegistry() registers and dispatches Implements + Decorator extractors", async () => {
+    const implSpy = vi.spyOn(ImplementsExtractor.prototype, "extract");
+    const decSpy = vi.spyOn(DecoratorExtractor.prototype, "extract");
+    try {
+      const registry = createDefaultExtractorRegistry();
+      const result = await registry.run(
+        makeInput({ language: "typescript", source: "export const x = 1;" }),
+      );
+      expect(implSpy).toHaveBeenCalledTimes(1);
+      expect(decSpy).toHaveBeenCalledTimes(1);
+      expect(result.edges).toEqual([]);
+      expect(result.annotations).toEqual([]);
+    } finally {
+      implSpy.mockRestore();
+      decSpy.mockRestore();
+    }
   });
 
   it("rejects duplicate `register()` calls by name", () => {

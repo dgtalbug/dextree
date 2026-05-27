@@ -183,7 +183,7 @@ function buildSteps(
 }
 
 export function validateSequenceDiagramExport(
-  _subgraph: WorkspaceSubgraph,
+  subgraph: WorkspaceSubgraph,
   trace: TraceSequenceSnapshot,
 ): SequenceDiagramValidation {
   if (trace.phase !== "path-active") {
@@ -193,19 +193,24 @@ export function validateSequenceDiagramExport(
     return { status: "empty", reason: "The active trace route contains no nodes to export." };
   }
 
+  // Count emitted participants, not raw trace nodes — buildParticipants groups
+  // all method nodes that share an enclosing class under one participant, so a
+  // route through 10 methods on the same class is 1 participant, not 10.
+  // Counting raw nodeIds would falsely reject these as oversized.
   const cap = SEQUENCE_DIAGRAM_CAPS;
-  const participantCount = new Set(trace.nodeIds).size;
-  if (participantCount > cap.participants || trace.edgeIds.length > cap.steps) {
+  const participantCount = buildParticipants(subgraph, trace).length;
+  const stepCount = trace.edgeIds.length;
+  if (participantCount > cap.participants || stepCount > cap.steps) {
     return {
       status: "oversized",
       participantCount,
-      stepCount: trace.edgeIds.length,
+      stepCount,
       cap,
       reason: `Trace route exceeds sequence export limits (${cap.participants} participants, ${cap.steps} steps).`,
     };
   }
 
-  return { status: "ok", participantCount, stepCount: trace.edgeIds.length };
+  return { status: "ok", participantCount, stepCount };
 }
 
 export function serializeToSequenceDiagram(

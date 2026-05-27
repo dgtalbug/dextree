@@ -84,9 +84,35 @@ describe("DecoratorExtractor module surface (slice 031 Phase 1)", () => {
   });
 });
 
+// knownSymbols matching the two decorated classes in
+// `__fixtures__/decorator-cases/decorated-class.ts`. The resolver walks the
+// decorator's parent (an `export_statement`) into the wrapped class_declaration
+// and matches by name + 0-based startLine. Class_declaration rows are 6 and 9
+// (1-based lines 7 and 10 in the fixture).
+const DECORATED_CLASS_KNOWN_SYMBOLS = [
+  {
+    id: "sym-userservice",
+    name: "UserService",
+    kind: "class",
+    startLine: 6,
+    startCol: 0,
+    endLine: 6,
+    endCol: 30,
+  },
+  {
+    id: "sym-appcomponent",
+    name: "AppComponent",
+    kind: "class",
+    startLine: 9,
+    startCol: 0,
+    endLine: 9,
+    endCol: 30,
+  },
+];
+
 describe("DecoratorExtractor — supported decorator shapes (slice 031 T022)", () => {
   it("emits one annotation row per `@Decorator` and `@Decorator(arg)` on classes", async () => {
-    const { input, cleanup } = await makeInput("decorated-class.ts");
+    const { input, cleanup } = await makeInput("decorated-class.ts", DECORATED_CLASS_KNOWN_SYMBOLS);
     try {
       const extractor = new DecoratorExtractor();
       const result = await extractor.extract(input);
@@ -99,7 +125,7 @@ describe("DecoratorExtractor — supported decorator shapes (slice 031 T022)", (
   });
 
   it("captures the decorator name and language on each emitted row", async () => {
-    const { input, cleanup } = await makeInput("decorated-class.ts");
+    const { input, cleanup } = await makeInput("decorated-class.ts", DECORATED_CLASS_KNOWN_SYMBOLS);
     try {
       const extractor = new DecoratorExtractor();
       const result = await extractor.extract(input);
@@ -120,7 +146,7 @@ describe("DecoratorExtractor — supported decorator shapes (slice 031 T022)", (
   });
 
   it("captures the call-site source text for decorators with arguments", async () => {
-    const { input, cleanup } = await makeInput("decorated-class.ts");
+    const { input, cleanup } = await makeInput("decorated-class.ts", DECORATED_CLASS_KNOWN_SYMBOLS);
     try {
       const extractor = new DecoratorExtractor();
       const result = await extractor.extract(input);
@@ -144,6 +170,59 @@ describe("DecoratorExtractor — files without decorators (slice 031 T022)", () 
 
       expect(result.annotations).toEqual([]);
       expect(result.edges).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("DecoratorExtractor — parent-symbol linkage (slice 031 T022, addresses CodeRabbit)", () => {
+  it("populates parentSymbolId from knownSymbols when the enclosing class id is known", async () => {
+    // `decorated-class.ts` has `@Injectable\nexport class UserService {}`
+    // — the class_declaration sits at row 6 (0-based), and the decorator's
+    // parent chain walks up through `export_statement` → `class_declaration`
+    // (matched first by name+startLine). Wire a knownSymbols entry that
+    // mirrors what BaselineTsJsExtractor would have written for that class.
+    const userServiceSymbolId = "sym-userservice-stable";
+    const { input, cleanup } = await makeInput("decorated-class.ts", [
+      {
+        id: userServiceSymbolId,
+        name: "UserService",
+        kind: "class",
+        // 0-based row matches `export class UserService {}` declaration line.
+        startLine: 6,
+        startCol: 0,
+        endLine: 6,
+        endCol: 30,
+      },
+    ]);
+    try {
+      const extractor = new DecoratorExtractor();
+      const result = await extractor.extract(input);
+
+      const injectableRow = (result.annotations ?? []).find(
+        (a) => (a as { name?: unknown }).name === "Injectable",
+      ) as { parentSymbolId?: unknown } | undefined;
+      // CodeRabbit flagged that the old impl wrote `""` for unresolved parents,
+      // which would mask broken linkage. The fixed impl skips rows without a
+      // parent and only emits real foreign keys.
+      expect(injectableRow?.parentSymbolId).toBe(userServiceSymbolId);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("skips decorators whose enclosing symbol is not in knownSymbols (no orphan rows)", async () => {
+    // Same fixture, but knownSymbols is empty — no parent linkage possible.
+    const { input, cleanup } = await makeInput("decorated-class.ts", []);
+    try {
+      const extractor = new DecoratorExtractor();
+      const result = await extractor.extract(input);
+
+      // Decorators in the file (@Injectable, @Component) cannot resolve a
+      // parent, so the extractor emits zero annotation rows — better than
+      // writing `parentSymbolId: ""` and crashing the DB insert later.
+      expect(result.annotations).toEqual([]);
     } finally {
       cleanup();
     }
