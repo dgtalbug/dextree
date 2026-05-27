@@ -69,6 +69,22 @@ function classParticipantLabel(node: GraphNode): string {
 }
 
 /**
+ * Escape a label for safe interpolation into Mermaid sequenceDiagram text.
+ * Order matters: backslash MUST be replaced before quote, otherwise the
+ * quote-escape pass produces `\\"` and the subsequent backslash pass
+ * double-escapes the backslash we just wrote, breaking round-trip parsing.
+ * Also strips newlines and carriage returns since Mermaid line-terminates
+ * on them. Flagged by CodeQL "Incomplete string escaping" on the prior
+ * single-replace pattern.
+ */
+function escapeMermaidLabel(label: string): string {
+  return label
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/[\r\n]+/g, " ");
+}
+
+/**
  * Build participants from trace node IDs by grouping methods under enclosing
  * classes. Falls back to symbol or file identity when no class grouping exists.
  */
@@ -204,14 +220,14 @@ export function serializeToSequenceDiagram(
 
   for (const p of participants) {
     const safeId = p.id.replace(/-/g, "_");
-    lines.push(`    participant ${safeId} as ${p.label.replace(/"/g, '\\"')}`);
+    lines.push(`    participant ${safeId} as ${escapeMermaidLabel(p.label)}`);
   }
   lines.push("");
 
   for (const step of steps) {
     const fromId = step.fromParticipantId.replace(/-/g, "_");
     const toId = step.toParticipantId.replace(/-/g, "_");
-    lines.push(`    ${fromId}->>+${toId}: ${step.label}`);
+    lines.push(`    ${fromId}->>+${toId}: ${escapeMermaidLabel(step.label)}`);
   }
 
   return lines.join("\n");

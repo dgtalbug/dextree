@@ -222,6 +222,43 @@ describe("serializeToSequenceDiagram behavior (slice 031 T008)", () => {
     expect(out).not.toContain("participant method_bar");
   });
 
+  it("escapes backslashes before quotes in participant and step labels (CodeQL string-escape fix)", () => {
+    const trickyLabel = 'path\\to\\thing"with"quotes';
+    const subgraph = makeSubgraph(
+      [
+        { id: "n1", type: "symbol", label: trickyLabel, filePath: "/x.ts", startLine: 1 },
+        { id: "n2", type: "symbol", label: "ok", filePath: "/x.ts", startLine: 2 },
+      ],
+      [{ id: "e1", source: "n1", target: "n2", kind: "CALLS" }],
+    );
+    const out = serializeToSequenceDiagram(subgraph, makeTrace(), SEQUENCE_OPTIONS);
+    // Backslash is doubled, then the inner quote is escaped — order matters,
+    // otherwise the quote-escape pass double-escapes the backslashes.
+    expect(out).toContain('path\\\\to\\\\thing\\"with\\"quotes');
+    // No bare backslash followed by a literal quote should remain unescaped
+    // (would mean the quote-replace ran before the backslash-replace).
+    expect(out).not.toMatch(/[^\\]\\(?=[a-zA-Z])/);
+  });
+
+  it("strips newlines from labels so they never break the line-terminated Mermaid grammar", () => {
+    const subgraph = makeSubgraph(
+      [
+        {
+          id: "n1",
+          type: "symbol",
+          label: "first line\nsecond line",
+          filePath: "/x.ts",
+          startLine: 1,
+        },
+        { id: "n2", type: "symbol", label: "ok", filePath: "/x.ts", startLine: 2 },
+      ],
+      [{ id: "e1", source: "n1", target: "n2", kind: "CALLS" }],
+    );
+    const out = serializeToSequenceDiagram(subgraph, makeTrace(), SEQUENCE_OPTIONS);
+    expect(out).toContain("first line second line");
+    expect(out).not.toMatch(/first line\nsecond line/);
+  });
+
   it("produces deterministic output for the same (subgraph, trace, options) tuple", () => {
     const subgraph = makeSubgraph(
       [
