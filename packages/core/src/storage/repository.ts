@@ -64,6 +64,12 @@ async function deleteExistingRows(
     "DELETE FROM edge WHERE target_id IN (SELECT id FROM symbol WHERE file_id = $file_id)",
     { file_id: existingFileId },
   );
+  // Slice 031 US3 — clear annotation rows whose parent symbol is about to be
+  // dropped so the table never carries dangling rows after a reindex.
+  await connection.run(
+    "DELETE FROM annotation WHERE parent_symbol_id IN (SELECT id FROM symbol WHERE file_id = $file_id)",
+    { file_id: existingFileId },
+  );
   await connection.run("DELETE FROM symbol WHERE file_id = $file_id", {
     file_id: existingFileId,
   });
@@ -326,7 +332,7 @@ function remapExtraEdges(
  * file targets are resolved immediately; cross-file targets remain null (pass-2).
  */
 async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: string): Promise<void> {
-  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES')`;
+  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS')`;
 
   // Step 1: source_id → actual symbol id, keyed by source_fqn (all kinds share this)
   await connection.run(
@@ -409,6 +415,29 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
     `,
     { file_id: fileId },
   );
+
+  // Step 2d (IMPLEMENTS): target_id → same-file interface (or class for the
+  // JS pattern where an interface is implemented via a class shape) by
+  // interface_name. Slice 031 US2.
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = COALESCE(
+        (
+          SELECT s.id FROM symbol s
+          WHERE s.file_id = $file_id
+            AND s.name = json_extract_string(edge.metadata, '$.interface_name')
+            AND s.kind IN ('interface', 'class')
+          LIMIT 1
+        ),
+        target_id
+      )
+      WHERE kind = 'IMPLEMENTS'
+        AND target_id IS NULL
+        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
+    `,
+    { file_id: fileId },
+  );
 }
 
 export async function replaceFileGraph(
@@ -416,6 +445,7 @@ export async function replaceFileGraph(
   input: ExtractedIndexData,
   extraEdges: readonly EdgeRow[] = [],
   classifications: ReadonlyMap<string, SymbolClassificationRecord> = new Map(),
+  annotations: readonly unknown[] = [],
 ): Promise<void> {
   await runInTransaction(connection, async () => {
     const existingFileId = await findExistingFileId(connection, input.file.path);
@@ -435,6 +465,7 @@ export async function replaceFileGraph(
       })),
     };
     const normalizedExtraEdges = remapExtraEdges(extraEdges, input.file.id, resolvedFileId);
+    const validSymbolIds = new Set(normalizedInput.symbols.map((s) => s.id));
 
     if (existingFileId !== null) {
       await deleteExistingRows(connection, existingFileId);
@@ -451,7 +482,88 @@ export async function replaceFileGraph(
     await insertDefinesEdges(connection, normalizedInput);
     await insertExtraEdges(connection, normalizedExtraEdges);
     await resolveCallEdgeSymbols(connection, resolvedFileId);
+    await insertAnnotations(connection, annotations, validSymbolIds);
   });
+}
+
+interface AnnotationLikeRow {
+  id: string;
+  name: string;
+  args?: Record<string, unknown>;
+  parentSymbolId: string;
+  language: string;
+  metadata?: Record<string, unknown>;
+  range: { start_line: number; start_col: number; end_line: number; end_col: number };
+}
+
+function isAnnotationLikeRow(row: unknown): row is AnnotationLikeRow {
+  if (typeof row !== "object" || row === null) return false;
+  const r = row as Record<string, unknown>;
+  return (
+    typeof r["id"] === "string" &&
+    typeof r["name"] === "string" &&
+    typeof r["parentSymbolId"] === "string" &&
+    typeof r["language"] === "string" &&
+    typeof r["range"] === "object" &&
+    r["range"] !== null
+  );
+}
+
+/**
+ * Persist annotation rows from {@link DecoratorExtractor} into the existing
+ * `annotation` table. Rows missing a valid `parentSymbolId` (e.g. when the
+ * extractor could not resolve an enclosing symbol) are silently skipped —
+ * the table has a NOT NULL FK to `symbol`, and per slice 031 contract the
+ * extractor must not invent synthetic targets. Slice 031 US3.
+ */
+async function insertAnnotations(
+  connection: DuckDBConnection,
+  annotations: readonly unknown[],
+  validSymbolIds: ReadonlySet<string>,
+): Promise<void> {
+  for (const raw of annotations) {
+    if (!isAnnotationLikeRow(raw)) continue;
+    if (raw.parentSymbolId.length === 0) continue;
+    if (!validSymbolIds.has(raw.parentSymbolId)) continue;
+    await connection.run(
+      `
+        INSERT INTO annotation (
+          id,
+          name,
+          args,
+          range,
+          parent_symbol_id,
+          language,
+          metadata
+        ) VALUES (
+          $id,
+          $name,
+          $args::JSON,
+          struct_pack(
+            start_line := $start_line,
+            start_col := $start_col,
+            end_line := $end_line,
+            end_col := $end_col
+          ),
+          $parent_symbol_id,
+          $language,
+          $metadata::JSON
+        )
+      `,
+      {
+        id: raw.id,
+        name: raw.name,
+        args: JSON.stringify(raw.args ?? {}),
+        start_line: raw.range.start_line,
+        start_col: raw.range.start_col,
+        end_line: raw.range.end_line,
+        end_col: raw.range.end_col,
+        parent_symbol_id: raw.parentSymbolId,
+        language: raw.language,
+        metadata: JSON.stringify(raw.metadata ?? {}),
+      },
+    );
+  }
 }
 
 /**
@@ -540,6 +652,31 @@ export async function resolveWorkspaceCrossFileEdges(
         LIMIT 1
       )
       WHERE kind = 'INSTANTIATES'
+        AND target_id IS NULL
+        AND source_id IN (
+          SELECT s2.id FROM symbol s2
+          INNER JOIN file f2 ON f2.id = s2.file_id
+          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
+        )
+    `,
+    params,
+  );
+
+  // Resolve IMPLEMENTS: interface_name → any matching interface (or class
+  // used as an interface) in the workspace. Slice 031 US2.
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = (
+        SELECT s.id FROM symbol s
+        INNER JOIN file f ON f.id = s.file_id
+        WHERE s.name = json_extract_string(edge.metadata, '$.interface_name')
+          AND s.kind IN ('interface', 'class')
+          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
+        ORDER BY s.id
+        LIMIT 1
+      )
+      WHERE kind = 'IMPLEMENTS'
         AND target_id IS NULL
         AND source_id IN (
           SELECT s2.id FROM symbol s2

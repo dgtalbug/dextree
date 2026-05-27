@@ -670,10 +670,13 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        flex-shrink: 0;
      }
 
-     .dxt-legend-pill-defines { background: var(--vscode-charts-blue, #4c9cd4); }
-     .dxt-legend-pill-imports { background: var(--vscode-charts-green, #4ec94e); }
-     .dxt-legend-pill-calls   { background: var(--vscode-charts-orange, #e8a84a); }
-     .dxt-legend-pill-custom  { background: var(--vscode-charts-purple, #a371f7); }
+     .dxt-legend-pill-defines      { background: var(--vscode-charts-blue, #4c9cd4); }
+     .dxt-legend-pill-imports      { background: var(--vscode-charts-green, #4ec94e); }
+     .dxt-legend-pill-calls        { background: var(--vscode-charts-orange, #e8a84a); }
+     .dxt-legend-pill-inherits     { background: var(--vscode-charts-purple, #a371f7); }
+     .dxt-legend-pill-instantiates { background: var(--vscode-charts-yellow, #d6c649); }
+     .dxt-legend-pill-implements   { background: var(--vscode-charts-red, #d96b6b); }
+     .dxt-legend-pill-custom       { background: var(--vscode-charts-purple, #a371f7); }
 
      .dxt-legend-label {
        font-size: 11px;

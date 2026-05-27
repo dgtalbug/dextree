@@ -799,3 +799,70 @@ describe("symbol.enclosing_symbol_id write-path (slice 028 US2)", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 031 fixtures scaffold (Phase 1 / T003)
+// ---------------------------------------------------------------------------
+// Reusable IMPLEMENTS + annotation fixtures for the storage tests in T016
+// (US2) and T025 (US3). Kept as factory functions so subsequent phases can
+// import the shape contract without duplicating literals.
+// ---------------------------------------------------------------------------
+
+interface Slice031ImplementsEdgeFixture {
+  id: string;
+  sourceId: string;
+  targetId: string | null;
+  kind: "IMPLEMENTS";
+  metadata: Record<string, unknown>;
+}
+
+interface Slice031AnnotationFixture {
+  id: string;
+  name: string;
+  parentSymbolId: string;
+  language: string;
+  metadata: Record<string, unknown>;
+}
+
+function buildSlice031ImplementsEdge(): Slice031ImplementsEdgeFixture {
+  return {
+    id: "edge-impl-1",
+    sourceId: "file-1",
+    targetId: null,
+    kind: "IMPLEMENTS",
+    metadata: {
+      source_fqn: "src/Foo.ts:Foo",
+      interface_name: "Bar",
+      language: "typescript",
+    },
+  };
+}
+
+function buildSlice031Annotation(): Slice031AnnotationFixture {
+  return {
+    id: "ann-1",
+    name: "Component",
+    parentSymbolId: "sym-foo",
+    language: "typescript",
+    metadata: {
+      decorator_line: 1,
+      decorator_col: 0,
+    },
+  };
+}
+
+describe("Slice 031 storage fixtures (Phase 1 scaffold)", () => {
+  it("buildSlice031ImplementsEdge returns a well-typed IMPLEMENTS edge row", () => {
+    const edge = buildSlice031ImplementsEdge();
+    expect(edge.kind).toBe("IMPLEMENTS");
+    expect(edge.targetId).toBeNull();
+    expect(typeof edge.metadata["interface_name"]).toBe("string");
+  });
+
+  it("buildSlice031Annotation returns a well-typed annotation row", () => {
+    const ann = buildSlice031Annotation();
+    expect(ann.name).toBe("Component");
+    expect(ann.parentSymbolId).toBe("sym-foo");
+    expect(ann.language).toBe("typescript");
+  });
+});

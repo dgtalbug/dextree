@@ -940,3 +940,45 @@ describe("WebviewPanelManager exportCurrentView (slice 030 US3)", () => {
     expect(executeCmd).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 031 fixtures scaffold (Phase 1 / T003)
+// ---------------------------------------------------------------------------
+// Reusable ExportTraceSequence message fixtures for the panel-routing tests
+// in T009 (US1). The shape mirrors what the webview posts when the trace
+// sequence export control fires.
+// ---------------------------------------------------------------------------
+
+interface Slice031ExportTraceSequenceMessageFixture {
+  type: "exportTraceSequence";
+  trace: {
+    phase: "path-active";
+    startNodeId: string;
+    endNodeId: string;
+    nodeIds: readonly string[];
+    edgeIds: readonly string[];
+  };
+}
+
+function buildSlice031ExportTraceSequenceMessage(): Slice031ExportTraceSequenceMessageFixture {
+  return {
+    type: "exportTraceSequence",
+    trace: {
+      phase: "path-active",
+      startNodeId: "n-a",
+      endNodeId: "n-c",
+      nodeIds: ["n-a", "n-b", "n-c"],
+      edgeIds: ["e-ab", "e-bc"],
+    },
+  };
+}
+
+describe("Slice 031 panel-routing fixtures (Phase 1 scaffold)", () => {
+  it("buildSlice031ExportTraceSequenceMessage returns the documented webview shape", () => {
+    const msg = buildSlice031ExportTraceSequenceMessage();
+    expect(msg.type).toBe("exportTraceSequence");
+    expect(msg.trace.phase).toBe("path-active");
+    expect(msg.trace.nodeIds.length).toBe(3);
+    expect(msg.trace.edgeIds.length).toBe(2);
+  });
+});

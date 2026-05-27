@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createDefaultExtractorRegistry } from "./index.js";
 import { createExtractorRegistry } from "./registry.js";
 import type { Extractor, ExtractInput, ExtractionResult } from "./types.js";
 
@@ -184,6 +185,18 @@ describe("ExtractorRegistry", () => {
     expect(result.file).toBeNull();
     expect(result.symbols).toEqual([]);
     expect(result.edges).toEqual([]);
+  });
+
+  // Slice 031 T005 — default registry exposes both new pass-1 extractors so a
+  // representative TS input flows through without throwing. Real per-extractor
+  // coverage lives in ImplementsExtractor.test.ts / DecoratorExtractor.test.ts.
+  it("createDefaultExtractorRegistry() includes Implements + Decorator extractors and runs cleanly", async () => {
+    const registry = createDefaultExtractorRegistry();
+    const result = await registry.run(
+      makeInput({ language: "typescript", source: "export const x = 1;" }),
+    );
+    expect(result.edges).toEqual([]);
+    expect(result.annotations).toEqual([]);
   });
 
   it("rejects duplicate `register()` calls by name", () => {

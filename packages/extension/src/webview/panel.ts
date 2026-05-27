@@ -73,6 +73,20 @@ const VALID_DIRECTIONS = new Set(["auto", "TB", "LR", "BT", "RL"]);
 const VALID_THEMES = new Set(["light", "dark"]);
 const VALID_SCOPE_KINDS = new Set(["workspace", "file", "symbol-callers", "symbol-callees"]);
 
+function isTraceSequenceSnapshot(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  if (candidate["phase"] !== "path-active") return false;
+  if (typeof candidate["startNodeId"] !== "string") return false;
+  if (typeof candidate["endNodeId"] !== "string") return false;
+  if (!Array.isArray(candidate["nodeIds"])) return false;
+  if (!Array.isArray(candidate["edgeIds"])) return false;
+  return (
+    (candidate["nodeIds"] as unknown[]).every((id) => typeof id === "string") &&
+    (candidate["edgeIds"] as unknown[]).every((id) => typeof id === "string")
+  );
+}
+
 function isMermaidPreviewOptionsLike(value: unknown): value is MermaidPreviewOptions {
   if (typeof value !== "object" || value === null) return false;
   const opts = value as Record<string, unknown>;
@@ -339,6 +353,21 @@ export const WebviewPanelManager = {
           const viewId = record["viewId"];
           if (typeof viewId === "string" && viewId.length > 0) {
             void vscode.commands.executeCommand("dextree.exportCurrentView", viewId);
+          }
+          return;
+        }
+
+        // Slice 031 US1 — webview requests trace-sequence export of the
+        // active trace route. The host re-validates the snapshot before
+        // serializing and refuses empty / oversized snapshots fail-closed.
+        if (record["type"] === "exportTraceSequence") {
+          const traceCandidate = record["trace"];
+          if (isTraceSequenceSnapshot(traceCandidate)) {
+            void vscode.commands.executeCommand("dextree.exportTraceSequence", traceCandidate);
+          } else {
+            void vscode.window.showWarningMessage(
+              "Dextree: Cannot export trace — invalid or empty trace snapshot.",
+            );
           }
           return;
         }

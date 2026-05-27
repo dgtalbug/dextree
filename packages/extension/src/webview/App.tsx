@@ -9,6 +9,7 @@ import { resolveMermaidThemeFromBody } from "./preview/renderMermaid.js";
 import { WorkspacesPage } from "./components/WorkspacesPage.js";
 import type {
   CommandMessage,
+  ExportTraceSequenceMessage,
   GraphCommandId,
   IndexedWorkspaceRecord,
   IndexingMessage,
@@ -17,6 +18,7 @@ import type {
   SaveMermaidPreviewMessage,
   SwitchWorkspaceMessage,
 } from "./protocol/messages.js";
+import type { TraceSequenceSnapshot } from "@dextree/exporters";
 import { isHostToWebviewMessage } from "./protocol/messages.js";
 import type { MermaidPreviewFileFormat } from "./preview/exportPreview.js";
 
@@ -350,6 +352,10 @@ export function App({ vscodeApi }: AppProps) {
             }}
             onExportCurrentView={() => {
               vscodeApi.postMessage({ type: "exportCurrentView", viewId: "graph-view" });
+            }}
+            onExportTraceSequence={(trace: TraceSequenceSnapshot) => {
+              const message: ExportTraceSequenceMessage = { type: "exportTraceSequence", trace };
+              vscodeApi.postMessage(message);
             }}
             {...(state.workspaceName !== null && { workspaceName: state.workspaceName })}
             workspaceFrameworks={state.workspaceFrameworks}

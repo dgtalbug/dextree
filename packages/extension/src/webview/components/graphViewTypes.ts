@@ -5,6 +5,9 @@ import type {
   GraphNode,
   SymbolKind,
 } from "@dextree/core";
+import type { TraceSequenceSnapshot } from "@dextree/exporters";
+
+export type { TraceSequenceSnapshot };
 
 // ---------------------------------------------------------------------------
 // Layout presets (slice 025)
@@ -92,6 +95,13 @@ export interface GraphViewProps {
   onNavigate: (filePath: string, line: number) => void;
   onExportMermaid: () => void;
   onExportCurrentView: () => void;
+  /**
+   * Slice 031 (US1) — request a trace sequence export. Called only when a
+   * trace path is active. GraphView builds the snapshot from its internal
+   * `TraceState` before invoking. Undefined means the host has not yet
+   * wired the trace-sequence command and the button stays disabled.
+   */
+  onExportTraceSequence?: (trace: TraceSequenceSnapshot) => void;
   /** Currently displayed workspace name (slice 024). Undefined hides the toolbar button. */
   workspaceName?: string;
   /** Framework chips shown next to the workspace name (slice 024). May be empty. */

@@ -8,7 +8,11 @@
  */
 
 import type { GraphEdge, GraphNode } from "@dextree/core";
-import type { MermaidPreviewOptions, MermaidPreviewResult } from "@dextree/exporters";
+import type {
+  MermaidPreviewOptions,
+  MermaidPreviewResult,
+  TraceSequenceSnapshot,
+} from "@dextree/exporters";
 
 // ---------------------------------------------------------------------------
 // Shared entity types
@@ -168,6 +172,17 @@ export interface ExportCurrentViewMessage {
 }
 
 /**
+ * Sent by the graph toolbar when the user requests trace-sequence export of
+ * the active trace route (slice 031, US1). Only emitted while a trace path
+ * is resolved; the host re-validates and refuses empty / oversized snapshots
+ * with a user-visible explanation before writing any file.
+ */
+export interface ExportTraceSequenceMessage {
+  type: "exportTraceSequence";
+  trace: TraceSequenceSnapshot;
+}
+
+/**
  * Diagnostic-only bridge for webview-side `console.log` / `console.error`
  * etc. The webview installs a console interceptor in `main.tsx` and posts
  * the formatted string back to the host, which appends it to the Dextree
@@ -190,6 +205,7 @@ export type WebviewToHostMessage =
   | RequestMermaidPreviewMessage
   | SaveMermaidPreviewMessage
   | ExportCurrentViewMessage
+  | ExportTraceSequenceMessage
   | WebviewLogMessage;
 
 // ---------------------------------------------------------------------------
@@ -221,6 +237,7 @@ export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMe
     msg["type"] === "requestMermaidPreview" ||
     msg["type"] === "saveMermaidPreview" ||
     msg["type"] === "exportCurrentView" ||
+    msg["type"] === "exportTraceSequence" ||
     msg["type"] === "webviewLog"
   );
 }

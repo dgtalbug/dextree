@@ -26,8 +26,6 @@ export const CANONICAL_NODE_FILTER_LIST: Readonly<Omit<NodeFilterEntry, "count">
   {
     key: "decorator",
     label: "Decorator",
-    disabled: true,
-    tooltip: "Available when DecoratorExtractor ships (slice 031)",
   },
 ];
 

@@ -233,7 +233,13 @@ class DuckTreeIndexer implements Indexer {
         );
       }
 
-      await replaceFileGraph(database.connection, extracted, extraEdges, classifications);
+      await replaceFileGraph(
+        database.connection,
+        extracted,
+        extraEdges,
+        classifications,
+        result.annotations ?? [],
+      );
 
       if (detected.length > 0) {
         await setFileFramework(

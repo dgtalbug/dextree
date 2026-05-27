@@ -10,6 +10,7 @@ export interface ClassDiagramEntry {
   methods: ReadonlyArray<{ id: string; name: string }>;
   inheritsFrom: ReadonlyArray<string>;
   instantiates: ReadonlyArray<string>;
+  implementsInterfaces: ReadonlyArray<string>;
 }
 
 export type ClassDiagramValidation =
@@ -75,6 +76,7 @@ export function groupClassDiagramEntries(
 
   const inheritsByClass = new Map<string, string[]>();
   const instantiatesByClass = new Map<string, string[]>();
+  const implementsByClass = new Map<string, string[]>();
   for (const edge of subgraph.edges) {
     if (!classNodeIds.has(edge.source) || !classNodeIds.has(edge.target)) continue;
     if (edge.kind === "INHERITS") {
@@ -91,10 +93,18 @@ export function groupClassDiagramEntries(
         instantiatesByClass.set(edge.source, bucket);
       }
       bucket.push(edge.target);
+    } else if (edge.kind === "IMPLEMENTS") {
+      let bucket = implementsByClass.get(edge.source);
+      if (bucket === undefined) {
+        bucket = [];
+        implementsByClass.set(edge.source, bucket);
+      }
+      bucket.push(edge.target);
     }
   }
   for (const bucket of inheritsByClass.values()) bucket.sort((a, b) => a.localeCompare(b));
   for (const bucket of instantiatesByClass.values()) bucket.sort((a, b) => a.localeCompare(b));
+  for (const bucket of implementsByClass.values()) bucket.sort((a, b) => a.localeCompare(b));
 
   return classNodes
     .slice()
@@ -106,6 +116,7 @@ export function groupClassDiagramEntries(
       methods: methodsByParent.get(classNode.id) ?? [],
       inheritsFrom: inheritsByClass.get(classNode.id) ?? [],
       instantiates: instantiatesByClass.get(classNode.id) ?? [],
+      implementsInterfaces: implementsByClass.get(classNode.id) ?? [],
     }));
 }
 
@@ -210,6 +221,15 @@ export function serializeToClassDiagram(
         source: entry.classId,
         target: targetId,
         line: `  ${sourceName} <.. ${targetName}`,
+      });
+    }
+    for (const targetId of entry.implementsInterfaces) {
+      const targetName = classNameById.get(targetId);
+      if (targetName === undefined) continue;
+      relationships.push({
+        source: entry.classId,
+        target: targetId,
+        line: `  ${targetName} <|.. ${sourceName}`,
       });
     }
   }

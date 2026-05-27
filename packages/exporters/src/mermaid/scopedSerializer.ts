@@ -1,6 +1,11 @@
 import type { GraphEdge, GraphNode, WorkspaceSubgraph } from "@dextree/core";
 
 import { serializeToClassDiagram } from "./classDiagram.js";
+import {
+  serializeToSequenceDiagram,
+  validateSequenceDiagramExport,
+  type TraceSequenceSnapshot,
+} from "./sequenceDiagram.js";
 import { inferMermaidDirection } from "./direction.js";
 import { applyMermaidGranularity } from "./granularity.js";
 import { extractMermaidScope } from "./scope.js";
@@ -21,7 +26,7 @@ export {
  * `classDiagram` lands in slice 028; `sequenceDiagram` is reserved for slice
  * 031.
  */
-export type MermaidDiagram = "flowchart" | "classDiagram";
+export type MermaidDiagram = "flowchart" | "classDiagram" | "sequenceDiagram";
 
 /**
  * Discriminated union describing which portion of the indexed workspace graph
@@ -57,6 +62,14 @@ export interface ScopedMermaidOptions {
   granularity: MermaidGranularity;
   direction: MermaidDirection;
   theme: MermaidTheme;
+  /**
+   * Required when `diagram === "sequenceDiagram"`. Holds the active webview
+   * trace route the serializer turns into ordered participants and steps.
+   * Slice-031 wire-through; ignored by the flowchart and classDiagram branches.
+   * Callers that already validate the snapshot themselves may still pass it
+   * here so `serializeToScopedMermaid` can re-validate and fail closed.
+   */
+  trace?: TraceSequenceSnapshot;
 }
 
 /**
@@ -167,7 +180,22 @@ export function serializeToScopedMermaid(
       return serializeFlowchart(subgraph, options);
     case "classDiagram":
       return serializeToClassDiagram(subgraph, options);
+    case "sequenceDiagram":
+      return serializeSequence(subgraph, options);
   }
+}
+
+function serializeSequence(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {
+  if (!options.trace) {
+    throw new Error(
+      "sequenceDiagram export requires an active trace snapshot in ScopedMermaidOptions.trace.",
+    );
+  }
+  const validation = validateSequenceDiagramExport(subgraph, options.trace);
+  if (validation.status !== "ok") {
+    throw new Error(validation.reason);
+  }
+  return serializeToSequenceDiagram(subgraph, options.trace, options);
 }
 
 function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {
