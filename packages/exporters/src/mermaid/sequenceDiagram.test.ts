@@ -259,6 +259,39 @@ describe("serializeToSequenceDiagram behavior (slice 031 T008)", () => {
     expect(out).not.toMatch(/first line\nsecond line/);
   });
 
+  it("dedupes participants when a cyclic trace revisits the same non-class node (CodeRabbit follow-up)", () => {
+    // Trace: a -> b -> a -> b -> a. Three visits to node "a", two to "b".
+    // Pre-fix this would have emitted 5 participants and miscount the cap.
+    const subgraph = makeSubgraph(
+      [
+        { id: "a", type: "symbol", label: "a", filePath: "/x.ts", startLine: 1 },
+        { id: "b", type: "symbol", label: "b", filePath: "/x.ts", startLine: 2 },
+      ],
+      [
+        { id: "e1", source: "a", target: "b", kind: "CALLS" },
+        { id: "e2", source: "b", target: "a", kind: "CALLS" },
+        { id: "e3", source: "a", target: "b", kind: "CALLS" },
+        { id: "e4", source: "b", target: "a", kind: "CALLS" },
+      ],
+    );
+    const trace: TraceSequenceSnapshot = {
+      phase: "path-active",
+      startNodeId: "a",
+      endNodeId: "a",
+      nodeIds: ["a", "b", "a", "b", "a"],
+      edgeIds: ["e1", "e2", "e3", "e4"],
+    };
+    const validation = validateSequenceDiagramExport(subgraph, trace);
+    expect(validation.status).toBe("ok");
+    if (validation.status === "ok") {
+      expect(validation.participantCount).toBe(2);
+    }
+    const out = serializeToSequenceDiagram(subgraph, trace, SEQUENCE_OPTIONS);
+    // Exactly one `participant` line per unique node, even with cyclic revisits.
+    expect(out.match(/^\s*participant\s+a\s/gm) ?? []).toHaveLength(1);
+    expect(out.match(/^\s*participant\s+b\s/gm) ?? []).toHaveLength(1);
+  });
+
   it("produces deterministic output for the same (subgraph, trace, options) tuple", () => {
     const subgraph = makeSubgraph(
       [

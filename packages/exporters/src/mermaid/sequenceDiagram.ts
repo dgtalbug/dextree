@@ -94,6 +94,18 @@ function buildParticipants(
 ): SequenceDiagramParticipant[] {
   const classMap = new Map<string, { label: string; sourceNodeIds: string[] }>();
   const participants: SequenceDiagramParticipant[] = [];
+  // Track non-class participant ids so a cyclic trace that revisits the same
+  // file or top-level symbol produces one participant, not N duplicates. Class
+  // participants are already deduped via `classMap`. Method participants are
+  // folded into their enclosing class. CodeRabbit flagged that a cap check on
+  // `participants.length` would falsely return `oversized` for valid cyclic
+  // traces without this dedup — but the same duplication would also have
+  // emitted duplicate `participant Foo as bar` lines in the serialized output.
+  const seenNonClassIds = new Set<string>();
+  // Methods can be re-visited too; dedupe the sourceNodeIds we attach to the
+  // enclosing class so the participant's source list doesn't grow unbounded
+  // on cyclic traces.
+  const seenMethodIdsByClass = new Map<string, Set<string>>();
 
   for (const nodeId of trace.nodeIds) {
     const node = lookupNode(subgraph, nodeId);
@@ -108,7 +120,15 @@ function buildParticipants(
           sourceNodeIds: [],
         });
       }
-      classMap.get(enclosureId)!.sourceNodeIds.push(nodeId);
+      let seenMethods = seenMethodIdsByClass.get(enclosureId);
+      if (seenMethods === undefined) {
+        seenMethods = new Set<string>();
+        seenMethodIdsByClass.set(enclosureId, seenMethods);
+      }
+      if (!seenMethods.has(nodeId)) {
+        seenMethods.add(nodeId);
+        classMap.get(enclosureId)!.sourceNodeIds.push(nodeId);
+      }
       continue;
     }
 
@@ -122,6 +142,8 @@ function buildParticipants(
       continue;
     }
 
+    if (seenNonClassIds.has(nodeId)) continue;
+    seenNonClassIds.add(nodeId);
     participants.push({
       id: nodeId,
       label: node.label,
