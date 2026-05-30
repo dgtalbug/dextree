@@ -73,7 +73,7 @@ function resetMocks(): void {
 const DEFAULT_PREVIEW_OPTIONS = {
   diagram: "flowchart",
   scope: { kind: "workspace" },
-  granularity: "symbol",
+  granularity: "file",
   direction: "auto",
   theme: "light",
 } as const;
@@ -157,7 +157,7 @@ describe("createExportMermaidCommand — slice 029 PR-A: opens preview scene", (
     expect(preview.options).toEqual({
       diagram: "flowchart",
       scope: { kind: "workspace" },
-      granularity: "symbol",
+      granularity: "file",
       direction: "auto",
       theme: "light",
     });

@@ -7,13 +7,14 @@ import {
   type TraceSequenceSnapshot,
 } from "./sequenceDiagram.js";
 import { inferMermaidDirection } from "./direction.js";
-import { applyMermaidGranularity } from "./granularity.js";
+import { applyMermaidGranularity, clampGranularityToScope } from "./granularity.js";
 import { extractMermaidScope } from "./scope.js";
 import { MERMAID_INIT_DIRECTIVE, type MermaidTheme } from "./theme.js";
 import { MERMAID_GRANULARITY_CAPS, validateScopedMermaidExport } from "./validator.js";
 
 export {
   applyMermaidGranularity,
+  clampGranularityToScope,
   extractMermaidScope,
   inferMermaidDirection,
   MERMAID_GRANULARITY_CAPS,
@@ -70,6 +71,14 @@ export interface ScopedMermaidOptions {
    * here so `serializeToScopedMermaid` can re-validate and fail closed.
    */
   trace?: TraceSequenceSnapshot;
+  /**
+   * Opt out of the workspace granularity floor. User-facing export paths leave
+   * this unset so a `workspace` scope never descends to `symbol` (see
+   * {@link clampGranularityToScope}). The slice-016 legacy `serializeToMermaid`
+   * shim sets it `true` to preserve its byte-identical symbol-level output for
+   * the snapshot/fuzz callers that predate the floor.
+   */
+  allowUnscopedSymbols?: boolean;
 }
 
 /**
@@ -204,8 +213,12 @@ function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidO
     throw new Error(extracted.reason);
   }
 
-  const collapsed = applyMermaidGranularity(extracted.subgraph, options.granularity);
-  const validation = validateScopedMermaidExport(collapsed, options.granularity);
+  const granularity = options.allowUnscopedSymbols
+    ? options.granularity
+    : clampGranularityToScope(options.scope, options.granularity);
+
+  const collapsed = applyMermaidGranularity(extracted.subgraph, granularity);
+  const validation = validateScopedMermaidExport(collapsed, granularity);
   if (validation.status !== "ok") {
     throw new Error(validation.reason);
   }

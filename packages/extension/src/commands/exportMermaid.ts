@@ -33,7 +33,11 @@ export interface ExportMermaidCommandDependencies {
 const DEFAULT_PREVIEW_OPTIONS: MermaidPreviewOptions = {
   diagram: "flowchart",
   scope: { kind: "workspace" },
-  granularity: "symbol",
+  // File granularity: a whole-workspace export folds symbols into their files
+  // so it stays under the export cap and renders. Symbol-level detail is
+  // reached by narrowing the scope to a single file or symbol. The shared
+  // serializer floor enforces this for every export path regardless.
+  granularity: "file",
   direction: "auto",
   theme: "light",
 };

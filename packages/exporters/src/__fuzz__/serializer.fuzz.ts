@@ -13,6 +13,7 @@ import type { GraphNode, WorkspaceSubgraph } from "@dextree/core";
 import { validateClassDiagramExport } from "../mermaid/classDiagram.js";
 import { DEFAULT_MERMAID_THEME } from "../mermaid/theme.js";
 import {
+  clampGranularityToScope,
   serializeToScopedMermaid,
   validateScopedMermaidExport,
   type MermaidDiagram,
@@ -96,8 +97,10 @@ export function fuzz(data: Buffer): void {
       // Flowchart branch: throws must correspond to non-ok validation or
       // unsupported scope extraction. The `file` scopes against a
       // non-matching relativePath legitimately throw via the `unsupported`
-      // extraction path.
-      const flowValidation = validateScopedMermaidExport(subgraph, granularity);
+      // extraction path. The oracle mirrors the serializer's workspace
+      // granularity floor so its cap prediction matches what runs.
+      const effectiveGranularity = clampGranularityToScope(scope, granularity);
+      const flowValidation = validateScopedMermaidExport(subgraph, effectiveGranularity);
       if (!threw && flowValidation.status !== "ok") {
         throw new Error(
           `scoped serializer returned a string when validation.status=${flowValidation.status}`,

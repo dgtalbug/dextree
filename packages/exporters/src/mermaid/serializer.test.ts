@@ -215,8 +215,8 @@ describe("serializeToMermaid — empty graph", () => {
 // Slice 027 — scoped serializer parity
 // ---------------------------------------------------------------------------
 
-describe("serializeToScopedMermaid — workspace scope parity with shim", () => {
-  it("produces matching node + edge lines vs the legacy shim (only the graph header differs: TB vs TD)", () => {
+describe("serializeToScopedMermaid — workspace scope diverges from the legacy shim", () => {
+  it("floors workspace+symbol to file level while the opted-out shim keeps symbols", () => {
     const sg = subgraph([FILE_A, FILE_B, FUNC_FOO], [EDGE_DEFINES, EDGE_IMPORTS]);
     const shimOut = serializeToMermaid(sg, { theme: "Light" });
     const scopedOut = serializeToScopedMermaid(sg, {
@@ -227,8 +227,11 @@ describe("serializeToScopedMermaid — workspace scope parity with shim", () => 
       theme: "Light",
     });
 
-    // Headers differ by design: shim post-processes to `graph TD`, scoped path emits `graph TB`.
-    expect(shimOut.replace("graph TD", "graph TB")).toBe(scopedOut);
+    // The legacy shim opts out of the floor, so it still emits the symbol node.
+    expect(shimOut).toContain("[function]");
+    // The user-facing scoped path floors workspace+symbol to file: no symbol.
+    expect(scopedOut).not.toContain("[function]");
+    expect(scopedOut).toContain('["src/a.ts"]');
   });
 });
 
@@ -317,7 +320,7 @@ describe("serializeToScopedMermaid — file scope", () => {
     expect(out).not.toContain("-->|CALLS|");
   });
 
-  it("produces strictly fewer nodes than the workspace scope when other files exist", () => {
+  it("shows symbol detail for a single-file scope but folds the workspace to files", () => {
     const sg = subgraph([FILE_X, FILE_Y, SYM_X, SYM_Y], [EDGE_DEF_X, EDGE_DEF_Y, EDGE_CROSS]);
     const workspaceOut = serializeToScopedMermaid(sg, {
       diagram: "flowchart",
@@ -334,9 +337,14 @@ describe("serializeToScopedMermaid — file scope", () => {
       theme: "Light",
     });
 
-    const workspaceNodes = workspaceOut.split("\n").filter((l) => /^ {2}n\w+\[/.test(l)).length;
-    const fileNodes = fileOut.split("\n").filter((l) => /^ {2}n\w+\[/.test(l)).length;
-    expect(fileNodes).toBeLessThan(workspaceNodes);
+    // Workspace floors to file: both file nodes, no symbols.
+    expect(workspaceOut).not.toContain("[function]");
+    expect(workspaceOut).toContain('["src/a.ts"]');
+    expect(workspaceOut).toContain('["src/b.ts"]');
+
+    // Single-file scope keeps its symbol and drops the other file entirely.
+    expect(fileOut).toContain('["fooInA [function]"]');
+    expect(fileOut).not.toContain("src/b.ts");
   });
 
   it("throws with the scope.unsupported reason when the file does not exist", () => {
@@ -376,15 +384,25 @@ describe("serializeToScopedMermaid — determinism", () => {
 
 describe("serializeToScopedMermaid — flowchart path unchanged by slice 028 (US3 T027)", () => {
   it("emits a byte-identical workspace+symbol+light output across the discriminator switch", () => {
-    const sg = subgraph([FILE_A, FILE_B, FUNC_FOO, CLASS_BAR], [EDGE_DEFINES, EDGE_IMPORTS]);
+    // Symbols share their file's path so the workspace floor folds them in
+    // rather than dropping them as orphans.
+    const symFoo: GraphNode = { ...FUNC_FOO, filePath: FILE_A.filePath };
+    const symBar: GraphNode = {
+      ...CLASS_BAR,
+      filePath: FILE_B.filePath,
+      symbolKind: "class",
+    };
+    const defFoo: GraphEdge = makeEdge("e-def-foo", FILE_A.id, symFoo.id, "DEFINES");
+    const defBar: GraphEdge = makeEdge("e-def-bar", FILE_B.id, symBar.id, "DEFINES");
+    const sg = subgraph([FILE_A, FILE_B, symFoo, symBar], [defFoo, defBar, EDGE_IMPORTS]);
+
+    // Workspace + symbol is floored to file: only the two file nodes survive,
+    // the DEFINES edges fold to self-edges (dropped), the IMPORTS edge stays.
     const baseline = [
       "%%{init: {'theme': 'default'}}%%",
       "graph TB",
       '  naaaa_1111_aaaa_1111_aaaaaaaaaaaa["src/a.ts"]',
       '  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb["src/b.ts"]',
-      '  ncccc_3333_cccc_3333_cccccccccccc["foo [function]"]',
-      '  ndddd_4444_dddd_4444_dddddddddddd["Bar [class]"]',
-      "  naaaa_1111_aaaa_1111_aaaaaaaaaaaa -->|DEFINES| ncccc_3333_cccc_3333_cccccccccccc",
       "  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb -->|IMPORTS| naaaa_1111_aaaa_1111_aaaaaaaaaaaa",
     ].join("\n");
 
@@ -461,5 +479,59 @@ describe("Slice 031 trace fixtures (Phase 1 scaffold)", () => {
     expect(fx.subgraph.nodes.length).toBeGreaterThan(0);
     expect(fx.traceNodeIds.length).toBeGreaterThan(0);
     expect(fx.traceEdgeIds.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Granularity floor: workspace exports may not descend to symbol level.
+// The deepest detail any whole-workspace export reaches is file-level; symbol
+// detail is gated behind a single-file / single-symbol scope.
+// ---------------------------------------------------------------------------
+
+describe("serializeToScopedMermaid — workspace granularity floor", () => {
+  // Symbol shares FILE_A's path so the file scope genuinely contains it.
+  const SYM_IN_A: GraphNode = {
+    id: "ffff-5555-ffff-5555-ffffffffffff",
+    type: "symbol",
+    label: "foo",
+    filePath: FILE_A.filePath,
+    startLine: 3,
+    symbolKind: "function",
+  };
+  const DEFINES_A: GraphEdge = makeEdge("e-def-a", FILE_A.id, SYM_IN_A.id, "DEFINES");
+  const WORKSPACE_SYMBOL = subgraph([FILE_A, SYM_IN_A], [DEFINES_A]);
+
+  it("collapses a workspace + symbol request to file level (no symbol node emitted)", () => {
+    const out = serializeToScopedMermaid(WORKSPACE_SYMBOL, {
+      diagram: "flowchart",
+      scope: { kind: "workspace" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+    // The function node's label carries "[function]"; after the floor folds it
+    // into FILE_A there must be no symbol node line at all.
+    expect(out).not.toContain("[function]");
+    expect(out).toContain(FILE_A.label);
+  });
+
+  it("keeps symbol detail when the scope is a single file", () => {
+    const out = serializeToScopedMermaid(WORKSPACE_SYMBOL, {
+      diagram: "flowchart",
+      scope: { kind: "file", relativePath: "a.ts" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+    });
+    expect(out).toContain("[function]");
+  });
+});
+
+describe("serializeToMermaid — legacy shim is exempt from the floor", () => {
+  it("still emits symbol nodes for a workspace + symbol export (byte-compat)", () => {
+    const out = serializeToMermaid(subgraph([FILE_A, FUNC_FOO], [EDGE_DEFINES]), {
+      theme: "Light",
+    });
+    expect(out).toContain("[function]");
   });
 });
