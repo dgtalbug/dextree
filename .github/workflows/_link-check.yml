@@ -32,5 +32,6 @@ jobs:
             --exclude 'https?://localhost'
             --exclude 'file://'
             --exclude 'mailto:'
+            --exclude-path './CHANGELOG.md'
             './**/*.md'
           fail: true
