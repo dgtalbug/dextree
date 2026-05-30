@@ -78,6 +78,19 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       --fw-react: #61dafb;
       --fw-vitest: #6e9f18;
       --fw-node: #68a063;
+
+      /* Edge-kind dot colors (Edge Types rail, slice 033). Unlike the layer/fw
+         palettes these track the active theme via --vscode-charts-*, so a custom
+         VS Code theme recolors the edge swatches; the hex is only a last-resort
+         fallback for themes that omit the chart tokens. */
+      --edge-color-contains: var(--vscode-symbolIcon-folderForeground, #c5c5c5);
+      --edge-color-defines: var(--vscode-charts-blue, #3794ff);
+      --edge-color-imports: var(--vscode-charts-green, #4ec9b0);
+      --edge-color-calls: var(--vscode-charts-orange, #ce9178);
+      --edge-color-extends: var(--vscode-charts-purple, #c586c0);
+      --edge-color-inherits: var(--vscode-charts-purple, #c586c0);
+      --edge-color-implements: var(--vscode-charts-yellow, #dcdcaa);
+      --edge-color-instantiates: var(--vscode-charts-red, #f44747);
     }
 
      #root {
@@ -145,6 +158,19 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        height: 100%;
        min-height: 240px;
        border-radius: 8px;
+     }
+
+     /* Empty/Loading overlay — covers the GraphView shell without replacing it
+        (slice 033 T020). The shell rails stay mounted underneath. */
+     .dxt-graph-overlay {
+       position: absolute;
+       inset: 0;
+       display: flex;
+       align-items: center;
+       justify-content: center;
+       padding: 16px;
+       background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
+       z-index: 5;
      }
 
      .dxt-loading,

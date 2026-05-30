@@ -3,14 +3,34 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GraphToolbar } from "./GraphToolbar.js";
-import { CANONICAL_NODE_FILTER_LIST } from "./NodeFilterPanel.js";
+
+const baseProps = {
+  onExportMermaid: vi.fn(),
+  showMinimap: false,
+  onToggleMinimap: vi.fn(),
+  searchQuery: "",
+  searchResults: [],
+  searchFocusedIndex: 0,
+  onSearchQueryChange: vi.fn(),
+  onSearchSelectResult: vi.fn(),
+  onSearchClear: vi.fn(),
+  depth: 3,
+  depthEnabled: false,
+  onDepthChange: vi.fn(),
+  tracePhase: "idle" as const,
+  onTraceToggle: vi.fn(),
+  onTraceExit: vi.fn(),
+  activeLayoutPreset: "forceAtlas2" as const,
+  onSelectLayoutPreset: vi.fn(),
+  onZoomIn: vi.fn(),
+  onZoomOut: vi.fn(),
+  onZoomFit: vi.fn(),
+  onZoomReset: vi.fn(),
+} satisfies ComponentProps<typeof GraphToolbar>;
 
 function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>) {
   const onExportMermaid = vi.fn();
-  const onExportCurrentView = vi.fn();
   const onToggleMinimap = vi.fn();
-  const onToggleEdgeKind = vi.fn();
-  const onToggleNodeKind = vi.fn();
   const onSearchQueryChange = vi.fn();
   const onSearchSelectResult = vi.fn();
   const onSearchClear = vi.fn();
@@ -18,22 +38,16 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
   const onTraceToggle = vi.fn();
   const onTraceExit = vi.fn();
   const onSelectLayoutPreset = vi.fn();
+  const onZoomIn = vi.fn();
+  const onZoomOut = vi.fn();
+  const onZoomFit = vi.fn();
+  const onZoomReset = vi.fn();
 
   const result = render(
     <GraphToolbar
       onExportMermaid={onExportMermaid}
-      onExportCurrentView={onExportCurrentView}
       showMinimap={false}
       onToggleMinimap={onToggleMinimap}
-      edgeKinds={["DEFINES", "CALLS", "IMPORTS"]}
-      hiddenEdgeKinds={new Set()}
-      onToggleEdgeKind={onToggleEdgeKind}
-      nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({
-        ...t,
-        count: i,
-      }))}
-      hiddenNodeKinds={new Set()}
-      onToggleNodeKind={onToggleNodeKind}
       searchQuery=""
       searchResults={[]}
       searchFocusedIndex={0}
@@ -48,6 +62,10 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
       onTraceExit={onTraceExit}
       activeLayoutPreset="forceAtlas2"
       onSelectLayoutPreset={onSelectLayoutPreset}
+      onZoomIn={onZoomIn}
+      onZoomOut={onZoomOut}
+      onZoomFit={onZoomFit}
+      onZoomReset={onZoomReset}
       {...overrides}
     />,
   );
@@ -55,10 +73,7 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
   return {
     ...result,
     onExportMermaid,
-    onExportCurrentView,
     onToggleMinimap,
-    onToggleEdgeKind,
-    onToggleNodeKind,
     onSearchQueryChange,
     onSearchSelectResult,
     onSearchClear,
@@ -66,6 +81,10 @@ function renderToolbar(overrides?: Partial<ComponentProps<typeof GraphToolbar>>)
     onTraceToggle,
     onTraceExit,
     onSelectLayoutPreset,
+    onZoomIn,
+    onZoomOut,
+    onZoomFit,
+    onZoomReset,
   };
 }
 
@@ -83,17 +102,9 @@ describe("GraphToolbar", () => {
   it("calls onExportMermaid when the export button is clicked", () => {
     const { onExportMermaid } = renderToolbar();
 
-    fireEvent.click(screen.getByRole("button", { name: "Export as Mermaid" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Mermaid preview export" }));
 
     expect(onExportMermaid).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onExportCurrentView when the current-view export button is clicked", () => {
-    const { onExportCurrentView } = renderToolbar();
-
-    fireEvent.click(screen.getByRole("button", { name: "Export current view" }));
-
-    expect(onExportCurrentView).toHaveBeenCalledTimes(1);
   });
 
   it("calls onToggleMinimap when the minimap toggle button is clicked", () => {
@@ -104,138 +115,19 @@ describe("GraphToolbar", () => {
     expect(onToggleMinimap).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onToggleEdgeKind with the clicked edge kind", () => {
-    const { onToggleEdgeKind } = renderToolbar();
-
-    fireEvent.click(screen.getByRole("button", { name: "Hide Defines edges" }));
-
-    expect(onToggleEdgeKind).toHaveBeenCalledWith("DEFINES");
-  });
-
-  it("exposes aria-labels for all toolbar buttons", () => {
-    renderToolbar();
-
-    expect(screen.getByRole("button", { name: "Export as Mermaid" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Toggle minimap" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Hide Defines edges" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Hide Calls edges" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Hide Imports edges" })).toBeTruthy();
-  });
-
   it("reflects the minimap visibility state with aria-pressed", () => {
     const { rerender } = renderToolbar();
     const toggleButton = screen.getByRole("button", { name: "Toggle minimap" });
 
     expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
 
-    rerender(
-      <GraphToolbar
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
-        showMinimap={true}
-        onToggleMinimap={vi.fn()}
-        edgeKinds={["DEFINES", "CALLS", "IMPORTS"]}
-        hiddenEdgeKinds={new Set()}
-        onToggleEdgeKind={vi.fn()}
-        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
-        hiddenNodeKinds={new Set()}
-        onToggleNodeKind={vi.fn()}
-        searchQuery=""
-        searchResults={[]}
-        searchFocusedIndex={0}
-        onSearchQueryChange={vi.fn()}
-        onSearchSelectResult={vi.fn()}
-        onSearchClear={vi.fn()}
-        depth={3}
-        depthEnabled={false}
-        onDepthChange={vi.fn()}
-        tracePhase="idle"
-        onTraceToggle={vi.fn()}
-        onTraceExit={vi.fn()}
-        activeLayoutPreset="forceAtlas2"
-        onSelectLayoutPreset={vi.fn()}
-      />,
-    );
+    rerender(<GraphToolbar {...baseProps} showMinimap={true} />);
 
     expect(
       screen.getByRole("button", { name: "Toggle minimap" }).getAttribute("aria-pressed"),
     ).toBe("true");
   });
 
-  it("renders in isolation with mocked props", () => {
-    const { container } = renderToolbar();
-
-    expect(container.querySelector(".dxt-toolbar")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Export as Mermaid" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Toggle minimap" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Hide Defines edges" })).toBeTruthy();
-  });
-
-  it("renders without errors when edgeKinds is empty", () => {
-    const { container } = renderToolbar({ edgeKinds: [] });
-
-    expect(container.querySelector(".dxt-toolbar")).toBeTruthy();
-    // Slice 031 US2 — the disabled Implements stub is gone; IMPLEMENTS is now
-    // a real edge kind that only appears when the workspace produced one.
-    expect(container.querySelectorAll(".dxt-edge-filter-pill").length).toBe(0);
-  });
-
-  // US2: Edge-type rename + Implements stub
-  it("renders INHERITS edge pill with label 'Extends' (FR-006)", () => {
-    renderToolbar({ edgeKinds: ["INHERITS"] });
-
-    expect(screen.getByRole("button", { name: "Hide Extends edges" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Inherits/i })).toBeNull();
-  });
-
-  it("clicking Extends pill calls onToggleEdgeKind with 'INHERITS'", () => {
-    const { onToggleEdgeKind } = renderToolbar({ edgeKinds: ["INHERITS"] });
-
-    fireEvent.click(screen.getByRole("button", { name: "Hide Extends edges" }));
-
-    expect(onToggleEdgeKind).toHaveBeenCalledWith("INHERITS");
-  });
-
-  // Slice 031 US2 — IMPLEMENTS is now a real edge kind. The "Implements" pill
-  // appears when IMPLEMENTS is in the edgeKinds list and is interactive like
-  // any other edge filter chip.
-  it("renders interactive Implements pill when IMPLEMENTS is in edgeKinds (slice 031 US2)", () => {
-    renderToolbar({ edgeKinds: ["IMPLEMENTS"] });
-
-    const implementsButton = screen.getByRole("button", { name: "Hide Implements edges" });
-    expect(implementsButton.getAttribute("aria-disabled")).not.toBe("true");
-  });
-
-  it("clicking Implements pill calls onToggleEdgeKind with 'IMPLEMENTS' (slice 031 US2)", () => {
-    const { onToggleEdgeKind } = renderToolbar({ edgeKinds: ["IMPLEMENTS"] });
-
-    fireEvent.click(screen.getByRole("button", { name: "Hide Implements edges" }));
-
-    expect(onToggleEdgeKind).toHaveBeenCalledWith("IMPLEMENTS");
-  });
-
-  it("does not render Implements pill when IMPLEMENTS is absent from edgeKinds (slice 031 US2)", () => {
-    renderToolbar({ edgeKinds: ["DEFINES", "IMPORTS", "CALLS", "INHERITS", "INSTANTIATES"] });
-
-    expect(screen.queryByRole("button", { name: "Hide Implements edges" })).toBeNull();
-  });
-
-  it("renders all 5 fixed edge pills even when edgeKinds list is full", () => {
-    renderToolbar({ edgeKinds: ["DEFINES", "IMPORTS", "CALLS", "INHERITS", "INSTANTIATES"] });
-
-    expect(screen.getByRole("button", { name: "Hide Defines edges" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Hide Imports edges" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Hide Calls edges" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Hide Extends edges" })).toBeTruthy();
-  });
-
-  it("renders node filter panel inside the toolbar", () => {
-    renderToolbar();
-
-    expect(screen.getByRole("group", { name: "Node type filters" })).toBeTruthy();
-  });
-
-  // Slice 022 — search + depth slider
   it("renders the search input inside the toolbar (slice 022)", () => {
     renderToolbar();
 
@@ -256,6 +148,31 @@ describe("GraphToolbar", () => {
     expect(slider.disabled).toBe(true);
   });
 
+  it("renders zoom buttons", () => {
+    renderToolbar();
+
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Fit to screen" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reset layout" })).toBeTruthy();
+  });
+
+  it("calls zoom handlers", () => {
+    const { onZoomIn, onZoomOut, onZoomFit, onZoomReset } = renderToolbar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(onZoomIn).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(onZoomOut).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fit to screen" }));
+    expect(onZoomFit).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset layout" }));
+    expect(onZoomReset).toHaveBeenCalledTimes(1);
+  });
+
   // Slice 023 — trace route toggle
   it("renders the trace toggle button with aria-pressed reflecting the phase (slice 023)", () => {
     const { rerender } = renderToolbar({ tracePhase: "idle" });
@@ -263,34 +180,7 @@ describe("GraphToolbar", () => {
       screen.getByRole("button", { name: "Toggle trace route mode" }).getAttribute("aria-pressed"),
     ).toBe("false");
 
-    rerender(
-      <GraphToolbar
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
-        showMinimap={false}
-        onToggleMinimap={vi.fn()}
-        edgeKinds={["DEFINES"]}
-        hiddenEdgeKinds={new Set()}
-        onToggleEdgeKind={vi.fn()}
-        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
-        hiddenNodeKinds={new Set()}
-        onToggleNodeKind={vi.fn()}
-        searchQuery=""
-        searchResults={[]}
-        searchFocusedIndex={0}
-        onSearchQueryChange={vi.fn()}
-        onSearchSelectResult={vi.fn()}
-        onSearchClear={vi.fn()}
-        depth={3}
-        depthEnabled={false}
-        onDepthChange={vi.fn()}
-        tracePhase="picking-start"
-        onTraceToggle={vi.fn()}
-        onTraceExit={vi.fn()}
-        activeLayoutPreset="forceAtlas2"
-        onSelectLayoutPreset={vi.fn()}
-      />,
-    );
+    rerender(<GraphToolbar {...baseProps} tracePhase="picking-start" />);
     expect(
       screen.getByRole("button", { name: "Toggle trace route mode" }).getAttribute("aria-pressed"),
     ).toBe("true");
@@ -305,39 +195,9 @@ describe("GraphToolbar", () => {
   it("shows Export + Exit trace buttons only when tracePhase is not idle", () => {
     const { rerender } = renderToolbar({ tracePhase: "idle" });
     expect(screen.queryByRole("button", { name: "Exit trace mode" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Export this trace (disabled)" })).toBeNull();
 
-    rerender(
-      <GraphToolbar
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
-        showMinimap={false}
-        onToggleMinimap={vi.fn()}
-        edgeKinds={["DEFINES"]}
-        hiddenEdgeKinds={new Set()}
-        onToggleEdgeKind={vi.fn()}
-        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
-        hiddenNodeKinds={new Set()}
-        onToggleNodeKind={vi.fn()}
-        searchQuery=""
-        searchResults={[]}
-        searchFocusedIndex={0}
-        onSearchQueryChange={vi.fn()}
-        onSearchSelectResult={vi.fn()}
-        onSearchClear={vi.fn()}
-        depth={3}
-        depthEnabled={false}
-        onDepthChange={vi.fn()}
-        tracePhase="picking-end"
-        onTraceToggle={vi.fn()}
-        onTraceExit={vi.fn()}
-        activeLayoutPreset="forceAtlas2"
-        onSelectLayoutPreset={vi.fn()}
-      />,
-    );
+    rerender(<GraphToolbar {...baseProps} tracePhase="picking-end" />);
     expect(screen.getByRole("button", { name: "Exit trace mode" })).toBeTruthy();
-    const exportBtn = screen.getByRole("button", { name: "Export this trace (disabled)" });
-    expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("calls onTraceExit when the Exit trace button is clicked", () => {
@@ -346,9 +206,7 @@ describe("GraphToolbar", () => {
     expect(onTraceExit).toHaveBeenCalledTimes(1);
   });
 
-  // Slice 031 US1 — the trace-export button is now interactive when a path is
-  // active AND the host has wired an export callback.
-  it("activates the trace export button when canExportTrace is true and onExportTrace is wired (slice 031 US1)", () => {
+  it("activates the trace export button when canExportTrace is true (slice 031 US1)", () => {
     const onExportTrace = vi.fn();
     renderToolbar({
       tracePhase: "path-active",
@@ -364,29 +222,6 @@ describe("GraphToolbar", () => {
     expect(onExportTrace).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the trace export button disabled when canExportTrace is false (slice 031 US1)", () => {
-    renderToolbar({
-      tracePhase: "path-active",
-      canExportTrace: false,
-      onExportTrace: vi.fn(),
-    });
-
-    const exportBtn = screen.getByRole("button", { name: "Export this trace (disabled)" });
-    expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it("keeps the trace export button disabled when onExportTrace is undefined (slice 031 US1)", () => {
-    renderToolbar({
-      tracePhase: "path-active",
-      canExportTrace: true,
-      // onExportTrace deliberately not provided — host hasn't wired the command
-    });
-
-    const exportBtn = screen.getByRole("button", { name: "Export this trace (disabled)" });
-    expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  // Slice 024 — workspace switcher button
   it("renders the workspace switcher button when workspaceName is provided", () => {
     renderToolbar({ workspaceName: "dextree" });
 
@@ -399,28 +234,6 @@ describe("GraphToolbar", () => {
     renderToolbar();
 
     expect(screen.queryByRole("button", { name: /switch workspace/i })).toBeNull();
-  });
-
-  it("renders framework chips alongside the workspace name when provided", () => {
-    const { container } = renderToolbar({
-      workspaceName: "dextree",
-      workspaceFrameworks: ["react", "vitest"],
-    });
-
-    const chips = container.querySelectorAll(".dxt-workspace-switcher .dxt-badge--framework");
-    expect(chips.length).toBe(2);
-    expect(chips[0]?.textContent).toBe("react");
-    expect(chips[1]?.textContent).toBe("vitest");
-  });
-
-  it("renders workspace name without a chip row when workspaceFrameworks is empty", () => {
-    const { container } = renderToolbar({
-      workspaceName: "dextree",
-      workspaceFrameworks: [],
-    });
-
-    expect(container.querySelector(".dxt-workspace-switcher")).toBeTruthy();
-    expect(container.querySelectorAll(".dxt-badge--framework").length).toBe(0);
   });
 
   it("calls onWorkspaceSwitcherClick when the workspace button is clicked", () => {
@@ -455,34 +268,7 @@ describe("GraphToolbar", () => {
       "forceAtlas2",
     );
 
-    rerender(
-      <GraphToolbar
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
-        showMinimap={false}
-        onToggleMinimap={vi.fn()}
-        edgeKinds={["DEFINES"]}
-        hiddenEdgeKinds={new Set()}
-        onToggleEdgeKind={vi.fn()}
-        nodeFilterEntries={CANONICAL_NODE_FILTER_LIST.map((t, i) => ({ ...t, count: i }))}
-        hiddenNodeKinds={new Set()}
-        onToggleNodeKind={vi.fn()}
-        searchQuery=""
-        searchResults={[]}
-        searchFocusedIndex={0}
-        onSearchQueryChange={vi.fn()}
-        onSearchSelectResult={vi.fn()}
-        onSearchClear={vi.fn()}
-        depth={3}
-        depthEnabled={false}
-        onDepthChange={vi.fn()}
-        tracePhase="idle"
-        onTraceToggle={vi.fn()}
-        onTraceExit={vi.fn()}
-        activeLayoutPreset="circular"
-        onSelectLayoutPreset={vi.fn()}
-      />,
-    );
+    rerender(<GraphToolbar {...baseProps} activeLayoutPreset="circular" />);
     expect((screen.getByRole("combobox", { name: /layout/i }) as HTMLSelectElement).value).toBe(
       "circular",
     );
@@ -498,14 +284,114 @@ describe("GraphToolbar", () => {
     expect(onSelectLayoutPreset).toHaveBeenCalledWith("circular");
   });
 
-  it("still calls onSelectLayoutPreset when the user picks the active preset (no-op handled by GraphView)", () => {
-    const { onSelectLayoutPreset } = renderToolbar({ activeLayoutPreset: "forceAtlas2" });
+  // Slice 033 US3 — toolbar groups
+  describe("toolbar groups (slice 033 US3)", () => {
+    it("renders toolbar controls organized into distinct groups", () => {
+      const { container } = renderToolbar({ workspaceName: "dextree" });
 
-    fireEvent.change(screen.getByRole("combobox", { name: /layout/i }), {
-      target: { value: "forceAtlas2" },
+      const groups = container.querySelectorAll('[data-testid="toolbar-group"]');
+      expect(groups.length).toBeGreaterThanOrEqual(7);
     });
 
-    // Toolbar surfaces every selection; safe-no-op is decided in GraphView.
-    expect(onSelectLayoutPreset).toHaveBeenCalledWith("forceAtlas2");
+    it("orders groups in mockup sequence: workspace → search → zoom → depth → trace → layout → view", () => {
+      const { container } = renderToolbar({ workspaceName: "dextree" });
+
+      const groups = Array.from(container.querySelectorAll('[data-testid="toolbar-group"]'));
+      const labels = groups.map((g) => g.getAttribute("aria-label"));
+
+      expect(labels).toEqual([
+        "Workspace switcher",
+        "Search",
+        "Zoom controls",
+        "Depth controls",
+        "Trace controls",
+        "Layout controls",
+        "View controls",
+      ]);
+    });
+
+    it("renders export button as accent-styled in the view controls group", () => {
+      const { container } = renderToolbar();
+
+      const viewGroup = container.querySelector(
+        '[data-testid="toolbar-group"][aria-label="View controls"]',
+      );
+      expect(viewGroup).toBeTruthy();
+      const exportBtn = viewGroup?.querySelector('[data-testid="export-accent"]');
+      expect(exportBtn).toBeTruthy();
+    });
+  });
+
+  // Slice 033 Phase 3 — workspace actions relocated from the legacy right panel.
+  describe("workspace actions group (slice 033 Phase 3)", () => {
+    it("renders Re-index, Source-only, Clear Workspace, and Clear All when handlers are provided", () => {
+      renderToolbar({
+        onReindex: vi.fn(),
+        onClearWorkspace: vi.fn(),
+        onClearAll: vi.fn(),
+        onToggleSourceOnly: vi.fn(),
+        sourceOnly: false,
+        isIndexing: false,
+      });
+
+      expect(screen.getByRole("button", { name: /re-index/i })).toBeTruthy();
+      expect(screen.getByTitle("Clear the current workspace index")).toBeTruthy();
+      expect(screen.getByTitle("Clear all indexed workspaces")).toBeTruthy();
+      expect(screen.getByRole("button", { name: /source-only view/i })).toBeTruthy();
+    });
+
+    it("does not render the workspace actions group when handlers are absent", () => {
+      const { container } = renderToolbar();
+
+      const group = container.querySelector(
+        '[data-testid="toolbar-group"][aria-label="Workspace actions"]',
+      );
+      expect(group).toBeNull();
+    });
+
+    it("calls onReindex / onClearWorkspace / onClearAll / onToggleSourceOnly", () => {
+      const onReindex = vi.fn();
+      const onClearWorkspace = vi.fn();
+      const onClearAll = vi.fn();
+      const onToggleSourceOnly = vi.fn();
+      renderToolbar({
+        onReindex,
+        onClearWorkspace,
+        onClearAll,
+        onToggleSourceOnly,
+        sourceOnly: false,
+        isIndexing: false,
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /re-index/i }));
+      expect(onReindex).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByTitle("Clear the current workspace index"));
+      expect(onClearWorkspace).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByTitle("Clear all indexed workspaces"));
+      expect(onClearAll).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole("button", { name: /source-only view/i }));
+      expect(onToggleSourceOnly).toHaveBeenCalledTimes(1);
+    });
+
+    it("disables Re-index / Clear while indexing is active", () => {
+      renderToolbar({
+        onReindex: vi.fn(),
+        onClearWorkspace: vi.fn(),
+        onClearAll: vi.fn(),
+        onToggleSourceOnly: vi.fn(),
+        sourceOnly: false,
+        isIndexing: true,
+      });
+
+      expect(
+        (screen.getByRole("button", { name: /indexing/i }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect(
+        (screen.getByTitle("Clear the current workspace index") as HTMLButtonElement).disabled,
+      ).toBe(true);
+    });
   });
 });

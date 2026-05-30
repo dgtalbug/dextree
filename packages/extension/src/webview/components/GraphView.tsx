@@ -14,18 +14,29 @@ import { NodeCircleProgram } from "sigma/rendering";
 
 import {
   applyLayoutPreset,
+  LAYOUT_PRESET_OPTIONS,
   restoreNodePositions,
   snapshotNodePositions,
 } from "./graphLayoutPresets.js";
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
-import { InspectorPanel } from "./InspectorPanel.js";
+import { EdgeTypesPanel, type EdgeTypeEntry } from "./EdgeTypesPanel.js";
+import {
+  InspectorPanel,
+  type InspectorNeighbor,
+  type InspectorNeighbors,
+} from "./InspectorPanel.js";
 import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
 import lensesPanelStyles from "./LensesPanel.module.css";
+import {
+  CANONICAL_NODE_FILTER_LIST,
+  NodeFilterPanel,
+  type NodeFilterEntry,
+} from "./NodeFilterPanel.js";
+import shellStyles from "./GraphView.module.css";
 import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
 import { dimColor } from "./lensColor.js";
-import { CANONICAL_NODE_FILTER_LIST, type NodeFilterEntry } from "./NodeFilterPanel.js";
 import {
   TRACE_STATE_IDLE,
   entryVisualState,
@@ -675,14 +686,6 @@ function StaticGraphFallback({
   );
 }
 
-const ALL_EDGE_KINDS: GraphEdge["kind"][] = [
-  "DEFINES",
-  "IMPORTS",
-  "CALLS",
-  "INHERITS",
-  "INSTANTIATES",
-];
-
 function computeSelection(
   graph: MultiDirectedGraph,
   selectedNodeId: string | null,
@@ -1135,11 +1138,17 @@ export function GraphView({
   edges,
   onNavigate,
   onExportMermaid,
-  onExportCurrentView,
+  onExportCurrentView: _onExportCurrentView,
   onExportTraceSequence,
   workspaceName,
   workspaceFrameworks,
   onWorkspaceSwitcherClick,
+  onReindex,
+  onClearWorkspace,
+  onClearAll,
+  onToggleSourceOnly,
+  sourceOnly,
+  isIndexing,
 }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MultiDirectedGraph | null>(null);
@@ -1257,59 +1266,9 @@ export function GraphView({
   const pathNodeIdsRef = useRef<Set<string>>(new Set());
   const pathEdgeIdsRef = useRef<Set<string>>(new Set());
 
-  const toggleEdgeKind = useCallback((kind: GraphEdge["kind"]) => {
-    setHiddenEdgeKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) {
-        next.delete(kind);
-      } else {
-        next.add(kind);
-      }
-      return next;
-    });
-  }, []);
-
-  const toggleNodeKind = useCallback((key: string) => {
-    setHiddenNodeKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }, []);
-
   const onToggleMinimap = useCallback(() => {
     setShowMinimap((visible) => !visible);
   }, []);
-
-  const nodeFilterEntries = useMemo<NodeFilterEntry[]>(() => {
-    const counts = new Map<string, number>();
-    let decoratorBackedCount = 0;
-    for (const node of nodes) {
-      const key = node.type === "file" ? "file" : (node.symbolKind ?? "function");
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-      // Slice 031 US3 — annotation-backed symbols carry a "decorator-backed"
-      // flag projected by core/src/query/subgraph.ts so the Decorator chip
-      // shows a truthful count instead of staying a placeholder.
-      if (node.flags?.includes("decorator-backed")) {
-        decoratorBackedCount += 1;
-      }
-    }
-    counts.set("decorator", decoratorBackedCount);
-    return CANONICAL_NODE_FILTER_LIST.map((template) => ({
-      ...template,
-      count: counts.get(template.key) ?? 0,
-      // US3 — keep "decorator" honest: when the workspace has no annotation-
-      // backed nodes the chip stays available but disabled, so the user sees
-      // why filtering has no effect instead of getting a noisy zero chip.
-      ...(template.key === "decorator" && decoratorBackedCount === 0
-        ? { disabled: true, tooltip: "No decorator-backed symbols found in this workspace." }
-        : {}),
-    }));
-  }, [nodes]);
 
   // Compute counts for all five lenses against the current subgraph. Stub
   // lenses (selector === null) contribute 0. Runs once per subgraph change.
@@ -1438,6 +1397,93 @@ export function GraphView({
   const handleTraceExit = useCallback((): void => {
     tracePhaseRef.current = "idle";
     setTraceState(TRACE_STATE_IDLE);
+  }, []);
+
+  // Zoom handlers (slice 033 US3).
+  const handleZoomIn = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    const camera = (sigma as SigmaWithExtras).getCamera?.();
+    const state = camera?.getState?.();
+    if (camera?.animate !== undefined && state !== undefined) {
+      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 0.7 }, { duration: 200 });
+    }
+  }, []);
+
+  const handleZoomOut = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    const camera = (sigma as SigmaWithExtras).getCamera?.();
+    const state = camera?.getState?.();
+    if (camera?.animate !== undefined && state !== undefined) {
+      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 1.4 }, { duration: 200 });
+    }
+  }, []);
+
+  const handleZoomFit = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    if (sigma === null) return;
+    const container = containerRef.current;
+    if (container === null) return;
+    const g = graphRef.current;
+    if (g === null || g.order === 0) return;
+
+    // Fit all nodes in viewport with 40px padding
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    g.forEachNode((node) => {
+      const attrs = g.getNodeAttributes(node) as GraphNodeAttributes;
+      if (attrs.x < minX) minX = attrs.x;
+      if (attrs.x > maxX) maxX = attrs.x;
+      if (attrs.y < minY) minY = attrs.y;
+      if (attrs.y > maxY) maxY = attrs.y;
+    });
+    const padding = 40;
+    const width = container.clientWidth - padding * 2;
+    const height = container.clientHeight - padding * 2;
+    const graphWidth = maxX - minX + 1;
+    const graphHeight = maxY - minY + 1;
+    const ratio = Math.max(graphWidth / width, graphHeight / height, 0.1);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const camera = (sigma as SigmaWithExtras).getCamera?.();
+    camera?.animate?.({ x: centerX, y: centerY, ratio }, { duration: 300 });
+  }, []);
+
+  const handleZoomReset = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    const camera = (sigma as SigmaWithExtras).getCamera?.();
+    camera?.animate?.({ x: 0.5, y: 0.5, ratio: 1 }, { duration: 300 });
+  }, []);
+
+  // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
+  // Sigma node/edge reducers via their refs; these handlers expose the toggle
+  // to the left/right rail filter panels. A toggle that adds the kind hides
+  // it; removing the kind shows it again.
+  const handleToggleNodeKind = useCallback((key: string): void => {
+    setHiddenNodeKinds((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleEdgeKind = useCallback((kind: string): void => {
+    setHiddenEdgeKinds((current) => {
+      const next = new Set(current) as Set<GraphEdge["kind"]>;
+      const typed = kind as GraphEdge["kind"];
+      if (next.has(typed)) {
+        next.delete(typed);
+      } else {
+        next.add(typed);
+      }
+      return next;
+    });
   }, []);
 
   const handleTracePathCompute = useCallback((startId: string, endId: string): void => {
@@ -2150,14 +2196,15 @@ export function GraphView({
     travelerSegments.length > 0 ? travelerSegments : overlaySegments.slice(0, 3);
 
   // B3: Compute callers and callees from graph during render
-  const neighborCallers: Array<{ id: string; label: string; filePath: string; startLine: number }> =
-    [];
-  const neighborCallees: Array<{
+  type CanvasNeighbor = {
     id: string;
     label: string;
     filePath: string;
     startLine: number;
-  }> = [];
+    symbolKind: string;
+  };
+  const neighborCallers: CanvasNeighbor[] = [];
+  const neighborCallees: CanvasNeighbor[] = [];
 
   if (selectedNodeId !== null && graphRef.current !== null) {
     const g = graphRef.current;
@@ -2170,6 +2217,7 @@ export function GraphView({
           label: a.label,
           filePath: a.filePath,
           startLine: a.startLine,
+          symbolKind: a.symbolKind ?? "misc",
         });
       });
       g.forEachOutboundEdge(selectedNodeId, (_edge, attrs, _src, target) => {
@@ -2180,6 +2228,7 @@ export function GraphView({
           label: a.label,
           filePath: a.filePath,
           startLine: a.startLine,
+          symbolKind: a.symbolKind ?? "misc",
         });
       });
     }
@@ -2188,17 +2237,151 @@ export function GraphView({
   const MAX_NEIGHBORS = 8;
   const shownCallers = neighborCallers.slice(0, MAX_NEIGHBORS);
   const shownCallees = neighborCallees.slice(0, MAX_NEIGHBORS);
-  const extraCallers = neighborCallers.length - shownCallers.length;
-  const extraCallees = neighborCallees.length - shownCallees.length;
+
+  // Inspector neighbor lists (slice 033). The Inspector now owns neighbor
+  // rendering in the right rail; the canvas neighbor panel becomes redundant.
+  // Implements is not tracked separately yet (CALLS-only graph), so it is empty.
+  const toInspectorNeighbors = (items: CanvasNeighbor[]): InspectorNeighbor[] =>
+    items.map((n) => ({
+      id: n.id,
+      label: n.label,
+      filePath: n.filePath,
+      symbolKind: n.symbolKind,
+    }));
+  const inspectorNeighbors: InspectorNeighbors = {
+    calledBy: toInspectorNeighbors(shownCallers),
+    calls: toInspectorNeighbors(shownCallees),
+    implements: [],
+  };
+
+  // Left-rail node-type filter entries: canonical order, counts from the
+  // current node set, Decorator stays a disabled future stub (slice 031).
+  const nodeKindCounts = new Map<string, number>();
+  for (const node of nodes) {
+    const key = node.type === "file" ? "file" : (node.symbolKind ?? "misc");
+    nodeKindCounts.set(key, (nodeKindCounts.get(key) ?? 0) + 1);
+  }
+  const fileCount = nodeKindCounts.get("file") ?? 0;
+  const symbolCount = nodes.length - fileCount;
+  const nodeFilterEntries: NodeFilterEntry[] = CANONICAL_NODE_FILTER_LIST.map((entry) => ({
+    ...entry,
+    count: nodeKindCounts.get(entry.key) ?? 0,
+    ...(entry.key === "decorator"
+      ? {
+          disabled: true,
+          tooltip: "Available after slice 026 — decorator-relationship classification.",
+        }
+      : {}),
+  }));
+
+  // Right-rail edge-type filter entries: counts from the current edge set,
+  // ordered to match the mockup. INHERITS surfaces as "Extends".
+  const edgeKindCounts = new Map<string, number>();
+  for (const edge of edges) {
+    edgeKindCounts.set(edge.kind, (edgeKindCounts.get(edge.kind) ?? 0) + 1);
+  }
+  const EDGE_FILTER_ORDER: ReadonlyArray<{ kind: string; label: string }> = [
+    { kind: "DEFINES", label: "Defines" },
+    { kind: "IMPORTS", label: "Imports" },
+    { kind: "CALLS", label: "Calls" },
+    { kind: "INHERITS", label: "Extends" },
+    { kind: "INSTANTIATES", label: "New" },
+    { kind: "IMPLEMENTS", label: "Implements" },
+  ];
+  const edgeTypeEntries: EdgeTypeEntry[] = EDGE_FILTER_ORDER.filter(
+    (e) => (edgeKindCounts.get(e.kind) ?? 0) > 0 || e.kind === "IMPLEMENTS",
+  ).map((e) => ({
+    kind: e.kind,
+    label: e.label,
+    count: edgeKindCounts.get(e.kind) ?? 0,
+    ...(e.kind === "IMPLEMENTS"
+      ? { disabled: true, tooltip: "Implements edges are always shown." }
+      : {}),
+  }));
+
+  const activeLayoutLabel =
+    LAYOUT_PRESET_OPTIONS.find((o) => o.id === layoutSelection.activePreset)?.label ??
+    layoutSelection.activePreset;
 
   return (
-    <div className="dxt-graph-view dxt-graph-stage" data-testid="graph-view-shell">
-      <LensesPanel
-        activeLensId={activeLensId}
-        lensCounts={lensCounts}
-        onLensToggle={onLensToggle}
-      />
-      <div className="dxt-graph-surface">
+    <div className={shellStyles.shell} data-testid="graph-view-shell">
+      {/* TOOLBAR area */}
+      <div className={shellStyles.toolbarArea}>
+        <GraphToolbar
+          onExportMermaid={onExportMermaid}
+          showMinimap={showMinimap}
+          onToggleMinimap={onToggleMinimap}
+          searchQuery={searchQuery}
+          searchResults={searchResults}
+          searchFocusedIndex={searchFocusedIndex}
+          onSearchQueryChange={handleSearchQueryChange}
+          onSearchSelectResult={handleSearchSelectResult}
+          onSearchClear={handleSearchClear}
+          depth={depth}
+          depthEnabled={depthEnabled}
+          onDepthChange={handleDepthChange}
+          tracePhase={traceState.phase}
+          onTraceToggle={handleTraceToggle}
+          onTraceExit={handleTraceExit}
+          canExportTrace={
+            traceState.phase === "path-active" &&
+            traceState.startNodeId !== null &&
+            traceState.endNodeId !== null &&
+            traceState.pathNodeIds.length > 0
+          }
+          {...(onExportTraceSequence !== undefined && {
+            onExportTrace: () => {
+              if (
+                traceState.phase !== "path-active" ||
+                traceState.startNodeId === null ||
+                traceState.endNodeId === null ||
+                traceState.pathNodeIds.length === 0
+              ) {
+                return;
+              }
+              onExportTraceSequence({
+                phase: "path-active",
+                startNodeId: traceState.startNodeId,
+                endNodeId: traceState.endNodeId,
+                nodeIds: [...traceState.pathNodeIds],
+                edgeIds: [...traceState.pathEdgeIds],
+              });
+            },
+          })}
+          {...(workspaceName !== undefined && { workspaceName })}
+          {...(workspaceFrameworks !== undefined && { workspaceFrameworks })}
+          {...(onWorkspaceSwitcherClick !== undefined && { onWorkspaceSwitcherClick })}
+          activeLayoutPreset={layoutSelection.activePreset}
+          onSelectLayoutPreset={handleSelectLayoutPreset}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onZoomFit={handleZoomFit}
+          onZoomReset={handleZoomReset}
+          {...(onReindex !== undefined && { onReindex })}
+          {...(onClearWorkspace !== undefined && { onClearWorkspace })}
+          {...(onClearAll !== undefined && { onClearAll })}
+          {...(onToggleSourceOnly !== undefined && { onToggleSourceOnly })}
+          {...(sourceOnly !== undefined && { sourceOnly })}
+          {...(isIndexing !== undefined && { isIndexing })}
+        />
+      </div>
+
+      {/* LEFT rail: Lenses + Node Types */}
+      <aside className={shellStyles.left} aria-label="Graph lenses and node filters">
+        <LensesPanel
+          activeLensId={activeLensId}
+          lensCounts={lensCounts}
+          onLensToggle={onLensToggle}
+        />
+        <NodeFilterPanel
+          entries={nodeFilterEntries}
+          hiddenKinds={hiddenNodeKinds}
+          onToggle={handleToggleNodeKind}
+        />
+      </aside>
+
+      {/* CANVAS area */}
+      <main className={`${shellStyles.canvas} dxt-graph-stage`}>
         <canvas className="dxt-cluster-layer" ref={clusterCanvasRef} />
         <div id="dxt-graph-container" data-testid="graph-view" ref={containerRef} />
         <svg
@@ -2254,109 +2437,90 @@ export function GraphView({
             : null}
         </svg>
 
-        {selectedNodeId !== null && (neighborCallers.length > 0 || neighborCallees.length > 0) && (
-          <div className="dxt-neighbor-panel">
-            {neighborCallers.length > 0 && (
-              <div className="dxt-neighbor-section">
-                <div className="dxt-neighbor-section-title">Called by</div>
-                {shownCallers.map((caller) => (
-                  <button
-                    key={caller.id}
-                    type="button"
-                    className="dxt-neighbor-row"
-                    onClick={() => {
-                      onNavigate(caller.filePath, caller.startLine);
-                    }}
-                    title={`${caller.filePath}:${caller.startLine}`}
-                  >
-                    <span className="codicon codicon-symbol-function" aria-hidden="true" />
-                    {caller.label}
-                  </button>
-                ))}
-                {extraCallers > 0 && (
-                  <span className="dxt-neighbor-more">+ {extraCallers} more</span>
-                )}
-              </div>
-            )}
-            {neighborCallees.length > 0 && (
-              <div className="dxt-neighbor-section">
-                <div className="dxt-neighbor-section-title">Calls</div>
-                {shownCallees.map((callee) => (
-                  <button
-                    key={callee.id}
-                    type="button"
-                    className="dxt-neighbor-row"
-                    onClick={() => {
-                      onNavigate(callee.filePath, callee.startLine);
-                    }}
-                    title={`${callee.filePath}:${callee.startLine}`}
-                  >
-                    <span className="codicon codicon-symbol-function" aria-hidden="true" />
-                    {callee.label}
-                  </button>
-                ))}
-                {extraCallees > 0 && (
-                  <span className="dxt-neighbor-more">+ {extraCallees} more</span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Canvas overlays (slice 033 US4) */}
+        <div className="dxt-floating dxt-zoom-controls" data-testid="canvas-zoom-controls">
+          <button
+            type="button"
+            className="dxt-icon-btn"
+            title="Zoom in"
+            aria-label="Zoom in"
+            onClick={handleZoomIn}
+          >
+            <span className="codicon codicon-zoom-in" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="dxt-icon-btn"
+            title="Zoom out"
+            aria-label="Zoom out"
+            onClick={handleZoomOut}
+          >
+            <span className="codicon codicon-zoom-out" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="dxt-icon-btn"
+            title="Fit to screen"
+            aria-label="Fit"
+            onClick={handleZoomFit}
+          >
+            <span className="codicon codicon-screen-full" aria-hidden="true" />
+          </button>
+        </div>
 
-        <GraphToolbar
-          onExportMermaid={onExportMermaid}
-          onExportCurrentView={onExportCurrentView}
-          showMinimap={showMinimap}
-          onToggleMinimap={onToggleMinimap}
-          edgeKinds={ALL_EDGE_KINDS}
-          hiddenEdgeKinds={hiddenEdgeKinds}
-          onToggleEdgeKind={toggleEdgeKind}
-          nodeFilterEntries={nodeFilterEntries}
-          hiddenNodeKinds={hiddenNodeKinds}
-          onToggleNodeKind={toggleNodeKind}
-          searchQuery={searchQuery}
-          searchResults={searchResults}
-          searchFocusedIndex={searchFocusedIndex}
-          onSearchQueryChange={handleSearchQueryChange}
-          onSearchSelectResult={handleSearchSelectResult}
-          onSearchClear={handleSearchClear}
-          depth={depth}
-          depthEnabled={depthEnabled}
-          onDepthChange={handleDepthChange}
-          tracePhase={traceState.phase}
-          onTraceToggle={handleTraceToggle}
-          onTraceExit={handleTraceExit}
-          canExportTrace={
-            traceState.phase === "path-active" &&
-            traceState.startNodeId !== null &&
-            traceState.endNodeId !== null &&
-            traceState.pathNodeIds.length > 0
-          }
-          {...(onExportTraceSequence !== undefined && {
-            onExportTrace: () => {
-              if (
-                traceState.phase !== "path-active" ||
-                traceState.startNodeId === null ||
-                traceState.endNodeId === null ||
-                traceState.pathNodeIds.length === 0
-              ) {
-                return;
-              }
-              onExportTraceSequence({
-                phase: "path-active",
-                startNodeId: traceState.startNodeId,
-                endNodeId: traceState.endNodeId,
-                nodeIds: [...traceState.pathNodeIds],
-                edgeIds: [...traceState.pathEdgeIds],
-              });
-            },
-          })}
-          {...(workspaceName !== undefined && { workspaceName })}
-          {...(workspaceFrameworks !== undefined && { workspaceFrameworks })}
-          {...(onWorkspaceSwitcherClick !== undefined && { onWorkspaceSwitcherClick })}
-          activeLayoutPreset={layoutSelection.activePreset}
-          onSelectLayoutPreset={handleSelectLayoutPreset}
-        />
+        <div className="dxt-legend" data-testid="canvas-legend">
+          <div className="dxt-legend-title">Layers</div>
+          <div className="dxt-legend-row">
+            <span className="dxt-legend-chip" style={{ background: "var(--layer-entry)" }} />
+            Entry
+          </div>
+          <div className="dxt-legend-row">
+            <span className="dxt-legend-chip" style={{ background: "var(--layer-domain)" }} />
+            Domain
+          </div>
+          <div className="dxt-legend-row">
+            <span className="dxt-legend-chip" style={{ background: "var(--layer-io)" }} />
+            I/O
+          </div>
+          <hr className="dxt-legend-sep" />
+          <div className="dxt-legend-row">
+            <span
+              className="dxt-legend-swatch"
+              style={{ background: "var(--vscode-charts-blue)" }}
+            />
+            Defines
+          </div>
+          <div className="dxt-legend-row">
+            <span
+              className="dxt-legend-swatch"
+              style={{ background: "var(--vscode-charts-green)" }}
+            />
+            Imports
+          </div>
+          <div className="dxt-legend-row">
+            <span
+              className="dxt-legend-swatch"
+              style={{ background: "var(--vscode-charts-orange)" }}
+            />
+            Calls
+          </div>
+        </div>
+
+        <div className="dxt-canvas-help" data-testid="canvas-help">
+          <span>
+            <kbd>Click</kbd> isolate
+          </span>
+          <span>
+            <kbd>Dbl-click</kbd> editor
+          </span>
+          <span>
+            <kbd>Scroll</kbd> zoom
+          </span>
+          <span>
+            <kbd>Esc</kbd> clear
+          </span>
+        </div>
+
         {layoutSelection.notice !== null && (
           <div
             className="dxt-layout-notice"
@@ -2405,33 +2569,99 @@ export function GraphView({
             onExit={handleTraceExit}
           />
         )}
-      </div>
-      {traceState.phase === "path-active" ? (
-        <TraceInspector
-          tracePath={
-            graphRef.current === null ? null : computeTracePath(graphRef.current, traceState)
-          }
-          noPathFound={traceState.noPathFound}
-          startLabel={
-            traceState.startNodeId === null
-              ? null
-              : (nodes.find((n) => n.id === traceState.startNodeId)?.label ?? null)
-          }
-          endLabel={
-            traceState.endNodeId === null
-              ? null
-              : (nodes.find((n) => n.id === traceState.endNodeId)?.label ?? null)
-          }
-          onStepClick={handleTraceStepClick}
-        />
-      ) : (
-        <InspectorPanel
-          selectedNode={
-            selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
-          }
-          onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
-        />
-      )}
+      </main>
+
+      {/* RIGHT rail: Edge Types + Inspector (or Trace details in trace mode) */}
+      <aside className={shellStyles.right} aria-label="Edge filters and inspector">
+        {traceState.phase === "path-active" ? (
+          <TraceInspector
+            tracePath={
+              graphRef.current === null ? null : computeTracePath(graphRef.current, traceState)
+            }
+            noPathFound={traceState.noPathFound}
+            startLabel={
+              traceState.startNodeId === null
+                ? null
+                : (nodes.find((n) => n.id === traceState.startNodeId)?.label ?? null)
+            }
+            endLabel={
+              traceState.endNodeId === null
+                ? null
+                : (nodes.find((n) => n.id === traceState.endNodeId)?.label ?? null)
+            }
+            onStepClick={handleTraceStepClick}
+          />
+        ) : (
+          <>
+            <EdgeTypesPanel
+              entries={edgeTypeEntries}
+              hiddenKinds={hiddenEdgeKinds}
+              onToggle={handleToggleEdgeKind}
+            />
+            <InspectorPanel
+              selectedNode={
+                selectedNodeId === null
+                  ? null
+                  : (nodes.find((n) => n.id === selectedNodeId) ?? null)
+              }
+              onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
+              neighbors={inspectorNeighbors}
+              onNeighborClick={(id) => {
+                const target = nodes.find((n) => n.id === id);
+                if (target !== undefined) {
+                  onNavigate(target.filePath, target.startLine);
+                }
+              }}
+            />
+          </>
+        )}
+      </aside>
+
+      {/* STATUS bar */}
+      <footer className={shellStyles.status} data-testid="graph-status-bar">
+        <span className={shellStyles.statusItem}>
+          <span className={shellStyles.statusPill}>{fileCount} files</span>
+        </span>
+        <span className={shellStyles.statusItem}>
+          <span className={shellStyles.statusPill}>{symbolCount} symbols</span>
+        </span>
+        <span className={shellStyles.statusItem}>
+          <span className={shellStyles.statusPill}>{edges.length} edges</span>
+        </span>
+        {workspaceFrameworks !== undefined && workspaceFrameworks.length > 0 && (
+          <span className={shellStyles.statusItem}>
+            {workspaceFrameworks.map((fw) => (
+              <span
+                key={fw}
+                className={`${shellStyles.statusPill} ${shellStyles.statusPillFramework}`}
+                data-framework={fw}
+              >
+                {fw}
+              </span>
+            ))}
+          </span>
+        )}
+        {activeLensId !== null && (
+          <span className={shellStyles.statusItem}>
+            <span className={`${shellStyles.statusPill} ${shellStyles.statusPillLens}`}>
+              <span
+                className={`codicon codicon-${LENS_REGISTRY[activeLensId].iconKey}`}
+                aria-hidden="true"
+              />
+              {LENS_REGISTRY[activeLensId].title}
+            </span>
+          </span>
+        )}
+        <span className={shellStyles.statusSpacer} />
+        <span className={shellStyles.statusItem}>
+          <span className="codicon codicon-list-tree" aria-hidden="true" />
+          Depth {depth}
+        </span>
+        <span className={shellStyles.statusItem}>
+          <span className="codicon codicon-graph" aria-hidden="true" />
+          {activeLayoutLabel}
+        </span>
+      </footer>
     </div>
   );
 }

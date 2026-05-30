@@ -248,24 +248,9 @@ describe("GraphView", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Export as Mermaid" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Mermaid preview export" }));
 
     expect(onExportMermaid).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onExportCurrentView from the toolbar export-current-view button", () => {
-    const onExportCurrentView = vi.fn();
-    render(
-      <GraphView
-        nodes={baseNodes}
-        edges={baseEdges}
-        onNavigate={vi.fn()}
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={onExportCurrentView}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Export current view" }));
-    expect(onExportCurrentView).toHaveBeenCalledTimes(1);
   });
 
   it("toggles the minimap visibility from the toolbar button", () => {
@@ -288,26 +273,6 @@ describe("GraphView", () => {
 
     expect(minimapCanvas?.className).not.toContain("dxt-minimap-canvas--hidden");
     expect(minimapButton.getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("updates edge filter pill state from the toolbar", () => {
-    render(
-      <GraphView
-        nodes={baseNodes}
-        edges={baseEdges}
-        onNavigate={vi.fn()}
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
-      />,
-    );
-
-    const definesButton = screen.getByRole("button", { name: "Hide Defines edges" });
-
-    fireEvent.click(definesButton);
-
-    expect(
-      screen.getByRole("button", { name: "Show Defines edges" }).getAttribute("aria-pressed"),
-    ).toBe("false");
   });
 
   it("assigns distinct node size and color attributes for file and symbol nodes", () => {
@@ -749,131 +714,16 @@ describe("GraphView", () => {
 
     expect(container.querySelectorAll(".dxt-selection-path").length).toBeGreaterThan(0);
     expect(container.querySelectorAll(".dxt-selection-traveler").length).toBeGreaterThan(0);
-    expect(screen.getByText("Called by")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "formatCaller" }));
+    // Neighbors now render in the Inspector (right rail), not a floating canvas
+    // panel. Group titles carry a count ("Called by · N"); rows are addressable
+    // by neighbor-row-<id> and clicking one navigates to that symbol.
+    expect(screen.getByText(/Called by/)).toBeTruthy();
+    fireEvent.click(screen.getByTestId("neighbor-row-symbol-3"));
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/caller.ts", 9);
 
-    fireEvent.click(screen.getByRole("button", { name: "formatDate" }));
+    fireEvent.click(screen.getByTestId("neighbor-row-symbol-2"));
 
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/util.ts", 4);
-  });
-
-  describe("node-kind filter (slice 019)", () => {
-    it("node filter panel renders in the toolbar with all canonical kinds", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      expect(screen.getByRole("group", { name: "Node type filters" })).toBeTruthy();
-      // Folder, Class, Interface, Function, Method, Property, Variable, Enum, Type, Decorator = 10
-      expect(screen.getAllByRole("checkbox").length).toBe(10);
-    });
-
-    it("hiddenNodeKinds starts as empty set — all chips aria-checked=true (FR-010)", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      const chips = screen.getAllByRole("checkbox");
-      const activeChips = chips.filter((c) => c.getAttribute("aria-disabled") !== "true");
-      expect(activeChips.length).toBeGreaterThan(0);
-      for (const chip of activeChips) {
-        expect(chip.getAttribute("aria-checked")).toBe("true");
-      }
-    });
-
-    it("toggling a node-kind chip updates aria-checked state", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      const functionChip = screen.getByRole("checkbox", { name: "Hide Function nodes" });
-      expect(functionChip.getAttribute("aria-checked")).toBe("true");
-
-      fireEvent.click(functionChip);
-
-      expect(
-        screen.getByRole("checkbox", { name: "Show Function nodes" }).getAttribute("aria-checked"),
-      ).toBe("false");
-    });
-
-    it("toggling a chip twice returns it to visible state", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      const functionChip = screen.getByRole("checkbox", { name: "Hide Function nodes" });
-      fireEvent.click(functionChip);
-      fireEvent.click(screen.getByRole("checkbox", { name: "Show Function nodes" }));
-
-      expect(
-        screen.getByRole("checkbox", { name: "Hide Function nodes" }).getAttribute("aria-checked"),
-      ).toBe("true");
-    });
-
-    it("nodeFilterEntries counts are derived from nodes prop", () => {
-      // baseNodes: 1 file, 1 function, 1 class
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      // baseNodes: 1 file, 1 function, 1 class — Folder chip should show count 1
-      const folderChip = screen.getByRole("checkbox", { name: /Folder/ });
-      expect(folderChip).toBeTruthy();
-      // The badge should show "1"
-      const badge =
-        folderChip.querySelector("span[aria-label]") ??
-        folderChip.parentElement?.querySelector("span[aria-label]");
-      expect(badge ?? folderChip.textContent).toBeTruthy();
-    });
-
-    it("Decorator chip is disabled and not clickable", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      // Find chip by aria-disabled
-      const chips = screen.getAllByRole("checkbox");
-      const disabledChip = chips.find((c) => c.getAttribute("aria-disabled") === "true");
-      expect(disabledChip).toBeTruthy();
-      expect(disabledChip?.textContent).toContain("Decorator");
-    });
   });
 
   describe("lens activation (slice 021)", () => {
@@ -1428,6 +1278,84 @@ describe("GraphView", () => {
       expect(graph.getNodeAttribute("symbol-unclassified", "type")).toBeUndefined();
       expect(graph.getNodeAttribute("symbol-pass1only", "type")).toBeUndefined();
       expect(graph.getNodeAttribute("symbol-pass1only", "entryKind")).toBeUndefined();
+    });
+  });
+
+  // Slice 033 Phase 3 — shell wiring: rails + status into the grid.
+  describe("shell wiring (slice 033 Phase 3)", () => {
+    function renderWired() {
+      const result = render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+          workspaceName="dextree"
+          workspaceFrameworks={["react"]}
+        />,
+      );
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+      return result;
+    }
+
+    it("renders the shell as a 3-column grid root", () => {
+      const { container } = renderWired();
+      const shell = container.querySelector('[data-testid="graph-view-shell"]');
+      expect(shell).toBeTruthy();
+      // The shell root carries the grid module class, not the old flex layout.
+      expect(shell?.className.includes("dxt-graph-view")).toBe(false);
+    });
+
+    it("renders the toolbar in its own grid area (not inside the canvas surface)", () => {
+      const { container } = renderWired();
+      const toolbar = screen.getByRole("toolbar", { name: "Graph toolbar" });
+      const canvasSurface = container.querySelector('[data-testid="graph-view"]');
+      // Toolbar must not be a descendant of the canvas container.
+      expect(canvasSurface?.contains(toolbar)).toBe(false);
+    });
+
+    it("renders the Node Types filter panel in the left rail", () => {
+      renderWired();
+      expect(screen.getByTestId("node-filter-panel")).toBeTruthy();
+      // Lenses + Node Types coexist in the left rail.
+      expect(screen.getByTestId("lens-row-god-class")).toBeTruthy();
+    });
+
+    it("renders the Edge Types panel in the right rail", () => {
+      renderWired();
+      expect(screen.getByTestId("edge-types-panel")).toBeTruthy();
+    });
+
+    it("toggling a node-type checkbox does not throw and updates the checkbox", () => {
+      renderWired();
+      const fileRow = screen.getByTestId("filter-row-file");
+      const checkbox = fileRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(checkbox.checked).toBe(true);
+      act(() => {
+        fireEvent.click(checkbox);
+      });
+      expect(checkbox.checked).toBe(false);
+    });
+
+    it("toggling an edge-type checkbox does not throw and updates the checkbox", () => {
+      renderWired();
+      const callsRow = screen.getByTestId("edge-row-CALLS");
+      const checkbox = callsRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(checkbox.checked).toBe(true);
+      act(() => {
+        fireEvent.click(checkbox);
+      });
+      expect(checkbox.checked).toBe(false);
+    });
+
+    it("renders a status bar with a right cluster showing the layout name", () => {
+      renderWired();
+      const statusBar = screen.getByTestId("graph-status-bar");
+      expect(statusBar).toBeTruthy();
+      expect(within(statusBar).getByText("ForceAtlas2")).toBeTruthy();
     });
   });
 });

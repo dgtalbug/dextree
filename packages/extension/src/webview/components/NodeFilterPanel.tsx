@@ -13,6 +13,34 @@ export interface NodeFilterEntry {
   tooltip?: string;
 }
 
+/** Maps node type filter keys to a Codicon class name. */
+function codiconForKey(key: string): string {
+  switch (key) {
+    case "file":
+      return "folder";
+    case "class":
+      return "symbol-class";
+    case "interface":
+      return "symbol-interface";
+    case "enum":
+      return "symbol-enum";
+    case "type":
+      return "symbol-misc";
+    case "function":
+      return "symbol-function";
+    case "method":
+      return "symbol-method";
+    case "property":
+      return "symbol-variable";
+    case "variable":
+      return "symbol-variable";
+    case "decorator":
+      return "symbol-misc";
+    default:
+      return "symbol-misc";
+  }
+}
+
 export const CANONICAL_NODE_FILTER_LIST: Readonly<Omit<NodeFilterEntry, "count">[]> = [
   { key: "file", label: "Folder" },
   { key: "class", label: "Class" },
@@ -44,8 +72,42 @@ export function NodeFilterPanel({ entries, hiddenKinds, onToggle }: NodeFilterPa
     activeNonDisabled.length > 0 && activeNonDisabled.every((e) => hiddenKinds.has(e.key));
 
   return (
-    <div className={styles.nodeFilterPanel} role="group" aria-label="Node type filters">
-      <div className={styles.chips}>
+    <div className={styles.container} data-testid="node-filter-panel">
+      <header className={styles.sectionHeader}>
+        <span>Node Types</span>
+        <span className={styles.sectionActions}>
+          <button
+            type="button"
+            className={styles.linkBtn}
+            onClick={() => {
+              for (const e of activeNonDisabled) {
+                if (hiddenKinds.has(e.key)) {
+                  onToggle(e.key);
+                }
+              }
+            }}
+            aria-label="Show all node types"
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={styles.linkBtn}
+            onClick={() => {
+              for (const e of activeNonDisabled) {
+                if (!hiddenKinds.has(e.key)) {
+                  onToggle(e.key);
+                }
+              }
+            }}
+            aria-label="Hide all node types"
+          >
+            None
+          </button>
+        </span>
+      </header>
+      <p className={styles.sectionHint}>Filter visible node types</p>
+      <div className={styles.sectionBody}>
         {entries.map((entry) => {
           const isVisible = !hiddenKinds.has(entry.key);
           const ariaLabel = entry.disabled
@@ -53,30 +115,30 @@ export function NodeFilterPanel({ entries, hiddenKinds, onToggle }: NodeFilterPa
             : `${isVisible ? "Hide" : "Show"} ${entry.label} nodes`;
 
           return (
-            <button
+            <label
               key={entry.key}
-              type="button"
-              role="checkbox"
-              className={[
-                styles.chip,
-                !isVisible || entry.disabled ? styles.chipInactive : "",
-                entry.disabled ? styles.chipDisabled : "",
-                entry.count === 0 && !entry.disabled ? styles.chipEmpty : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              aria-checked={!entry.disabled && isVisible}
-              aria-label={ariaLabel}
+              className={`${styles.filterRow}${entry.disabled ? ` ${styles.filterRowDisabled}` : ""}`}
+              data-testid={`filter-row-${entry.key}`}
               aria-disabled={entry.disabled ? "true" : undefined}
-              tabIndex={entry.disabled ? -1 : 0}
-              title={entry.disabled ? entry.tooltip : undefined}
-              onClick={entry.disabled ? undefined : () => onToggle(entry.key)}
+              aria-label={ariaLabel}
+              title={entry.disabled ? entry.tooltip : ariaLabel}
             >
-              {entry.label}
-              <span className={styles.badge} aria-label={`${entry.count} nodes`}>
-                ({entry.count})
+              <input
+                type="checkbox"
+                checked={!entry.disabled && isVisible}
+                disabled={entry.disabled}
+                onChange={entry.disabled ? undefined : () => onToggle(entry.key)}
+              />
+              <span
+                className={`codicon codicon-${codiconForKey(entry.key)}`}
+                data-testid="filter-codicon"
+                aria-hidden="true"
+              />
+              <span data-testid="filter-label">{entry.label}</span>
+              <span className={styles.filterCount} data-testid="filter-count">
+                {entry.count}
               </span>
-            </button>
+            </label>
           );
         })}
       </div>

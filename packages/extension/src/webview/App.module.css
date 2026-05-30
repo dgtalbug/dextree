@@ -78,7 +78,21 @@
   overflow: hidden;
 }
 
-/* ---- GraphView / Trace shell grid -------------------------------------- */
+/* ---- GraphView scene wrapper ------------------------------------------- */
+
+/*
+ * GraphView owns its own 3-column shell grid (components/GraphView.module.css),
+ * so the App scene just gives it a full-bleed positioned box. Empty/Loading
+ * overlays (.dxt-graph-overlay) are absolutely positioned children on top.
+ */
+.graphScene {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+/* ---- GraphView / Trace shell grid (legacy; kept for shell-grid contract) - */
 
 .graphShell {
   display: grid;

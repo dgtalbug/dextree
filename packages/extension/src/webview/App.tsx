@@ -149,9 +149,6 @@ export function App({ vscodeApi }: AppProps) {
     workspaceFrameworks: [],
   });
 
-  const [indexedCount, setIndexedCount] = useState(0);
-  const [failedCount, setFailedCount] = useState(0);
-  const [lastIndexedFiles, setLastIndexedFiles] = useState<string[]>([]);
   const [showSourceOnly, setShowSourceOnly] = useState(false);
   const [activeScene, setActiveScene] = useState<AppScene>("graph");
   const [workspaceList, setWorkspaceList] = useState<IndexedWorkspaceRecord[] | null>(null);
@@ -222,23 +219,6 @@ export function App({ vscodeApi }: AppProps) {
 
       console.log(`[App] dispatching indexing: phase=${"phase" in msg ? String(msg.phase) : "?"}`);
       dispatch({ type: "indexing", message: msg });
-
-      if (msg.type === "indexing") {
-        if (msg.phase === "progress" && msg.fileName) {
-          const name = msg.fileName;
-          setLastIndexedFiles((prev) => [name, ...prev.filter((f) => f !== name)].slice(0, 8));
-          setFailedCount(msg.failed);
-        }
-        if (msg.phase === "finished") {
-          setIndexedCount(msg.current - msg.failed);
-          setFailedCount(msg.failed);
-        }
-        if (msg.phase === "starting") {
-          setLastIndexedFiles([]);
-          setFailedCount(0);
-          setIndexedCount(0);
-        }
-      }
     }
 
     window.addEventListener("message", handleMessage);
@@ -338,21 +318,6 @@ export function App({ vscodeApi }: AppProps) {
     [showSourceOnly, state.edges, displayNodeIds],
   );
 
-  const nodeCount = displayNodes.length;
-  const edgeCount = displayEdges.length;
-  const fileCount = displayNodes.filter((n) => n.type === "file").length;
-  const symbolCount = displayNodes.filter((n) => n.type === "symbol").length;
-  // During active indexing, show live progress in Files; use "—" for counts not yet known.
-  const displayFileCount = isIndexingActive && state.indexing ? state.indexing.current : fileCount;
-  const displayNodeCount: number | "—" = isIndexingActive ? "—" : nodeCount;
-  const displayEdgeCount: number | "—" = isIndexingActive ? "—" : edgeCount;
-  const displaySymbolCount: number | "—" = isIndexingActive ? "—" : symbolCount;
-
-  function formatFileLabel(name: string): string {
-    const parts = name.split(/[/\\]/);
-    return parts[parts.length - 1] ?? name;
-  }
-
   // ---- Tab strip model (slice 033 US1) --------------------------------------
   // The active tab derives from activeScene. "trace" is a graph-scene variant
   // owned by GraphView; at the App level it stays disabled until trace wiring
@@ -434,182 +399,76 @@ export function App({ vscodeApi }: AppProps) {
       );
     }
 
-    if (showEmptyState) {
-      return <EmptyState />;
-    }
-
     return renderGraphScene();
   }
 
+  // GraphView owns the full 3-column shell (toolbar / rails / status) as of
+  // slice 033 Phase 3. App no longer renders a competing grid or right-rail
+  // "Graph info" panel — the workspace actions (Re-index / Clear / Source-only)
+  // are threaded into the toolbar, counts live in GraphView's status bar, and
+  // Empty/Loading render as overlays on top of the shell (T020).
   function renderGraphScene() {
     return (
       <div
-        className={`dxt-app-shell${showLoadingOverlay ? " dxt-app-shell-indexing" : ""} ${appStyles.graphShell}`}
+        className={`dxt-app-shell${showLoadingOverlay ? " dxt-app-shell-indexing" : ""} ${appStyles.graphScene}`}
         data-testid="graph-shell"
       >
-        <div className={`dxt-graph-layer ${appStyles.shellCanvas}`}>
-          {hasGraph ? (
-            <GraphView
-              nodes={displayNodes}
-              edges={displayEdges}
-              onNavigate={handleNavigate}
-              onExportMermaid={() => {
-                handleCommand("export-mermaid");
-              }}
-              onExportCurrentView={() => {
-                vscodeApi.postMessage({ type: "exportCurrentView", viewId: "graph-view" });
-              }}
-              onExportTraceSequence={(trace: TraceSequenceSnapshot) => {
-                const message: ExportTraceSequenceMessage = { type: "exportTraceSequence", trace };
-                vscodeApi.postMessage(message);
-              }}
-              {...(state.workspaceName !== null && { workspaceName: state.workspaceName })}
-              workspaceFrameworks={state.workspaceFrameworks}
-              onWorkspaceSwitcherClick={handleWorkspaceSwitcherClick}
-            />
-          ) : (
-            <div
-              className="dxt-graph-scaffold dxt-graph-stage"
-              data-testid="graph-scaffold"
-              aria-hidden="true"
-            />
-          )}
+        {hasGraph ? (
+          <GraphView
+            nodes={displayNodes}
+            edges={displayEdges}
+            onNavigate={handleNavigate}
+            onExportMermaid={() => {
+              handleCommand("export-mermaid");
+            }}
+            onExportCurrentView={() => {
+              vscodeApi.postMessage({ type: "exportCurrentView", viewId: "graph-view" });
+            }}
+            onExportTraceSequence={(trace: TraceSequenceSnapshot) => {
+              const message: ExportTraceSequenceMessage = { type: "exportTraceSequence", trace };
+              vscodeApi.postMessage(message);
+            }}
+            {...(state.workspaceName !== null && { workspaceName: state.workspaceName })}
+            workspaceFrameworks={state.workspaceFrameworks}
+            onWorkspaceSwitcherClick={handleWorkspaceSwitcherClick}
+            onReindex={() => {
+              handleCommand("index-workspace");
+            }}
+            onClearWorkspace={() => {
+              handleCommand("clear-workspace");
+            }}
+            onClearAll={() => {
+              handleCommand("clear-all");
+            }}
+            onToggleSourceOnly={() => {
+              setShowSourceOnly((prev) => !prev);
+            }}
+            sourceOnly={showSourceOnly}
+            isIndexing={isIndexingActive}
+          />
+        ) : (
+          <div
+            className="dxt-graph-scaffold dxt-graph-stage"
+            data-testid="graph-scaffold"
+            aria-hidden="true"
+          />
+        )}
 
-          {showLoadingOverlay ? (
-            state.indexing !== null ? (
+        {showEmptyState ? (
+          <div className="dxt-graph-overlay" data-testid="graph-empty-overlay">
+            <EmptyState />
+          </div>
+        ) : null}
+
+        {showLoadingOverlay ? (
+          <div className="dxt-graph-overlay">
+            {state.indexing !== null ? (
               <LoadingState indexing={state.indexing} label={loadingLabel} />
             ) : (
               <LoadingState label={loadingLabel} />
-            )
-          ) : null}
-        </div>
-
-        <aside className={`dxt-graph-panel ${appStyles.shellRight}`} aria-label="Graph info">
-          <section className="dxt-graph-stats" aria-label="Graph statistics">
-            <div className="dxt-stats-grid">
-              <div className="dxt-stat-cell">
-                <span className="dxt-stat-value">{displayNodeCount}</span>
-                <span className="dxt-stat-label">Nodes</span>
-              </div>
-              <div className="dxt-stat-cell">
-                <span className="dxt-stat-value">{displayEdgeCount}</span>
-                <span className="dxt-stat-label">Edges</span>
-              </div>
-              <div className="dxt-stat-cell">
-                <span className="dxt-stat-value">{displayFileCount}</span>
-                <span className="dxt-stat-label">Files</span>
-              </div>
-              <div className="dxt-stat-cell">
-                <span className="dxt-stat-value">{displaySymbolCount}</span>
-                <span className="dxt-stat-label">Symbols</span>
-              </div>
-              {indexedCount > 0 || failedCount > 0 ? (
-                <>
-                  <div className="dxt-stat-cell">
-                    <span className="dxt-stat-value">{indexedCount}</span>
-                    <span className="dxt-stat-label">Indexed</span>
-                  </div>
-                  {failedCount > 0 ? (
-                    <div className="dxt-stat-cell dxt-stat-cell-warn">
-                      <span className="dxt-stat-value">{failedCount}</span>
-                      <span className="dxt-stat-label">Failed</span>
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="dxt-graph-legend" aria-label="Edge legend">
-            <div className="dxt-legend-title">Relations</div>
-            {(state.presentEdgeKinds.length > 0
-              ? state.presentEdgeKinds
-              : ["DEFINES", "IMPORTS"]
-            ).map((kind) => (
-              <div className="dxt-legend-row" key={kind}>
-                <span
-                  className={`dxt-legend-pill dxt-legend-pill-${kind.startsWith("CUSTOM_") ? "custom" : kind.toLowerCase()}`}
-                />
-                <span className="dxt-legend-label">{kind}</span>
-              </div>
-            ))}
-          </section>
-
-          {lastIndexedFiles.length > 0 ? (
-            <section className="dxt-graph-file-list" aria-label="Recently indexed files">
-              <div className="dxt-legend-title">Recent files</div>
-              <ul className="dxt-file-list">
-                {lastIndexedFiles.map((f) => (
-                  <li key={f} className="dxt-file-list-item" title={f}>
-                    <span className="codicon codicon-file" aria-hidden="true" />
-                    {formatFileLabel(f)}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          <section className="dxt-graph-actions">
-            <button
-              type="button"
-              className="dxt-panel-button dxt-panel-button-primary"
-              onClick={() => {
-                handleCommand("index-workspace");
-              }}
-              disabled={isIndexingActive}
-            >
-              <span className="codicon codicon-sync" aria-hidden="true" />
-              {isIndexingActive ? "Indexing…" : "Re-index"}
-            </button>
-            {isIndexingActive ? (
-              <button
-                type="button"
-                className="dxt-panel-button dxt-panel-button-danger"
-                onClick={() => {
-                  handleCommand("cancel-indexing");
-                }}
-              >
-                <span className="codicon codicon-stop-circle" aria-hidden="true" />
-                Cancel
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={`dxt-panel-button${showSourceOnly ? " dxt-panel-button-active" : ""}`}
-              onClick={() => {
-                setShowSourceOnly((prev) => !prev);
-              }}
-              title="Toggle source-only view (hides markdown and test files)"
-            >
-              <span className="codicon codicon-filter" aria-hidden="true" />
-              {showSourceOnly ? "All Files" : "Source Only"}
-            </button>
-            <button
-              type="button"
-              className="dxt-panel-button"
-              onClick={() => {
-                handleCommand("clear-workspace");
-              }}
-              disabled={isIndexingActive}
-              title="Clear the current workspace index"
-            >
-              <span className="codicon codicon-trash" aria-hidden="true" />
-              Clear Workspace
-            </button>
-            <button
-              type="button"
-              className="dxt-panel-button"
-              onClick={() => {
-                handleCommand("clear-all");
-              }}
-              disabled={isIndexingActive}
-              title="Clear all indexed workspaces"
-            >
-              <span className="codicon codicon-clear-all" aria-hidden="true" />
-              Clear All
-            </button>
-          </section>
-        </aside>
+            )}
+          </div>
+        ) : null}
       </div>
     );
   }

@@ -76,7 +76,7 @@ export function LensesPanel({
   return (
     <section className={styles.panel} aria-label="Graph lenses">
       <header className={styles.header}>
-        <span className={styles.headerTitle}>Lenses</span>
+        <span className={styles.headerTitle}>LENSES</span>
       </header>
       <p className={styles.hint}>Highlight nodes by importance signal</p>
       <div className={styles.body}>
@@ -105,14 +105,22 @@ export function LensesPanel({
               title={disabled ? descriptor.disabledTooltip : undefined}
               onClick={handleClick}
             >
-              <span className={styles.lensIcon} aria-hidden="true">
+              <span className={styles.lensIcon} data-testid="lens-icon" aria-hidden="true">
                 <span className={`codicon codicon-${descriptor.iconKey}`} />
               </span>
               <span className={styles.lensText}>
-                <span className={styles.lensTitle}>{descriptor.title}</span>
-                <span className={styles.lensDesc}>{descriptor.description}</span>
+                <span className={styles.lensTitle} data-testid="lens-title">
+                  {descriptor.title}
+                </span>
+                <span className={styles.lensDesc} data-testid="lens-desc">
+                  {descriptor.description}
+                </span>
               </span>
-              <span className={styles.lensCount} aria-hidden={count === 0 ? "true" : undefined}>
+              <span
+                className={styles.lensCount}
+                data-testid="lens-count-badge"
+                aria-hidden={count === 0 ? "true" : undefined}
+              >
                 {count > 0 ? count : ""}
               </span>
             </button>

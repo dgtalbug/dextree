@@ -1,150 +1,165 @@
-/* InspectorPanel — right-rail Inspector for the currently-selected GraphNode (slice 020). */
+/* InspectorPanel — right-rail node inspector (slice 033 US2) */
 
 .panel {
-  width: 280px;
-  flex: 0 0 280px;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 10px;
-  border-left: 1px solid var(--vscode-panel-border, transparent);
-  background: var(--vscode-sideBar-background, transparent);
-  color: var(--vscode-foreground);
-  font-size: 12px;
-  line-height: 1.4;
   overflow-y: auto;
-  overflow-x: hidden;
-  box-sizing: border-box;
+  width: 320px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .empty {
-  flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  color: var(--vscode-descriptionForeground);
-  text-align: center;
+  flex: 1;
+  padding: 16px;
 }
 
 .emptyMessage {
   font-size: 12px;
-  opacity: 0.85;
+  color: var(--vscode-descriptionForeground);
 }
 
-.row {
+.inspectorHeader {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 8px;
 }
 
-/* Slice 023 — actions row + "Trace from here" button */
-.actionRow {
-  display: flex;
-  flex-direction: row;
-  gap: 6px;
-  margin-top: 4px;
+.inspectorTitle {
+  flex: 1;
+  min-width: 0;
 }
 
-.traceFromHere {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background: var(--vscode-button-secondaryBackground, transparent);
-  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-  border: 1px solid var(--vscode-button-border, var(--vscode-button-secondaryBackground));
-  border-radius: 3px;
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.traceFromHere:hover {
-  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
-}
-
-.traceFromHere:focus-visible {
-  outline: 1px solid var(--vscode-focusBorder);
-  outline-offset: 1px;
-}
-
-.label {
+.inspectorName {
   font-weight: 600;
-  font-size: 13px;
-  word-break: break-word;
-}
-
-.kind {
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
-  text-transform: lowercase;
-}
-
-.filePath {
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sectionTitle {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--vscode-descriptionForeground);
-  margin-top: 4px;
-}
-
-.signature {
-  font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.docstring {
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 11px;
   color: var(--vscode-foreground);
-  max-height: 200px;
-  overflow-y: auto;
+  font-size: 13px;
+  word-break: break-all;
 }
 
-.placeholder {
+.inspectorMeta {
+  font-size: 11px;
   color: var(--vscode-descriptionForeground);
-  opacity: 0.7;
+  margin-top: 2px;
+  word-break: break-all;
 }
 
-.badgeRow {
+.inspectorBadges {
   display: flex;
-  flex-wrap: wrap;
   gap: 4px;
-  margin-top: 2px;
+  margin-top: 6px;
+  flex-wrap: wrap;
 }
 
 .badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: 4px;
   font-size: 10px;
-  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 10px;
   background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.badgeSkeleton {
-  composes: badge;
-  opacity: 0.4;
+.signature {
+  margin: 8px 12px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  word-break: break-all;
+}
+
+.docstring {
+  margin: 0 12px 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  border-left: 2px solid var(--vscode-charts-blue);
+  background: rgba(55, 148, 255, 0.05);
+}
+
+.inspectorBody {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px 4px;
+}
+
+.neighborGroupTitle {
+  padding: 6px 10px 2px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.neighborRow {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.neighborRow:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.neighborPath {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inspectorActions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.actionBtn {
+  height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.actionBtn:hover {
+  background: var(--vscode-toolbar-hoverBackground);
 }

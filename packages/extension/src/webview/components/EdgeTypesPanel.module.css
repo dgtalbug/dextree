@@ -1,8 +1,7 @@
-/* NodeFilterPanel — left-rail node type filter rows (slice 033 US2) */
+/* EdgeTypesPanel — right-rail edge type filter (slice 033 US2) */
 
 .container {
-  display: flex;
-  flex-direction: column;
+  border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .sectionHeader {
@@ -38,13 +37,6 @@
   text-decoration: underline;
 }
 
-.sectionHint {
-  padding: 0 10px 6px;
-  color: var(--vscode-descriptionForeground);
-  font-size: 11px;
-  margin: 0;
-}
-
 .sectionBody {
   padding: 0 6px 10px;
   display: flex;
@@ -54,7 +46,7 @@
 
 .filterRow {
   display: grid;
-  grid-template-columns: 16px 16px 1fr auto;
+  grid-template-columns: 16px 12px 1fr auto;
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
@@ -77,6 +69,14 @@
   cursor: not-allowed;
   opacity: 0.55;
   color: var(--vscode-disabledForeground);
+}
+
+.edgeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vscode-foreground);
+  margin-left: 4px;
 }
 
 .filterCount {

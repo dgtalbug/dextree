@@ -117,4 +117,52 @@ describe("LensesPanel", () => {
     expect(onToggle).not.toHaveBeenCalled();
     expect(screen.getByTestId("lens-row-god-class").getAttribute("aria-pressed")).toBe("true");
   });
+
+  // Slice 033 US2 — mockup lens row structure
+  describe("mockup structure (slice 033 US2)", () => {
+    it("renders each lens row with icon, title, description, and count badge", () => {
+      render(
+        <LensesPanel
+          activeLensId={null}
+          lensCounts={makeCounts({ "god-class": 7 })}
+          onLensToggle={() => undefined}
+        />,
+      );
+
+      const row = screen.getByTestId("lens-row-god-class");
+      // Icon is present (Codicon span inside .lensIcon)
+      expect(row.querySelector(".codicon-star")).not.toBeNull();
+      // Title text is rendered
+      expect(row.textContent).toContain("God class / function");
+      // Description is rendered
+      expect(row.textContent).toContain("Top-10 by PageRank");
+      // Count badge shows value
+      expect(row.textContent).toContain("7");
+    });
+
+    it("activates lens row with aria-pressed=true", () => {
+      render(
+        <LensesPanel
+          activeLensId="god-class"
+          lensCounts={makeCounts({ "god-class": 7 })}
+          onLensToggle={() => undefined}
+        />,
+      );
+
+      const row = screen.getByTestId("lens-row-god-class");
+      expect(row.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("renders section header", () => {
+      render(
+        <LensesPanel
+          activeLensId={null}
+          lensCounts={makeCounts()}
+          onLensToggle={() => undefined}
+        />,
+      );
+
+      expect(screen.getByText("LENSES")).toBeTruthy();
+    });
+  });
 });
