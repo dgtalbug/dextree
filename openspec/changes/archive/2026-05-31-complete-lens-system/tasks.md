@@ -8,7 +8,7 @@ webview reducer + colour, then UI cleanup, then verification.
 - [x] 1.1 Extend `LensInputNode` (`packages/core/src/query/lenses.ts`) with
       optional `entryKind?: EntryKind` and `archLayer?: ArchitecturalLayer`.
 - [x] 1.2 Add `selectEntryPoints(graph, nodes)` — matches `runtime | handler |
-    test | public-api`, excludes `unclassified`/absent. Pure, returns a new
+  test | public-api`, excludes `unclassified`/absent. Pure, returns a new
       `Set`.
 - [x] 1.3 Add a `LAYER_FOR_COLOR` ordering / list of real layers (exclude
       `unknown`) for the architecture mode count.
