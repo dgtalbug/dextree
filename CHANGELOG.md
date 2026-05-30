@@ -2,10 +2,9 @@
 
 ## [1.16.0](https://github.com/dgtalbug/dextree/compare/v1.15.0...v1.16.0) (2026-05-30)
 
-
 ### Features
 
-* **slice-032:** complete audit remediation — export status close button + verification ([#139](https://github.com/dgtalbug/dextree/issues/139)) ([7ae4094](https://github.com/dgtalbug/dextree/commit/7ae409415e75d1bd1cbf037aa8d55f3ecece5973))
+- **slice-032:** complete audit remediation — export status close button + verification ([#139](https://github.com/dgtalbug/dextree/issues/139)) ([7ae4094](https://github.com/dgtalbug/dextree/commit/7ae409415e75d1bd1cbf037aa8d55f3ecece5973))
 
 ## [1.15.0](https://github.com/dgtalbug/dextree/compare/v1.14.0...v1.15.0) (2026-05-30)
 
