@@ -322,7 +322,7 @@ export function MermaidPreviewPanel({
                 : styles.exportWorking
           }
           role={exportStatus.type === "error" ? "alert" : "status"}
-          aria-live="polite"
+          aria-live={exportStatus.type === "error" ? undefined : "polite"}
         >
           <span>{exportStatus.message}</span>
           {exportStatus.type !== "working" && (
