@@ -1136,6 +1136,7 @@ export function GraphView({
   onNavigate,
   onExportMermaid,
   onExportCurrentView,
+  onExportTraceSequence,
   workspaceName,
   workspaceFrameworks,
   onWorkspaceSwitcherClick,
@@ -1235,6 +1236,9 @@ export function GraphView({
   const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(new Set());
   const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
+  // Slice 031 US3 — set of node IDs that carry the "decorator-backed" flag,
+  // so the Sigma node reducer can hide them when the Decorator chip is off.
+  const decoratorBackedNodeIdsRef = useRef<Set<string>>(new Set());
   const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
   const lensMatchSetRef = useRef<ReadonlySet<string> | null>(null);
   // Search state (slice 022). `searchQuery` is the committed (post-debounce)
@@ -1282,13 +1286,27 @@ export function GraphView({
 
   const nodeFilterEntries = useMemo<NodeFilterEntry[]>(() => {
     const counts = new Map<string, number>();
+    let decoratorBackedCount = 0;
     for (const node of nodes) {
       const key = node.type === "file" ? "file" : (node.symbolKind ?? "function");
       counts.set(key, (counts.get(key) ?? 0) + 1);
+      // Slice 031 US3 — annotation-backed symbols carry a "decorator-backed"
+      // flag projected by core/src/query/subgraph.ts so the Decorator chip
+      // shows a truthful count instead of staying a placeholder.
+      if (node.flags?.includes("decorator-backed")) {
+        decoratorBackedCount += 1;
+      }
     }
+    counts.set("decorator", decoratorBackedCount);
     return CANONICAL_NODE_FILTER_LIST.map((template) => ({
       ...template,
       count: counts.get(template.key) ?? 0,
+      // US3 — keep "decorator" honest: when the workspace has no annotation-
+      // backed nodes the chip stays available but disabled, so the user sees
+      // why filtering has no effect instead of getting a noisy zero chip.
+      ...(template.key === "decorator" && decoratorBackedCount === 0
+        ? { disabled: true, tooltip: "No decorator-backed symbols found in this workspace." }
+        : {}),
     }));
   }, [nodes]);
 
@@ -1691,6 +1709,15 @@ export function GraphView({
           if (hiddenNodeKindsRef.current.has(kindKey)) {
             return { ...data, hidden: true };
           }
+          // Slice 031 US3 — Decorator chip semantics. When the user clicks the
+          // Decorator chip off, decorator-backed nodes are hidden the same way
+          // any other node-kind filter hides nodes.
+          if (
+            hiddenNodeKindsRef.current.has("decorator") &&
+            decoratorBackedNodeIdsRef.current.has(node)
+          ) {
+            return { ...data, hidden: true };
+          }
 
           // 2. Depth filter (slice 022) — hide nodes outside the depth-N
           // neighbourhood of the selected/matched anchor(s).
@@ -1974,6 +2001,22 @@ export function GraphView({
     }
   }, [hiddenNodeKinds]);
 
+  // Slice 031 US3 — keep the decorator-backed id set in sync with `nodes`
+  // so the Sigma reducer can honor the Decorator filter chip toggle.
+  useEffect(() => {
+    const next = new Set<string>();
+    for (const node of nodes) {
+      if (node.flags?.includes("decorator-backed")) {
+        next.add(node.id);
+      }
+    }
+    decoratorBackedNodeIdsRef.current = next;
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [nodes]);
+
   // Sync lens-match-set ref so the nodeReducer reads the active lens's matches
   // without being recreated. Refresh Sigma to re-run reducers.
   useEffect(() => {
@@ -2245,6 +2288,31 @@ export function GraphView({
           tracePhase={traceState.phase}
           onTraceToggle={handleTraceToggle}
           onTraceExit={handleTraceExit}
+          canExportTrace={
+            traceState.phase === "path-active" &&
+            traceState.startNodeId !== null &&
+            traceState.endNodeId !== null &&
+            traceState.pathNodeIds.length > 0
+          }
+          {...(onExportTraceSequence !== undefined && {
+            onExportTrace: () => {
+              if (
+                traceState.phase !== "path-active" ||
+                traceState.startNodeId === null ||
+                traceState.endNodeId === null ||
+                traceState.pathNodeIds.length === 0
+              ) {
+                return;
+              }
+              onExportTraceSequence({
+                phase: "path-active",
+                startNodeId: traceState.startNodeId,
+                endNodeId: traceState.endNodeId,
+                nodeIds: [...traceState.pathNodeIds],
+                edgeIds: [...traceState.pathEdgeIds],
+              });
+            },
+          })}
           {...(workspaceName !== undefined && { workspaceName })}
           {...(workspaceFrameworks !== undefined && { workspaceFrameworks })}
           {...(onWorkspaceSwitcherClick !== undefined && { onWorkspaceSwitcherClick })}

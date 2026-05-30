@@ -405,3 +405,61 @@ describe("serializeToScopedMermaid — flowchart path unchanged by slice 028 (US
     expect(shimOut.split("\n")[1]).toBe("graph TD");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 031 fixtures scaffold (Phase 1 / T003)
+// ---------------------------------------------------------------------------
+// Reusable trace-route fixtures for the sequence-export tests in T008 (US1).
+// Kept at the bottom of this file so the existing fixture block above stays
+// focused on flowchart serializer coverage.
+// ---------------------------------------------------------------------------
+
+interface TraceFixture {
+  subgraph: WorkspaceSubgraph;
+  traceNodeIds: readonly string[];
+  traceEdgeIds: readonly string[];
+}
+
+function buildSlice031LinearTraceFixture(): TraceFixture {
+  const cls: GraphNode = {
+    id: "c-foo",
+    type: "symbol",
+    label: "Foo",
+    filePath: "/workspace/foo.ts",
+    startLine: 1,
+    symbolKind: "class",
+  };
+  const methodA: GraphNode = {
+    id: "m-a",
+    type: "symbol",
+    label: "doA",
+    filePath: "/workspace/foo.ts",
+    startLine: 2,
+    symbolKind: "method",
+    enclosingSymbolId: "c-foo",
+  };
+  const methodB: GraphNode = {
+    id: "m-b",
+    type: "symbol",
+    label: "doB",
+    filePath: "/workspace/foo.ts",
+    startLine: 5,
+    symbolKind: "method",
+    enclosingSymbolId: "c-foo",
+  };
+  const callEdge: GraphEdge = { id: "e-ab", source: "m-a", target: "m-b", kind: "CALLS" };
+  return {
+    subgraph: { nodes: [cls, methodA, methodB], edges: [callEdge], frameworks: [] },
+    traceNodeIds: ["m-a", "m-b"],
+    traceEdgeIds: ["e-ab"],
+  };
+}
+
+describe("Slice 031 trace fixtures (Phase 1 scaffold)", () => {
+  it("buildSlice031LinearTraceFixture returns a populated trace subgraph", () => {
+    const fx = buildSlice031LinearTraceFixture();
+    expect(fx.subgraph.nodes.length).toBeGreaterThan(0);
+    expect(fx.traceNodeIds.length).toBeGreaterThan(0);
+    expect(fx.traceEdgeIds.length).toBeGreaterThan(0);
+  });
+});

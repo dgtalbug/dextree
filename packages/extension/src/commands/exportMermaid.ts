@@ -2,10 +2,13 @@ import type { Indexer } from "@dextree/core";
 import {
   appendMermaidClickLinks,
   generateMermaidPreview,
+  serializeToSequenceDiagram,
+  validateSequenceDiagramExport,
   type MermaidClickLinkPolicy,
   type MermaidClickTarget,
   type MermaidPreviewOptions,
   type MermaidPreviewResult,
+  type TraceSequenceSnapshot,
 } from "@dextree/exporters";
 import * as vscode from "vscode";
 
@@ -155,4 +158,76 @@ export async function startInferredMermaidExport(
     return;
   }
   await executeInferredMermaidExport(dependencies, inferred);
+}
+
+/**
+ * Slice 031 (US1) — `dextree.exportTraceSequence` command body. Receives the
+ * webview's `TraceSequenceSnapshot` as the first arg, re-validates it against
+ * the current workspace subgraph (fail-closed for empty / unsupported /
+ * oversized routes), serializes to Mermaid sequence syntax, and writes the
+ * artifact through the standard VS Code save dialog.
+ */
+export function createExportTraceSequenceCommand(
+  dependencies: Pick<ExportMermaidCommandDependencies, "getIndexer">,
+): (...args: unknown[]) => Promise<void> {
+  return async (...args: unknown[]) => {
+    const root = vscode.workspace.workspaceFolders?.[0];
+    if (root === undefined) {
+      await vscode.window.showInformationMessage("Dextree requires an open workspace folder.");
+      return;
+    }
+
+    const snapshot = args[0] as TraceSequenceSnapshot | undefined;
+    if (!isTraceSequenceSnapshotShape(snapshot)) {
+      await vscode.window.showWarningMessage(
+        "Dextree: Trace sequence export requires an active trace route. Run a trace first.",
+      );
+      return;
+    }
+
+    const indexer = await dependencies.getIndexer();
+    const subgraph = await indexer.getWorkspaceSubgraph(root.uri.fsPath);
+
+    const validation = validateSequenceDiagramExport(subgraph, snapshot);
+    if (validation.status !== "ok") {
+      await vscode.window.showWarningMessage(`Dextree: ${validation.reason}`);
+      return;
+    }
+
+    const source = serializeToSequenceDiagram(subgraph, snapshot, {
+      diagram: "sequenceDiagram",
+      scope: { kind: "workspace" },
+      granularity: "symbol",
+      direction: "auto",
+      theme: "Light",
+      trace: snapshot,
+    });
+
+    const defaultUri = vscode.Uri.joinPath(root.uri, "trace-sequence.mmd");
+    const target = await vscode.window.showSaveDialog({
+      defaultUri,
+      filters: { Mermaid: ["mmd"] },
+      saveLabel: "Save trace sequence diagram",
+    });
+    if (target === undefined) {
+      return;
+    }
+
+    await vscode.workspace.fs.writeFile(target, Buffer.from(source, "utf8"));
+    await vscode.window.showInformationMessage(`Dextree: Saved ${target.fsPath}`);
+  };
+}
+
+function isTraceSequenceSnapshotShape(value: unknown): value is TraceSequenceSnapshot {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    v["phase"] === "path-active" &&
+    typeof v["startNodeId"] === "string" &&
+    typeof v["endNodeId"] === "string" &&
+    Array.isArray(v["nodeIds"]) &&
+    Array.isArray(v["edgeIds"]) &&
+    (v["nodeIds"] as unknown[]).every((x) => typeof x === "string") &&
+    (v["edgeIds"] as unknown[]).every((x) => typeof x === "string")
+  );
 }

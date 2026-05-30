@@ -269,3 +269,42 @@ describe("createExportMermaidCommand — slice 029 PR-A: opens preview scene", (
     expect(showInformationMessage).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 031 fixtures scaffold (Phase 1 / T003)
+// ---------------------------------------------------------------------------
+// Reusable ExportTraceSequence command-input fixtures for the trace-export
+// command tests in T009 (US1). These mirror the shape the host expects from
+// the webview's `exportTraceSequence` message.
+// ---------------------------------------------------------------------------
+
+interface Slice031TraceCommandFixture {
+  traceSnapshot: {
+    phase: "path-active";
+    startNodeId: string;
+    endNodeId: string;
+    nodeIds: readonly string[];
+    edgeIds: readonly string[];
+  };
+}
+
+function buildSlice031TraceCommandFixture(): Slice031TraceCommandFixture {
+  return {
+    traceSnapshot: {
+      phase: "path-active",
+      startNodeId: "n-start",
+      endNodeId: "n-end",
+      nodeIds: ["n-start", "n-mid", "n-end"],
+      edgeIds: ["e-1", "e-2"],
+    },
+  };
+}
+
+describe("Slice 031 trace-command fixtures (Phase 1 scaffold)", () => {
+  it("buildSlice031TraceCommandFixture returns a path-active snapshot", () => {
+    const fx = buildSlice031TraceCommandFixture();
+    expect(fx.traceSnapshot.phase).toBe("path-active");
+    expect(fx.traceSnapshot.nodeIds.length).toBeGreaterThanOrEqual(2);
+    expect(fx.traceSnapshot.edgeIds.length).toBeGreaterThanOrEqual(1);
+  });
+});

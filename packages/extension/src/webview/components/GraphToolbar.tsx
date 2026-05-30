@@ -13,9 +13,11 @@ const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
   CALLS: "Calls",
   INHERITS: "Extends",
   INSTANTIATES: "New",
+  IMPLEMENTS: "Implements",
 };
 
-const IMPLEMENTS_TOOLTIP = "Available when ImplementsExtractor ships (slice 031)";
+// The Implements edge filter chip is now rendered through the standard
+// EDGE_KIND_LABELS path (slice 031 US2); no disabled stub is needed.
 
 export interface GraphToolbarProps {
   onExportMermaid: () => void;
@@ -43,6 +45,14 @@ export interface GraphToolbarProps {
   tracePhase: TracePhase;
   onTraceToggle: () => void;
   onTraceExit: () => void;
+  /**
+   * Slice 031 (US1). Snapshot is built by GraphView from its TraceState and
+   * passed through unmodified. Undefined keeps the export button disabled
+   * (host has not wired the command yet).
+   */
+  onExportTrace?: () => void;
+  /** Trace export is only meaningful when the path is resolved (slice 031 US1). */
+  canExportTrace?: boolean;
   // Workspace switcher (new — slice 024):
   workspaceName?: string;
   workspaceFrameworks?: readonly string[];
@@ -83,17 +93,6 @@ function EdgeFilterBar({
           </button>
         );
       })}
-      {/* Disabled Implements stub — always shown, not interactive */}
-      <button
-        type="button"
-        className="dxt-edge-filter-pill dxt-edge-filter-pill--disabled dxt-edge-filter-pill--stub"
-        aria-disabled="true"
-        title={IMPLEMENTS_TOOLTIP}
-        tabIndex={-1}
-      >
-        <span className="dxt-edge-filter-dot" aria-hidden="true" />
-        Implements
-      </button>
     </div>
   );
 }
@@ -121,6 +120,8 @@ export function GraphToolbar({
   tracePhase,
   onTraceToggle,
   onTraceExit,
+  onExportTrace,
+  canExportTrace = false,
   workspaceName,
   workspaceFrameworks,
   onWorkspaceSwitcherClick,
@@ -184,9 +185,18 @@ export function GraphToolbar({
           <button
             type="button"
             className="dxt-toolbar__trace-export"
-            disabled
-            title="Export this trace as a sequence diagram — available after slice S7.14"
-            aria-label="Export this trace (disabled)"
+            disabled={!canExportTrace || onExportTrace === undefined}
+            onClick={onExportTrace}
+            title={
+              canExportTrace && onExportTrace !== undefined
+                ? "Export this trace as a Mermaid sequence diagram"
+                : "Resolve a trace path between two nodes to enable sequence export"
+            }
+            aria-label={
+              canExportTrace && onExportTrace !== undefined
+                ? "Export this trace as a sequence diagram"
+                : "Export this trace (disabled)"
+            }
           >
             <span className="codicon codicon-export" aria-hidden="true" />
             Export

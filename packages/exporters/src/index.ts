@@ -40,3 +40,11 @@ export {
   type MermaidClickLinkPolicy,
   type MermaidClickTarget,
 } from "./mermaid/clickLinks.js";
+export {
+  serializeToSequenceDiagram,
+  validateSequenceDiagramExport,
+  type SequenceDiagramParticipant,
+  type SequenceDiagramStep,
+  type SequenceDiagramValidation,
+  type TraceSequenceSnapshot,
+} from "./mermaid/sequenceDiagram.js";

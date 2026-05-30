@@ -17,6 +17,7 @@ import {
 import { createExportSessionSummaryCommand } from "./commands/exportSessionSummary.js";
 import {
   createExportMermaidCommand,
+  createExportTraceSequenceCommand,
   executeInferredMermaidExport,
   startInferredMermaidExport,
 } from "./commands/exportMermaid.js";
@@ -445,6 +446,10 @@ export async function activate(context: ActivationContext): Promise<void> {
           );
         },
       }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.exportTraceSequence",
+      createExportTraceSequenceCommand({ getIndexer }),
     ),
     vscode.commands.registerCommand(
       "dextree.switchWorkspace",

@@ -117,6 +117,34 @@ describe("getPresentEdgeKinds", () => {
     }
   });
 
+  // Slice 031 T007 — IMPLEMENTS edge kind must surface through the same
+  // distinct-kinds query without any code change (generic SELECT DISTINCT kind).
+  it("includes IMPLEMENTS when an IMPLEMENTS edge is inserted (slice 031 T007)", async () => {
+    const db = await openDatabase(":memory:");
+    try {
+      await initializeSchema(db.connection);
+      const data = makeFile("f-impl", "shapes");
+      const implementsEdge: EdgeRow = {
+        id: "edge-impl-1",
+        sourceId: "sym-f-impl-1",
+        targetId: "sym-f-impl-2",
+        kind: "IMPLEMENTS",
+        weight: null,
+        metadata: {
+          source_fqn: "src/shapes.ts:Circle",
+          interface_name: "Shape",
+          language: "typescript",
+        },
+      };
+      await replaceFileGraph(db.connection, data, [implementsEdge]);
+
+      const kinds = await getPresentEdgeKinds(db.connection, WORKSPACE);
+      expect(kinds).toContain("IMPLEMENTS");
+    } finally {
+      db.close();
+    }
+  });
+
   it("returns results sorted alphabetically", async () => {
     const db = await openDatabase(":memory:");
     try {

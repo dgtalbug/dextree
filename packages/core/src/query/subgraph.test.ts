@@ -595,3 +595,199 @@ describe("getWorkspaceSubgraph — enclosingSymbolId projection (slice 028 US2)"
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slice 031 fixtures scaffold (Phase 1 / T003)
+// ---------------------------------------------------------------------------
+// Reusable fixtures for IMPLEMENTS-edge projection (T016 / US2) and
+// annotation-backed node projection (T023 / US3) query tests. Factory
+// functions return the on-disk row shape the subgraph query is expected
+// to read.
+// ---------------------------------------------------------------------------
+
+interface Slice031SubgraphFixture {
+  classSymbolId: string;
+  interfaceSymbolId: string;
+  implementsEdgeId: string;
+  annotatedSymbolId: string;
+  annotationId: string;
+  annotationName: string;
+}
+
+function buildSlice031SubgraphFixture(): Slice031SubgraphFixture {
+  return {
+    classSymbolId: "sym-foo-class",
+    interfaceSymbolId: "sym-bar-interface",
+    implementsEdgeId: "edge-impl-foo-bar",
+    annotatedSymbolId: "sym-decorated-class",
+    annotationId: "ann-component-1",
+    annotationName: "Component",
+  };
+}
+
+describe("Slice 031 subgraph fixtures (Phase 1 scaffold)", () => {
+  it("buildSlice031SubgraphFixture returns stable identifiers for cross-test reuse", () => {
+    const fx = buildSlice031SubgraphFixture();
+    expect(fx.classSymbolId).toBe("sym-foo-class");
+    expect(fx.interfaceSymbolId).toBe("sym-bar-interface");
+    expect(fx.implementsEdgeId).toBe("edge-impl-foo-bar");
+    expect(fx.annotatedSymbolId).toBe("sym-decorated-class");
+    expect(fx.annotationId).toBe("ann-component-1");
+    expect(fx.annotationName).toBe("Component");
+  });
+
+  it("the same fixture is returned on every call (no shared mutation)", () => {
+    const a = buildSlice031SubgraphFixture();
+    const b = buildSlice031SubgraphFixture();
+    expect(a).not.toBe(b);
+    expect(a).toEqual(b);
+  });
+});
+
+describe("getWorkspaceSubgraph — IMPLEMENTS projection (slice 031 T016)", () => {
+  it("projects resolved IMPLEMENTS edges from the DB into the subgraph result", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+
+      const workspaceRoot = "/workspace";
+      const fileId = "file-shapes";
+      const classId = "sym-circle";
+      const interfaceId = "sym-shape";
+
+      await replaceFileGraph(
+        database.connection,
+        {
+          file: {
+            id: fileId,
+            path: `${workspaceRoot}/src/shapes.ts`,
+            relativePath: "src/shapes.ts",
+            language: "typescript",
+            loc: 5,
+            hash: "h",
+          },
+          symbols: [
+            {
+              id: interfaceId,
+              fqn: "src/shapes.ts:Shape",
+              name: "Shape",
+              kind: "interface",
+              fileId,
+              range: { startLine: 0, startCol: 0, endLine: 0, endCol: 10 },
+              language: "typescript",
+            },
+            {
+              id: classId,
+              fqn: "src/shapes.ts:Circle",
+              name: "Circle",
+              kind: "class",
+              fileId,
+              range: { startLine: 2, startCol: 0, endLine: 2, endCol: 10 },
+              language: "typescript",
+            },
+          ],
+          imports: [],
+        },
+        [
+          {
+            id: "edge-impl-circle-shape",
+            sourceId: fileId,
+            targetId: null,
+            kind: "IMPLEMENTS",
+            metadata: {
+              source_fqn: "src/shapes.ts:Circle",
+              interface_name: "Shape",
+              language: "typescript",
+            },
+          },
+        ],
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
+      const implementsEdges = graph.edges.filter((e) => e.kind === "IMPLEMENTS");
+      expect(implementsEdges).toHaveLength(1);
+      expect(implementsEdges[0]?.source).toBe(classId);
+      expect(implementsEdges[0]?.target).toBe(interfaceId);
+    } finally {
+      database.close();
+    }
+  });
+});
+
+describe("getWorkspaceSubgraph — decorator-backed flag projection (slice 031 T023)", () => {
+  it("stamps a `decorator-backed` flag on symbols with persisted annotations", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+
+      const workspaceRoot = "/workspace";
+      const fileId = "file-decorated";
+      const decoratedId = "sym-app-component";
+
+      await replaceFileGraph(
+        database.connection,
+        {
+          file: {
+            id: fileId,
+            path: `${workspaceRoot}/src/app.ts`,
+            relativePath: "src/app.ts",
+            language: "typescript",
+            loc: 3,
+            hash: "h",
+          },
+          symbols: [
+            {
+              id: decoratedId,
+              fqn: "src/app.ts:AppComponent",
+              name: "AppComponent",
+              kind: "class",
+              fileId,
+              range: { startLine: 0, startCol: 0, endLine: 0, endCol: 10 },
+              language: "typescript",
+            },
+          ],
+          imports: [],
+        },
+        [],
+        new Map(),
+        [
+          {
+            id: "ann-component-1",
+            name: "Component",
+            args: { raw: "{selector: 'app'}" },
+            parentSymbolId: decoratedId,
+            language: "typescript",
+            metadata: {},
+            range: { start_line: 0, start_col: 0, end_line: 0, end_col: 30 },
+          },
+        ],
+      );
+
+      const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
+      const decoratedNode = graph.nodes.find((n) => n.id === decoratedId);
+      expect(decoratedNode?.flags).toBeDefined();
+      expect(decoratedNode?.flags).toContain("decorator-backed");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("omits the `decorator-backed` flag from symbols with no annotation rows", async () => {
+    const database = await openDatabase(":memory:");
+    try {
+      await initializeSchema(database.connection);
+      await applyMigrations(database.connection);
+
+      await replaceFileGraph(database.connection, makeExtractedData("plain"));
+
+      const graph = await getWorkspaceSubgraph(database.connection, "/workspace");
+      const plainNode = graph.nodes.find((n) => n.id === "symbol-plain");
+      // Either undefined or an array that doesn't include the flag — both are honest.
+      expect(plainNode?.flags ?? []).not.toContain("decorator-backed");
+    } finally {
+      database.close();
+    }
+  });
+});

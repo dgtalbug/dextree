@@ -145,6 +145,28 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
+  // Slice 031 US3 — count annotations per parent symbol so the graph view's
+  // Decorator node-filter chip can become truthful (and not a placeholder).
+  // An empty result is the honest signal for an unsupported workspace.
+  const annotationCountRows = await (
+    await connection.run(
+      `
+        SELECT a.parent_symbol_id AS symbolId, COUNT(*) AS annotationCount
+        FROM annotation a
+        INNER JOIN symbol s ON s.id = a.parent_symbol_id
+        INNER JOIN file f ON f.id = s.file_id
+        WHERE f.path = $workspace_root OR f.path LIKE $workspace_prefix
+        GROUP BY a.parent_symbol_id
+      `,
+      params,
+    )
+  ).getRowObjectsJS();
+  const annotationCountsBySymbolId = new Map<string, number>();
+  for (const row of annotationCountRows) {
+    const key = typeof row.symbolId === "string" ? row.symbolId : String(row.symbolId);
+    annotationCountsBySymbolId.set(key, Number(row.annotationCount));
+  }
+
   const definesRows = await (
     await connection.run(
       `
@@ -261,6 +283,33 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
+  // IMPLEMENTS: class → interface (resolved source + target, same shape as INHERITS).
+  // Slice 031 US2 — kept distinct from INHERITS by edge kind so the classDiagram
+  // renderer can use a different relationship arrow (`<|..`) and the graph edge
+  // filter exposes them separately.
+  const implementsRows = await (
+    await connection.run(
+      `
+        SELECT
+          MIN(e.id) AS id,
+          e.source_id AS source,
+          e.target_id AS target
+        FROM edge e
+        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
+        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
+        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
+        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
+        WHERE e.kind = 'IMPLEMENTS'
+          AND e.target_id IS NOT NULL
+          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
+          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
+        GROUP BY e.source_id, e.target_id
+        ORDER BY source ASC, target ASC
+      `,
+      params,
+    )
+  ).getRowObjectsJS();
+
   const nodes: GraphNode[] = [
     ...fileRows.map((row) => {
       const filePath = String(row.filePath);
@@ -289,7 +338,7 @@ export async function getWorkspaceSubgraph(
           : undefined;
       const fanIn = typeof row.fanIn === "number" ? row.fanIn : undefined;
       const isCore = typeof row.isCore === "boolean" ? row.isCore : undefined;
-      const flags = normalizeStringArray(row.flags);
+      const baseFlags = normalizeStringArray(row.flags);
       const signature = typeof row.signature === "string" ? row.signature : undefined;
       const docstring = typeof row.docstring === "string" ? row.docstring : undefined;
       const entryKind = normalizeEntryKind(row.entryKind);
@@ -297,9 +346,18 @@ export async function getWorkspaceSubgraph(
       const rawEnclosing = row.enclosingSymbolId;
       const enclosingSymbolId =
         typeof rawEnclosing === "string" && rawEnclosing.length > 0 ? rawEnclosing : undefined;
+      const symbolId = String(row.id);
+      const annotationCount = annotationCountsBySymbolId.get(symbolId) ?? 0;
+      // Slice 031 US3 — project decorator-backed presence onto the node's
+      // flags so the Decorator node-filter chip in the webview can become a
+      // truthful filter instead of a disabled stub.
+      const flags =
+        annotationCount > 0
+          ? (Object.freeze([...(baseFlags ?? []), "decorator-backed"]) as readonly string[])
+          : baseFlags;
 
       return {
-        id: String(row.id),
+        id: symbolId,
         type: "symbol" as const,
         label: String(row.label),
         filePath: String(row.filePath),
@@ -363,6 +421,12 @@ export async function getWorkspaceSubgraph(
       source: String(row.source),
       target: String(row.target),
       kind: "INSTANTIATES" as const,
+    })),
+    ...implementsRows.map((row) => ({
+      id: String(row.id),
+      source: String(row.source),
+      target: String(row.target),
+      kind: "IMPLEMENTS" as const,
     })),
   ];
 

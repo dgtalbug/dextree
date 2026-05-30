@@ -70,7 +70,13 @@ export interface SymbolClassificationRecord {
 
 export type GraphNodeType = "file" | "symbol";
 
-export type GraphEdgeKind = "DEFINES" | "IMPORTS" | "CALLS" | "INHERITS" | "INSTANTIATES";
+export type GraphEdgeKind =
+  | "DEFINES"
+  | "IMPORTS"
+  | "CALLS"
+  | "INHERITS"
+  | "INSTANTIATES"
+  | "IMPLEMENTS";
 
 export interface SymbolRange {
   startLine: number;

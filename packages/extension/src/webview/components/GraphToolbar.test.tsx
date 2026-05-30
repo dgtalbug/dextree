@@ -175,8 +175,9 @@ describe("GraphToolbar", () => {
     const { container } = renderToolbar({ edgeKinds: [] });
 
     expect(container.querySelector(".dxt-toolbar")).toBeTruthy();
-    // Implements stub is always rendered even when edgeKinds is empty
-    expect(container.querySelectorAll(".dxt-edge-filter-pill").length).toBe(1);
+    // Slice 031 US2 — the disabled Implements stub is gone; IMPLEMENTS is now
+    // a real edge kind that only appears when the workspace produced one.
+    expect(container.querySelectorAll(".dxt-edge-filter-pill").length).toBe(0);
   });
 
   // US2: Edge-type rename + Implements stub
@@ -195,30 +196,28 @@ describe("GraphToolbar", () => {
     expect(onToggleEdgeKind).toHaveBeenCalledWith("INHERITS");
   });
 
-  it("renders disabled Implements stub with aria-disabled=true (FR-007)", () => {
-    renderToolbar({ edgeKinds: [] });
+  // Slice 031 US2 — IMPLEMENTS is now a real edge kind. The "Implements" pill
+  // appears when IMPLEMENTS is in the edgeKinds list and is interactive like
+  // any other edge filter chip.
+  it("renders interactive Implements pill when IMPLEMENTS is in edgeKinds (slice 031 US2)", () => {
+    renderToolbar({ edgeKinds: ["IMPLEMENTS"] });
 
-    const implementsButton = screen.getByTitle(
-      "Available when ImplementsExtractor ships (slice 031)",
-    );
-    expect(implementsButton.getAttribute("aria-disabled")).toBe("true");
+    const implementsButton = screen.getByRole("button", { name: "Hide Implements edges" });
+    expect(implementsButton.getAttribute("aria-disabled")).not.toBe("true");
   });
 
-  it("clicking Implements stub does NOT call onToggleEdgeKind", () => {
-    const { onToggleEdgeKind } = renderToolbar({ edgeKinds: [] });
+  it("clicking Implements pill calls onToggleEdgeKind with 'IMPLEMENTS' (slice 031 US2)", () => {
+    const { onToggleEdgeKind } = renderToolbar({ edgeKinds: ["IMPLEMENTS"] });
 
-    const implementsButton = screen.getByTitle(
-      "Available when ImplementsExtractor ships (slice 031)",
-    );
-    fireEvent.click(implementsButton);
+    fireEvent.click(screen.getByRole("button", { name: "Hide Implements edges" }));
 
-    expect(onToggleEdgeKind).not.toHaveBeenCalled();
+    expect(onToggleEdgeKind).toHaveBeenCalledWith("IMPLEMENTS");
   });
 
-  it("renders Implements stub even when edgeKinds has all 5 fixed kinds (FR-005)", () => {
+  it("does not render Implements pill when IMPLEMENTS is absent from edgeKinds (slice 031 US2)", () => {
     renderToolbar({ edgeKinds: ["DEFINES", "IMPORTS", "CALLS", "INHERITS", "INSTANTIATES"] });
 
-    expect(screen.getByTitle("Available when ImplementsExtractor ships (slice 031)")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Hide Implements edges" })).toBeNull();
   });
 
   it("renders all 5 fixed edge pills even when edgeKinds list is full", () => {
@@ -345,6 +344,46 @@ describe("GraphToolbar", () => {
     const { onTraceExit } = renderToolbar({ tracePhase: "path-active" });
     fireEvent.click(screen.getByRole("button", { name: "Exit trace mode" }));
     expect(onTraceExit).toHaveBeenCalledTimes(1);
+  });
+
+  // Slice 031 US1 — the trace-export button is now interactive when a path is
+  // active AND the host has wired an export callback.
+  it("activates the trace export button when canExportTrace is true and onExportTrace is wired (slice 031 US1)", () => {
+    const onExportTrace = vi.fn();
+    renderToolbar({
+      tracePhase: "path-active",
+      canExportTrace: true,
+      onExportTrace,
+    });
+
+    const exportBtn = screen.getByRole("button", {
+      name: "Export this trace as a sequence diagram",
+    });
+    expect((exportBtn as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(exportBtn);
+    expect(onExportTrace).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the trace export button disabled when canExportTrace is false (slice 031 US1)", () => {
+    renderToolbar({
+      tracePhase: "path-active",
+      canExportTrace: false,
+      onExportTrace: vi.fn(),
+    });
+
+    const exportBtn = screen.getByRole("button", { name: "Export this trace (disabled)" });
+    expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("keeps the trace export button disabled when onExportTrace is undefined (slice 031 US1)", () => {
+    renderToolbar({
+      tracePhase: "path-active",
+      canExportTrace: true,
+      // onExportTrace deliberately not provided — host hasn't wired the command
+    });
+
+    const exportBtn = screen.getByRole("button", { name: "Export this trace (disabled)" });
+    expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
   // Slice 024 — workspace switcher button
