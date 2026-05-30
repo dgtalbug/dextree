@@ -428,4 +428,92 @@ describe("App", () => {
       expect(screen.queryByTestId("workspaces-page")).toBeNull();
     });
   });
+
+  describe("tab strip (slice 033 US1)", () => {
+    it("renders the four scene tabs in mockup order", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      const tabs = screen.getAllByRole("tab");
+      expect(tabs.map((t) => t.getAttribute("data-testid"))).toEqual([
+        "tab-graph",
+        "tab-mermaid",
+        "tab-trace",
+        "tab-workspaces",
+      ]);
+      expect(screen.getByTestId("tab-graph").textContent).toContain("GraphView");
+      expect(screen.getByTestId("tab-mermaid").textContent).toContain("Mermaid Preview");
+      expect(screen.getByTestId("tab-trace").textContent).toContain("Trace mode");
+      expect(screen.getByTestId("tab-workspaces").textContent).toContain("Workspaces");
+    });
+
+    it("marks the GraphView tab active by default and reflects the active scene", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      expect(screen.getByTestId("tab-graph").getAttribute("aria-selected")).toBe("true");
+      expect(screen.getByTestId("tab-mermaid").getAttribute("aria-selected")).toBe("false");
+
+      act(() => {
+        fireEvent.click(screen.getByTestId("tab-mermaid"));
+      });
+
+      expect(screen.getByTestId("tab-mermaid").getAttribute("aria-selected")).toBe("true");
+      expect(screen.getByTestId("tab-graph").getAttribute("aria-selected")).toBe("false");
+    });
+
+    it("appends the workspace name to the GraphView tab once a workspace loads", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { ...mockGraphMessage, workspaceName: "dextree", workspaceFrameworks: [] },
+          }),
+        );
+      });
+
+      expect(screen.getByTestId("tab-graph").textContent).toContain("GraphView · dextree");
+    });
+
+    it("disables the Trace tab until trace mode is wired (phase 5)", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      const traceTab = screen.getByTestId("tab-trace");
+      expect(traceTab.getAttribute("aria-disabled")).toBe("true");
+      expect((traceTab as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("switches to the Workspaces scene when the Workspaces tab is clicked", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+      });
+      vscodeApi.postMessage.mockClear();
+
+      act(() => {
+        fireEvent.click(screen.getByTestId("tab-workspaces"));
+      });
+
+      expect(vscodeApi.postMessage).toHaveBeenCalledWith({ type: "requestWorkspaceList" });
+      expect(screen.getByTestId("workspaces-page")).toBeTruthy();
+      expect(screen.getByTestId("tab-workspaces").getAttribute("aria-selected")).toBe("true");
+    });
+  });
+
+  describe("graph shell grid (slice 033 US2)", () => {
+    it("wraps the graph scene in the 3-column grid shell with canvas + right rail", () => {
+      render(<App vscodeApi={vscodeApi} />);
+
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", { data: mockGraphMessage }));
+      });
+
+      const shell = screen.getByTestId("graph-shell");
+      expect(shell).toBeTruthy();
+      // GraphView (mocked) renders inside the shell's canvas column.
+      expect(shell.contains(screen.getByTestId("graph-view"))).toBe(true);
+      // The right rail (graph info aside) lives in the same shell.
+      expect(shell.querySelector('[aria-label="Graph info"]')).toBeTruthy();
+    });
+  });
 });
