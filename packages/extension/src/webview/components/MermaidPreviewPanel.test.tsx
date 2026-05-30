@@ -48,13 +48,14 @@ describe("MermaidPreviewPanel (slice 029 US1)", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/Open a Mermaid preview/i);
   });
 
-  it("renders the title + source pane for an ok preview", () => {
+  it("renders the source pane for an ok preview", () => {
     const renderSource = vi.fn<typeof import("../preview/renderMermaid.js").renderMermaidSource>(
       async () => ({ status: "rendering" }) as MermaidRenderState,
     );
     render(<MermaidPreviewPanel preview={okPreview()} renderSource={renderSource} />);
 
-    expect(screen.getByRole("heading", { name: /flowchart/i })).toBeInTheDocument();
+    // The mockup Mermaid scene (slice 033) has no title heading — the editor
+    // tab labels the scene. The source pane still renders the .mmd text.
     expect(screen.getByTestId("mermaid-source-pane")).toHaveTextContent("graph TB");
   });
 
@@ -297,9 +298,13 @@ describe("MermaidPreviewPanel export actions (slice 029 US3 / PR-C)", () => {
     expect(screen.queryByRole("group", { name: /export actions/i })).toBeNull();
   });
 
-  it("does not render the export action bar when preview is fail-closed", () => {
+  it("renders the export bar but disables its actions when preview is fail-closed", () => {
+    // The mockup keeps the export bar visible at all times (slice 033); on a
+    // fail-closed preview there is nothing to export, so every action disables.
     render(<MermaidPreviewPanel preview={failedPreview("empty", "No nodes")} />);
-    expect(screen.queryByRole("group", { name: /export actions/i })).toBeNull();
+    expect(screen.getByRole("group", { name: /export actions/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save.*\.mmd/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /copy \.mmd/i })).toBeDisabled();
   });
 
   it("calls onSaveRequest with mmd format when Save .mmd is clicked", async () => {
@@ -447,6 +452,125 @@ describe("MermaidPreviewPanel export actions (slice 029 US3 / PR-C)", () => {
       expect(screen.getByRole("button", { name: /save.*\.png/i })).toBeDisabled();
       expect(screen.getByRole("button", { name: /copy image/i })).toBeDisabled();
       expect(screen.getByRole("button", { name: /copy snippet/i })).toBeDisabled();
+    });
+  });
+});
+
+describe("MermaidPreviewPanel mockup layout (slice 033 Phase 4)", () => {
+  afterEach(() => cleanup());
+
+  const renderOk = vi.fn<typeof import("../preview/renderMermaid.js").renderMermaidSource>(
+    async () => ({ status: "ok", svg: "<svg data-testid='svg'></svg>" }) as MermaidRenderState,
+  );
+
+  it("orders the toolbar controls Scope → Granularity → Diagram → Direction (T021)", () => {
+    const { container } = render(
+      <MermaidPreviewPanel
+        preview={okPreview()}
+        onOptionsChange={vi.fn()}
+        renderSource={renderOk}
+      />,
+    );
+
+    const toolbar = container.querySelector('[data-testid="mermaid-toolbar"]');
+    expect(toolbar).toBeTruthy();
+    const labels = Array.from(toolbar!.querySelectorAll("label")).map((l) =>
+      (l.textContent ?? "").trim().toLowerCase(),
+    );
+    // The four control labels appear in mockup order before the action buttons.
+    const controlLabels = labels.filter((t) => /scope|granularity|diagram|direction/.test(t));
+    expect(controlLabels.slice(0, 4)).toEqual([
+      expect.stringContaining("scope"),
+      expect.stringContaining("granularity"),
+      expect.stringContaining("diagram"),
+      expect.stringContaining("direction"),
+    ]);
+  });
+
+  it("renders Re-render and Back to graph actions in the toolbar (T021)", () => {
+    const onOptionsChange = vi.fn();
+    const onBackToGraph = vi.fn();
+    render(
+      <MermaidPreviewPanel
+        preview={okPreview()}
+        onOptionsChange={onOptionsChange}
+        onBackToGraph={onBackToGraph}
+        renderSource={renderOk}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /re-render/i }));
+    expect(onOptionsChange).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /back to graph/i }));
+    expect(onBackToGraph).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders a status row showing the active theme (T024)", () => {
+    const { container } = render(
+      <MermaidPreviewPanel preview={okPreview()} renderSource={renderOk} />,
+    );
+    const statusRow = container.querySelector('[data-testid="mermaid-status-row"]');
+    expect(statusRow).toBeTruthy();
+    expect(statusRow!.textContent).toMatch(/theme/i);
+    expect(statusRow!.textContent).toMatch(/light/i);
+  });
+
+  it("splits the body with the rendered preview before the source (T022)", async () => {
+    const { container } = render(
+      <MermaidPreviewPanel preview={okPreview()} renderSource={renderOk} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("mermaid-render-pane")).toBeInTheDocument();
+    });
+    const body = container.querySelector('[data-testid="mermaid-body"]');
+    expect(body).toBeTruthy();
+    const panes = Array.from(
+      body!.querySelectorAll(
+        '[data-testid="mermaid-render-pane"], [data-testid="mermaid-source-pane"]',
+      ),
+    ).map((el) => el.getAttribute("data-testid"));
+    // Preview (render) pane comes first, source pane second.
+    expect(panes).toEqual(["mermaid-render-pane", "mermaid-source-pane"]);
+  });
+
+  it("orders export bar Copy .mmd → Save .mmd → Save PNG → Save SVG → Copy image → Markdown snippet (T023)", async () => {
+    const { container } = render(
+      <MermaidPreviewPanel preview={okPreview()} onSaveRequest={vi.fn()} renderSource={renderOk} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save.*\.svg/i })).toBeInTheDocument();
+    });
+    const bar = container.querySelector('[data-testid="mermaid-export-bar"]');
+    expect(bar).toBeTruthy();
+    const buttonText = Array.from(bar!.querySelectorAll("button")).map((b) =>
+      (b.textContent ?? "").trim().toLowerCase(),
+    );
+    expect(buttonText).toEqual([
+      expect.stringContaining("copy .mmd"),
+      expect.stringContaining("save .mmd"),
+      expect.stringContaining("save"), // Save PNG
+      expect.stringContaining("save"), // Save SVG
+      expect.stringContaining("copy"), // Copy image
+      expect.stringContaining("copy"), // Markdown snippet
+    ]);
+    // The deferred-sequence hint lives at the end of the export bar.
+    expect(bar!.textContent).toMatch(/sequence diagram available after/i);
+  });
+
+  it("Copy .mmd copies the source to the clipboard (T023)", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(
+      <MermaidPreviewPanel preview={okPreview("graph TB\n  x-->y")} renderSource={renderOk} />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /copy \.mmd/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /copy \.mmd/i }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalled();
     });
   });
 });

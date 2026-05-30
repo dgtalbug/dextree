@@ -6,6 +6,7 @@
   gap: 4px;
   padding: 0 8px;
   height: 44px;
+  min-width: 0;
   background: var(--vscode-editorWidget-background);
   border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
@@ -14,6 +15,16 @@
   display: flex;
   align-items: center;
   gap: 2px;
+  /* Control groups keep their intrinsic width; only the search group (below)
+     and the spacer absorb the squeeze so action buttons never clip. */
+  flex: 0 0 auto;
+}
+
+/* The Search group is the flexible one — it shrinks before any icon group. */
+.group:has(> div [type="search"]),
+.searchGroup {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .group + .group {

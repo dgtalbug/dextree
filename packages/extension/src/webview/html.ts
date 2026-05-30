@@ -24,6 +24,16 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
   const codiconCssUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, "dist", "codicons", "codicon.css"),
   );
+  // Vite (IIFE/lib mode) bundles every CSS-Module into a single emitted
+  // stylesheet. It cannot self-inject under our nonce CSP, so it MUST be
+  // linked here as a webview resource (covered by `${webview.cspSource}` in
+  // style-src). Without this link every `*.module.css` class resolves to a
+  // hashed name with no rules — the shell grid, rails, toolbar, and status
+  // bar all collapse to default inline/block flow (no sidebar). See the
+  // header note on Research Decision #1.
+  const webviewCssUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "dist", "webview", "dextree.css"),
+  );
 
   const csp = [
     `default-src 'none'`,
@@ -40,6 +50,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dextree Graph View</title>
   <link rel="stylesheet" href="${codiconCssUri}" />
+  <link rel="stylesheet" href="${webviewCssUri}" />
   <style nonce="${nonce}">
     *,
     *::before,
@@ -96,7 +107,11 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
      #root {
        height: 100%;
        overflow: hidden;
-       padding: 8px;
+       /* Edge-to-edge: the GraphView shell owns its own gutters (toolbar/rail
+          padding), matching the mockup's full-bleed 100vw/100vh window. A root
+          inset would float the shell and stop the toolbar/status bars from
+          reaching the panel edges. */
+       padding: 0;
      }
 
      .dxt-app-shell {

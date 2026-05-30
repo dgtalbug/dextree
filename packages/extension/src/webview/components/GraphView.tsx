@@ -2366,19 +2366,68 @@ export function GraphView({
         />
       </div>
 
-      {/* LEFT rail: Lenses + Node Types */}
-      <aside className={shellStyles.left} aria-label="Graph lenses and node filters">
-        <LensesPanel
-          activeLensId={activeLensId}
-          lensCounts={lensCounts}
-          onLensToggle={onLensToggle}
-        />
-        <NodeFilterPanel
-          entries={nodeFilterEntries}
-          hiddenKinds={hiddenNodeKinds}
-          onToggle={handleToggleNodeKind}
-        />
-      </aside>
+      {/* LEFT rail: trace path (in trace mode) or Lenses + Node Types */}
+      {traceState.phase === "path-active" ? (
+        <aside className={shellStyles.left} aria-label="Trace path" data-testid="trace-left-rail">
+          <section className={shellStyles.traceSection}>
+            <header className={shellStyles.traceHeader}>Trace</header>
+            <p className={shellStyles.traceHint}>From start through the call chain</p>
+            {(() => {
+              const stepNode = (id: string) => nodes.find((n) => n.id === id) ?? null;
+              const rows: Array<{ group: string; ids: string[] }> = [
+                { group: "Start", ids: traceState.startNodeId ? [traceState.startNodeId] : [] },
+                { group: "End", ids: traceState.endNodeId ? [traceState.endNodeId] : [] },
+                {
+                  group: `Path (${traceState.pathEdgeIds.length} hops)`,
+                  ids: traceState.pathNodeIds,
+                },
+              ];
+              return rows.map((row) => (
+                <div key={row.group}>
+                  <div className={shellStyles.traceGroupTitle}>{row.group}</div>
+                  {row.ids.map((id) => {
+                    const node = stepNode(id);
+                    return (
+                      <button
+                        key={`${row.group}-${id}`}
+                        type="button"
+                        className={shellStyles.traceRow}
+                        data-testid={`trace-left-step-${id}`}
+                        onClick={() => handleTraceStepClick(id)}
+                        title={node ? `${node.filePath}:${node.startLine}` : id}
+                      >
+                        <span
+                          className={`codicon codicon-symbol-${node?.symbolKind ?? "misc"}`}
+                          aria-hidden="true"
+                        />
+                        <span className={shellStyles.traceRowLabel}>{node?.label ?? id}</span>
+                        {node && (
+                          <span className={shellStyles.traceRowPath}>
+                            {node.filePath.split(/[/\\]/).pop()}:{node.startLine}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ));
+            })()}
+          </section>
+        </aside>
+      ) : (
+        <aside className={shellStyles.left} aria-label="Graph lenses and node filters">
+          <LensesPanel
+            activeLensId={activeLensId}
+            lensCounts={lensCounts}
+            onLensToggle={onLensToggle}
+          />
+          <NodeFilterPanel
+            entries={nodeFilterEntries}
+            hiddenKinds={hiddenNodeKinds}
+            onToggle={handleToggleNodeKind}
+          />
+        </aside>
+      )}
 
       {/* CANVAS area */}
       <main className={`${shellStyles.canvas} dxt-graph-stage`}>

@@ -11,7 +11,11 @@
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   font-size: 12px;
-  min-width: 220px;
+  /* Shrinkable so the toolbar's action groups stay visible in a narrow panel
+     instead of being clipped. Holds a readable floor, then yields width. */
+  flex: 1 1 auto;
+  min-width: 120px;
+  max-width: 260px;
 }
 
 .searchBar:focus-within {

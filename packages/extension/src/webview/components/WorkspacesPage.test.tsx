@@ -69,4 +69,44 @@ describe("WorkspacesPage", () => {
 
     expect(onSwitch).toHaveBeenCalledWith("/b");
   });
+
+  // Slice 033 Phase 6 — mockup header.
+  describe("header (slice 033 T033)", () => {
+    it('renders the "Indexed workspaces" title', () => {
+      render(<WorkspacesPage workspaces={[]} onBack={vi.fn()} onSwitch={vi.fn()} />);
+      expect(screen.getByRole("heading", { name: /indexed workspaces/i })).toBeTruthy();
+    });
+
+    it("renders Re-scan all and Open another workspace actions when handlers are provided", () => {
+      render(
+        <WorkspacesPage
+          workspaces={[]}
+          onBack={vi.fn()}
+          onSwitch={vi.fn()}
+          onRescanAll={vi.fn()}
+          onOpenAnother={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("button", { name: /re-scan all/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /open another workspace/i })).toBeTruthy();
+    });
+
+    it("calls onRescanAll and onOpenAnother when their buttons are clicked", () => {
+      const onRescanAll = vi.fn();
+      const onOpenAnother = vi.fn();
+      render(
+        <WorkspacesPage
+          workspaces={[]}
+          onBack={vi.fn()}
+          onSwitch={vi.fn()}
+          onRescanAll={onRescanAll}
+          onOpenAnother={onOpenAnother}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /re-scan all/i }));
+      expect(onRescanAll).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: /open another workspace/i }));
+      expect(onOpenAnother).toHaveBeenCalledTimes(1);
+    });
+  });
 });

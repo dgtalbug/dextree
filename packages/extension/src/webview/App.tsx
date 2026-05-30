@@ -372,27 +372,22 @@ export function App({ vscodeApi }: AppProps) {
           workspaces={workspaceList}
           onBack={handleWorkspacesBack}
           onSwitch={handleSwitchWorkspace}
+          onRescanAll={() => {
+            handleCommand("index-workspace");
+          }}
         />
       );
     }
 
     if (activeScene === "mermaid-preview") {
+      // The "Back to graph" action moved into the panel toolbar (slice 033
+      // Phase 4); App no longer renders a separate preview topbar.
       return (
         <div className="dxt-app-shell">
-          <header className="dxt-preview-topbar">
-            <button
-              type="button"
-              className="dxt-panel-button"
-              onClick={handlePreviewBack}
-              aria-label="Back to graph"
-            >
-              <span className="codicon codicon-arrow-left" aria-hidden="true" />
-              Back to graph
-            </button>
-          </header>
           <MermaidPreviewPanel
             preview={mermaidPreview}
             onOptionsChange={handleMermaidOptionsChange}
+            onBackToGraph={handlePreviewBack}
             onSaveRequest={handleMermaidSaveRequest}
           />
         </div>

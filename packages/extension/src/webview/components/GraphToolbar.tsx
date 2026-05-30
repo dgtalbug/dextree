@@ -107,7 +107,11 @@ export function GraphToolbar({
       )}
 
       {/* Group 2: Search */}
-      <div className={styles.group} data-testid="toolbar-group" aria-label="Search">
+      <div
+        className={`${styles.group} ${styles.searchGroup}`}
+        data-testid="toolbar-group"
+        aria-label="Search"
+      >
         <SearchBar
           query={searchQuery}
           results={searchResults}
@@ -167,7 +171,7 @@ export function GraphToolbar({
       <div className={styles.group} data-testid="toolbar-group" aria-label="Trace controls">
         <button
           type="button"
-          className={styles.iconBtn}
+          className={traceActive ? styles.accentBtn : styles.iconBtn}
           title={traceActive ? "Cancel trace" : "Trace route between two nodes"}
           aria-label="Toggle trace route mode"
           aria-pressed={traceActive}

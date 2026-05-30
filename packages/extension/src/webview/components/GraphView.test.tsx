@@ -941,6 +941,77 @@ describe("GraphView", () => {
       fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
       expect(searchInput.value).toBe("");
     });
+
+    // Slice 033 Phase 5 — trace variant of the GraphView shell.
+    it("gives the Trace toolbar button accent styling and aria-pressed when active (T032)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: "Toggle trace route mode" });
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+      const idleClass = toggle.className;
+
+      fireEvent.click(toggle);
+
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+      // The active Trace button switches to the accent treatment (mockup).
+      expect(toggle.className).not.toBe(idleClass);
+    });
+
+    it("shows the Export this trace button only while tracing (T032)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+          onExportTraceSequence={vi.fn()}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: /export this trace/i })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      expect(screen.getByRole("button", { name: /export this trace/i })).toBeTruthy();
+    });
+
+    it("swaps the left rail to trace path content when a path is active (T029)", async () => {
+      mockSigma.getNodeDisplayData = vi.fn(() => ({ x: 10, y: 10 }));
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // Standard left rail shows Lenses + Node Types before tracing.
+      expect(screen.getByTestId("node-filter-panel")).toBeTruthy();
+
+      const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+      // Enter trace mode, then pick start + end on a connected pair. The second
+      // pick schedules path resolution on a microtask, so flush microtasks.
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      clickNodeHandler?.({ node: "symbol-1" });
+      clickNodeHandler?.({ node: "symbol-2" });
+      await act(async () => {
+        await Promise.resolve();
+        vi.runOnlyPendingTimers();
+      });
+
+      // Once a path is active the left rail surfaces trace path content and the
+      // standard Node Types filter is no longer shown there.
+      expect(screen.getByTestId("trace-left-rail")).toBeTruthy();
+      expect(screen.queryByTestId("node-filter-panel")).toBeNull();
+    });
   });
 
   describe("layout presets (slice 025 US1)", () => {

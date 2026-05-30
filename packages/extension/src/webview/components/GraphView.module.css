@@ -55,6 +55,70 @@
   flex-direction: column;
 }
 
+/* ---- Trace path (left rail in trace mode) ------------------------------ */
+
+.traceSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+}
+
+.traceHeader {
+  padding: 2px 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.traceHint {
+  margin: 2px 4px 6px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.traceGroupTitle {
+  padding: 6px 4px 2px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.traceRow {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.traceRow:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.traceRowLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traceRowPath {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+}
+
 /* ---- Status bar -------------------------------------------------------- */
 
 .status {

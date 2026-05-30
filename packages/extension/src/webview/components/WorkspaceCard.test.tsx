@@ -87,4 +87,40 @@ describe("WorkspaceCard", () => {
 
     expect(screen.getByText(/Never indexed/)).toBeTruthy();
   });
+
+  // Slice 033 Phase 6 — active treatment + architecture strip.
+  describe("active treatment (T034)", () => {
+    it("marks the active card with aria-current and a green Active pill", () => {
+      render(<WorkspaceCard workspace={makeRecord({ isActive: true })} onSwitch={vi.fn()} />);
+
+      const card = screen.getByTestId("workspace-card");
+      expect(card.getAttribute("aria-current")).toBe("true");
+      const pill = screen.getByText("Active");
+      expect(pill).toBeTruthy();
+      // The Active pill carries the dedicated (green) pill class, not a bare badge.
+      expect(pill.className).toMatch(/activePill/);
+    });
+
+    it("does not render an Active pill or aria-current on non-active cards", () => {
+      render(<WorkspaceCard workspace={makeRecord({ isActive: false })} onSwitch={vi.fn()} />);
+
+      expect(screen.queryByText("Active")).toBeNull();
+      expect(screen.getByTestId("workspace-card").getAttribute("aria-current")).toBeNull();
+    });
+  });
+
+  describe("architecture strip (T038)", () => {
+    it("renders an architecture strip", () => {
+      render(<WorkspaceCard workspace={makeRecord()} onSwitch={vi.fn()} />);
+      expect(screen.getByTestId("workspace-arch-strip")).toBeTruthy();
+    });
+
+    it("shows the gray placeholder strip with a re-index tooltip when no layer data is available", () => {
+      // IndexedWorkspaceRecord carries no per-layer breakdown yet, so the strip
+      // is a single gray placeholder segment (T038) rather than fabricated bands.
+      render(<WorkspaceCard workspace={makeRecord()} onSwitch={vi.fn()} />);
+      const strip = screen.getByTestId("workspace-arch-strip");
+      expect(strip.getAttribute("title")).toMatch(/re-index with classification/i);
+    });
+  });
 });
