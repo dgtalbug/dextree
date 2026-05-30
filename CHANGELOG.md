@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/dgtalbug/dextree/compare/v1.14.0...v1.15.0) (2026-05-30)
+
+
+### Features
+
+* **slice-032:** integrate logger interface across extractors and improve error handling ([#137](https://github.com/dgtalbug/dextree/issues/137)) ([faf8f53](https://github.com/dgtalbug/dextree/commit/faf8f53abd3d1c6e499c6460b29ea032906b47c1))
+
 ## [1.14.0](https://github.com/dgtalbug/dextree/compare/v1.13.0...v1.14.0) (2026-05-30)
 
 ### Features
