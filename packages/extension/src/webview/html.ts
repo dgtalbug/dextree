@@ -104,6 +104,155 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       --edge-color-instantiates: var(--vscode-charts-red, #f44747);
     }
 
+    /* Framework badge (global dxt-badge classes; used by WorkspaceCard chips).
+       The per-framework brand color is selected by the data-framework attribute
+       and surfaced through --fw-color, matching the mockup. Unknown frameworks
+       fall back to the neutral VS Code badge color. */
+    .dxt-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      white-space: nowrap;
+    }
+
+    .dxt-badge--framework {
+      background: color-mix(in srgb, var(--fw-color, var(--vscode-badge-background)) 18%, transparent);
+      color: var(--fw-color, var(--vscode-foreground));
+      border: 1px solid var(--fw-color, var(--vscode-badge-background));
+    }
+
+    [data-framework="vscode"],
+    [data-framework="vscode-ext"] { --fw-color: var(--fw-vscode); }
+    [data-framework="react"]      { --fw-color: var(--fw-react); }
+    [data-framework="vitest"]     { --fw-color: var(--fw-vitest); }
+    [data-framework="node"],
+    [data-framework="nodejs"]     { --fw-color: var(--fw-node); }
+
+    /* ============================================================
+       GraphView canvas overlays (slice 033 US4). These use global dxt-*
+       class names from GraphView's JSX, so the rules live here rather than a
+       CSS Module. Translucent backdrops use rgba() by design (no --vscode-*
+       token provides a blurred overlay fill — allowed per the layout contract).
+       Ported from scratch/graphview-mockup-final.html.
+       ============================================================ */
+    .dxt-floating {
+      position: absolute;
+      background: rgba(30, 30, 30, 0.78);
+      backdrop-filter: blur(6px);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 6px;
+      padding: 4px;
+      z-index: 4;
+    }
+    .dxt-zoom-controls {
+      top: 12px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* Icon button used by the canvas overlays (mirrors GraphToolbar's .iconBtn,
+       but global so the overlay buttons in GraphView's JSX are styled). */
+    .dxt-icon-btn {
+      height: 28px;
+      min-width: 28px;
+      padding: 0 6px;
+      background: transparent;
+      color: var(--vscode-foreground);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font: inherit;
+      font-size: 12px;
+    }
+    .dxt-icon-btn:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    .dxt-canvas-help {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      background: rgba(30, 30, 30, 0.65);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 12px;
+      padding: 3px 12px;
+      display: inline-flex;
+      gap: 12px;
+      z-index: 4;
+    }
+    .dxt-canvas-help kbd {
+      font: inherit;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 10px;
+      color: var(--vscode-foreground);
+    }
+
+    .dxt-legend {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      background: rgba(30, 30, 30, 0.78);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 6px;
+      z-index: 4;
+    }
+    .dxt-legend-title {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--vscode-foreground);
+    }
+    .dxt-legend-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 1px 0;
+    }
+    .dxt-legend-sep {
+      border: 0;
+      border-top: 1px solid var(--vscode-editorWidget-border);
+      margin: 6px 0;
+    }
+    .dxt-legend-chip {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+    .dxt-legend-swatch {
+      width: 18px;
+      height: 2px;
+      border-radius: 2px;
+    }
+
+    .dxt-error-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
      #root {
        height: 100%;
        overflow: hidden;

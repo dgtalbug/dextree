@@ -1113,26 +1113,6 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
   refreshSigma(sigma);
 }
 
-function centerCameraOnNode(graph: MultiDirectedGraph, sigma: Sigma, nodeId: string): void {
-  const sigmaWithExtras = sigma as SigmaWithExtras;
-  const camera = sigmaWithExtras.getCamera?.();
-  const state = camera?.getState?.();
-
-  if (camera?.animate === undefined || state === undefined || !graph.hasNode(nodeId)) {
-    return;
-  }
-
-  const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
-  camera.animate(
-    {
-      x: attributes.x,
-      y: attributes.y,
-      ratio: state.ratio,
-    },
-    { duration: CAMERA_CENTER_DURATION_MS },
-  );
-}
-
 export function GraphView({
   nodes,
   edges,
@@ -1674,12 +1654,13 @@ export function GraphView({
       setSelectedNodeId(nodeId);
       selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
 
+      // Selecting highlights the node + its neighborhood and opens the inspector,
+      // but deliberately does NOT recenter the camera — an auto-pan on every
+      // click makes the graph jump under the cursor. The viewport only moves on
+      // explicit Fit / search-result navigation.
       if (sigma !== null) {
         refreshSigma(sigma);
         updateOverlay();
-        if (!reducedMotion) {
-          centerCameraOnNode(graph, sigma, nodeId);
-        }
       }
     };
 

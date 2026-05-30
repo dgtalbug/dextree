@@ -385,6 +385,34 @@ describe("GraphView", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
+  it("does not recenter the camera when a node is selected by single click (slice 033)", () => {
+    // Selecting a node should highlight + inspect it without moving the viewport;
+    // an auto-recenter makes the whole graph jump under the cursor. The camera
+    // only moves on explicit Fit / search-result navigation.
+    const animate = vi.fn();
+    mockSigma.getCamera = () => ({
+      animate,
+      getState: () => ({ x: 0.5, y: 0.5, ratio: 1 }),
+    });
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
+      />,
+    );
+
+    const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+    clickNodeHandler?.({ node: "symbol-1" });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(animate).not.toHaveBeenCalled();
+  });
+
   it("navigates on double click", () => {
     const onNavigate = vi.fn();
     render(

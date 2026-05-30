@@ -164,8 +164,12 @@
 }
 
 .statusPillFramework {
-  background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
+  /* --fw-color is set by the global [data-framework] selectors in html.ts, so
+     each framework pill carries its brand tint (react=cyan, vscode=blue, …).
+     Falls back to the neutral badge color for unknown frameworks. */
+  background: color-mix(in srgb, var(--fw-color, var(--vscode-badge-background)) 22%, transparent);
+  color: var(--fw-color, var(--vscode-badge-foreground));
+  border: 1px solid var(--fw-color, transparent);
 }
 
 /*
