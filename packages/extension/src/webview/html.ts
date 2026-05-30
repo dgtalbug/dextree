@@ -58,6 +58,28 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       background-color: var(--vscode-editor-background);
     }
 
+    /* Dextree design tokens (slice 033). These must live in this nonce-guarded
+       inline block — not a CSS Module — because custom properties declared in a
+       module :root get scoped/hashed and would not cascade to every component.
+       Hex values match scratch/graphview-mockup-final.html: there is no
+       --vscode-* token covering architectural layers or framework identity, so
+       these are the one allowed exception to the "tokens only" rule (FR-026). */
+    :root {
+      /* Architectural-layer palette (classifier output, slice 026) */
+      --layer-entry: #f1c40f;
+      --layer-orchestration: #3794ff;
+      --layer-domain: #2ecc71;
+      --layer-io: #e67e22;
+      --layer-util: #9b9b9b;
+      --layer-dead: #6b3535;
+
+      /* Framework chip palette */
+      --fw-vscode: #007acc;
+      --fw-react: #61dafb;
+      --fw-vitest: #6e9f18;
+      --fw-node: #68a063;
+    }
+
      #root {
        height: 100%;
        overflow: hidden;

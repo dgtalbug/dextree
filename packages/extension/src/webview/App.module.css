@@ -1,0 +1,140 @@
+/*
+ * App shell + tab strip (slice 033, Phase 2).
+ *
+ * Translates the editor-tab strip and the GraphView/Trace 3-column grid from
+ * scratch/graphview-mockup-final.html into scoped CSS Module classes. Grid
+ * templates mirror the literals in components/shellLayout.ts exactly; keep them
+ * in sync. Only VS Code theme tokens are used (FR-026).
+ */
+
+.window {
+  display: grid;
+  grid-template-rows: 32px 1fr;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+/* ---- Tab strip ---------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  background: var(--vscode-tab-inactiveBackground);
+  border-bottom: 1px solid var(--vscode-tab-border);
+  overflow: hidden;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 32px;
+  background: var(--vscode-tab-inactiveBackground);
+  color: var(--vscode-tab-inactiveForeground);
+  cursor: pointer;
+  border: 0;
+  border-right: 1px solid var(--vscode-tab-border);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tab:hover:not(.tabActive):not(:disabled) {
+  background: var(--vscode-tab-hoverBackground, var(--vscode-tab-inactiveBackground));
+}
+
+.tab:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.tabActive {
+  background: var(--vscode-tab-activeBackground);
+  color: var(--vscode-tab-activeForeground);
+  border-bottom: 1px solid var(--vscode-tab-activeBackground);
+}
+
+.tab:disabled,
+.tab[aria-disabled="true"] {
+  color: var(--vscode-disabledForeground);
+  cursor: default;
+}
+
+.tabDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vscode-charts-green);
+  flex-shrink: 0;
+}
+
+/* ---- Scene container ---------------------------------------------------- */
+
+.scene {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ---- GraphView / Trace shell grid -------------------------------------- */
+
+.graphShell {
+  display: grid;
+  grid-template-columns: 260px 1fr 320px;
+  grid-template-rows: 44px 1fr 28px;
+  grid-template-areas:
+    "toolbar toolbar toolbar"
+    "left    canvas  right"
+    "status  status  status";
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.shellToolbar {
+  grid-area: toolbar;
+  min-width: 0;
+}
+
+.shellLeft {
+  grid-area: left;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--vscode-panel-background);
+  border-right: 1px solid var(--vscode-panel-border);
+}
+
+.shellCanvas {
+  grid-area: canvas;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.shellRight {
+  grid-area: right;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--vscode-panel-background);
+  border-left: 1px solid var(--vscode-panel-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.shellStatus {
+  grid-area: status;
+  min-width: 0;
+}
+
+/*
+ * Below ~800px the fixed rails would crowd the canvas off-screen. Hold a
+ * readable minimum and let the canvas take the squeeze (spec edge case:
+ * "rails should maintain minimum readable widths rather than collapsing").
+ */
+@media (max-width: 800px) {
+  .graphShell {
+    grid-template-columns: 200px 1fr 240px;
+  }
+}
