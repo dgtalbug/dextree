@@ -33,6 +33,6 @@ jobs:
             --exclude 'file://'
             --exclude 'mailto:'
             --exclude-path './CHANGELOG.md'
-            --accept 502
+            --exclude 'github.com/dgtalbug/dextree/issues'
             './**/*.md'
           fail: true
