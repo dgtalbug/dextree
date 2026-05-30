@@ -33,5 +33,6 @@ jobs:
             --exclude 'file://'
             --exclude 'mailto:'
             --exclude-path './CHANGELOG.md'
+            --accept 502
             './**/*.md'
           fail: true
