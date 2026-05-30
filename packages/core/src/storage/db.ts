@@ -53,7 +53,6 @@ export async function runInTransaction<T>(
   if (inTransaction) {
     throw new Error("Nested runInTransaction detected");
   }
-  inTransaction = true;
 
   // Pre-flight: clear any lingering aborted transaction from a previous call.
   // "No active transaction" is expected on a clean connection and not an error.
@@ -63,10 +62,11 @@ export async function runInTransaction<T>(
     // Normal path — no active transaction to roll back.
   }
 
-  logger?.debug("BEGIN TRANSACTION");
-  await connection.run("BEGIN TRANSACTION");
-
   try {
+    inTransaction = true;
+    logger?.debug("BEGIN TRANSACTION");
+    await connection.run("BEGIN TRANSACTION");
+
     const result = await operation();
     logger?.debug("COMMIT");
     await connection.run("COMMIT");

@@ -60,11 +60,12 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
       let result: ExtractionResult;
       try {
         result = await extractor.extract(enrichedInput);
-      } catch {
+      } catch (err) {
         // Per FR-007 / contract: failure isolation. Log and continue.
         this.logger?.warn("Extractor failed", {
           extractor: extractor.name,
           file: input.absolutePath,
+          error: err instanceof Error ? err.message : String(err),
         });
         continue;
       }

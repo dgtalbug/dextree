@@ -1157,6 +1157,7 @@ export function GraphView({
   const reducedMotion = useReducedMotionPreference();
 
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
@@ -1971,7 +1972,7 @@ export function GraphView({
       sigmaRef.current = null;
       graphRef.current = null;
     };
-  }, [edges, nodes, onNavigate, reducedMotion]);
+  }, [edges, nodes, onNavigate, reducedMotion, retryCount]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -2110,6 +2111,7 @@ export function GraphView({
     const handleRetry = (): void => {
       setError(null);
       setFallbackGraph(null);
+      setRetryCount((prev) => prev + 1);
     };
     const handleShowFallback = (): void => {
       if (graphRef.current !== null) {

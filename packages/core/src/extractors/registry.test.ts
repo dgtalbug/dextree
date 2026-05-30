@@ -126,6 +126,11 @@ describe("ExtractorRegistry", () => {
     const result = await registry.run(makeInput());
 
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("Extractor failed", {
+      extractor: "broken",
+      file: "/workspace/src/x.ts",
+      error: "boom",
+    });
     expect(result.edges).toHaveLength(1);
     expect(result.edges[0]?.kind).toBe("OK");
   });

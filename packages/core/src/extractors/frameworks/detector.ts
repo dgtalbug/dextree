@@ -22,8 +22,11 @@ export const detectFrameworks: DetectFrameworksFn = async (
     try {
       const hit = await runMatchersFor(def, params);
       if (hit !== null) results.push(hit);
-    } catch {
-      params.logger?.warn("Framework matcher failed", { framework: def.name });
+    } catch (err) {
+      params.logger?.warn("Framework matcher failed", {
+        framework: def.name,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
