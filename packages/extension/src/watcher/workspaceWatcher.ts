@@ -10,14 +10,10 @@ import type { WorkspaceWatcherDependencies, WatcherEvent } from "./types.js";
 export type { WorkspaceWatcherDependencies, WatcherEvent } from "./types.js";
 
 const DEBOUNCE_MS = 500;
-const MAX_QUEUE_SIZE = 50;
+const MAX_QUEUE_SIZE = 200;
 
 function hashContent(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
-}
-
-function isVerbose(): boolean {
-  return vscode.workspace.getConfiguration("dextree").get<boolean>("watcher.verbose") ?? false;
 }
 
 export function createWorkspaceWatcher(
@@ -27,6 +23,7 @@ export function createWorkspaceWatcher(
 
   const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const eventQueue: WatcherEvent[] = [];
+  let droppedEventCount = 0;
 
   // Lazily-initialized ignore helper — createWorkspaceIgnore reads .gitignore files.
   const ignorePromise = createWorkspaceIgnore(workspaceRoot);
@@ -59,6 +56,9 @@ export function createWorkspaceWatcher(
     if (isWorkspaceIndexing()) {
       if (eventQueue.length < MAX_QUEUE_SIZE) {
         eventQueue.push(event);
+      } else {
+        droppedEventCount++;
+        logger?.warn(`[watcher] event dropped (queue full)`, { file: event.uri.fsPath });
       }
       return;
     }
@@ -114,9 +114,7 @@ export function createWorkspaceWatcher(
       const allFiles = await indexer.getAllFiles();
       const stored = allFiles.find((f) => f.path === filePath);
       if (stored !== undefined && stored.hash === currentHash) {
-        if (isVerbose()) {
-          logger.debug(`[watcher] skipped (unchanged): ${fileName}`);
-        }
+        logger.debug(`[watcher] skipped (unchanged): ${fileName}`);
         return;
       }
 
@@ -149,6 +147,13 @@ export function createWorkspaceWatcher(
     const queued = eventQueue.splice(0, eventQueue.length);
     for (const event of queued) {
       await dispatchEvent(event);
+    }
+    if (droppedEventCount > 0) {
+      const count = droppedEventCount;
+      droppedEventCount = 0;
+      void vscode.window.showInformationMessage(
+        `Dextree: ${count} file change(s) were skipped during indexing. Re-index to ensure consistency.`,
+      );
     }
   }
 

@@ -154,8 +154,13 @@ export async function activate(context: ActivationContext): Promise<void> {
     void (async () => {
       try {
         await pushCurrentGraph();
-      } catch {
-        // Non-critical — panel will still show previous state
+      } catch (err) {
+        logger.error("Failed to push current graph", err);
+        if (WebviewPanelManager.isOpen()) {
+          void vscode.window.showWarningMessage(
+            "Dextree: Could not load graph. See output for details.",
+          );
+        }
       }
     })();
   };
@@ -238,7 +243,7 @@ export async function activate(context: ActivationContext): Promise<void> {
     }
     const indexer = await getIndexer();
     const subgraph = await indexer.getWorkspaceSubgraph(workspaceRoot);
-    return generateMermaidPreview(subgraph, options);
+    return generateMermaidPreview(subgraph, options, logger);
   });
 
   const recordSuccessfulIndex = async (): Promise<void> => {
@@ -261,7 +266,10 @@ export async function activate(context: ActivationContext): Promise<void> {
         join(storageUri.fsPath, "dextree.db"),
       );
     } catch {
-      // Registry is best-effort — failure must not block indexing or graph push.
+      logger.warn("Failed to register workspace in global registry", { workspaceRoot });
+      void vscode.window.showWarningMessage(
+        "Dextree: Workspace indexed but not registered in the workspace switcher.",
+      );
     }
   };
 
@@ -346,8 +354,13 @@ export async function activate(context: ActivationContext): Promise<void> {
             if (WebviewPanelManager.isOpen()) {
               try {
                 await pushCurrentGraph();
-              } catch {
-                // Non-critical — panel will still clear the overlay
+              } catch (err) {
+                logger.error("Failed to push current graph after indexing", err);
+                if (WebviewPanelManager.isOpen()) {
+                  void vscode.window.showWarningMessage(
+                    "Dextree: Indexing completed but graph could not be loaded. See output for details.",
+                  );
+                }
               }
             }
             pushIndexing("finished", update);

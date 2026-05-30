@@ -59,6 +59,10 @@ let switchWorkspaceHandler: ((workspaceRoot: string) => Promise<void>) | undefin
 // during activation before wiring completes).
 let mermaidPreviewHandler: MermaidPreviewHandler | undefined;
 
+// Slice 032 — request sequencing counter. Increment on each incoming
+// `requestMermaidPreview` message; only the last-requested result is pushed.
+let mermaidPreviewRequestSeq = 0;
+
 type MermaidPreviewSaveFormat = "mmd" | "svg" | "png";
 
 interface ParsedSaveMermaidPreviewMessage {
@@ -319,12 +323,16 @@ export const WebviewPanelManager = {
           if (handler === undefined || !isMermaidPreviewOptionsLike(options)) {
             return;
           }
+          mermaidPreviewRequestSeq++;
+          const seq = mermaidPreviewRequestSeq;
           void Promise.resolve()
             .then(() => handler(options))
             .then((preview) => {
+              if (seq !== mermaidPreviewRequestSeq) return;
               WebviewPanelManager.pushMermaidPreview(preview);
             })
             .catch((err: unknown) => {
+              if (seq !== mermaidPreviewRequestSeq) return;
               const reason = err instanceof Error ? err.message : String(err);
               WebviewPanelManager.pushMermaidPreview({
                 status: "unsupported",
@@ -343,7 +351,8 @@ export const WebviewPanelManager = {
 
           void saveMermaidPreview(saveRequest).catch((err: unknown) => {
             const message = err instanceof Error ? err.message : String(err);
-            void vscode.window.showErrorMessage(`Dextree: Failed to save preview — ${message}`);
+            injectedLogger?.error("Failed to save Mermaid preview", err);
+            void vscode.window.showErrorMessage(`Dextree: Could not save preview — ${message}`);
           });
           return;
         }

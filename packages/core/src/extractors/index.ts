@@ -5,6 +5,7 @@ import { ImplementsExtractor } from "./ImplementsExtractor.js";
 import { NaiveCallExtractor } from "./NaiveCallExtractor.js";
 import { createExtractorRegistry } from "./registry.js";
 import type { ExtractorRegistry } from "./types.js";
+import type { Logger } from "../types.js";
 
 /**
  * Builds the default registry with all first-party extractors registered in the
@@ -18,8 +19,8 @@ import type { ExtractorRegistry } from "./types.js";
  * Tests that want isolation should call `createExtractorRegistry()` directly and
  * register only what they need.
  */
-export function createDefaultExtractorRegistry(): ExtractorRegistry {
-  const registry = createExtractorRegistry();
+export function createDefaultExtractorRegistry(logger?: Logger): ExtractorRegistry {
+  const registry = createExtractorRegistry(logger);
   registry.register(new BaselineTsJsExtractor());
   registry.register(new NaiveCallExtractor());
   registry.register(new ClassRelationExtractor());

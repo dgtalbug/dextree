@@ -36,6 +36,8 @@ import {
   type FrameworkInfo,
   type IndexResult,
   type Indexer,
+  type IndexerFactoryOptions,
+  type Logger,
   type SessionSummary,
   type StoredFile,
   type StoredSymbol,
@@ -60,8 +62,10 @@ export type {
   GraphEdgeKind,
   GraphNode,
   GraphNodeType,
+  IndexerFactoryOptions,
   IndexResult,
   Indexer,
+  Logger,
   SessionSummary,
   StoredFile,
   StoredSymbol,
@@ -122,13 +126,19 @@ const TS_LIKE_LANGUAGES = new Set([
 class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;
   private initializationPromise: Promise<void> | null = null;
-  private readonly registry: ExtractorRegistry = createDefaultExtractorRegistry();
+  private readonly registry: ExtractorRegistry;
   private readonly frameworkCache = new Map<string, readonly DetectedFramework[]>();
+  private readonly logger: Logger | undefined;
+  private readonly indexFileInFlight = new Map<string, Promise<IndexResult>>();
 
   constructor(
     private readonly dbPath: string,
     private readonly wasmDir: string,
-  ) {}
+    options?: IndexerFactoryOptions,
+  ) {
+    this.logger = options?.logger;
+    this.registry = createDefaultExtractorRegistry(this.logger);
+  }
 
   async initialize(): Promise<void> {
     if (this.initializationPromise !== null) {
@@ -136,22 +146,45 @@ class DuckTreeIndexer implements Indexer {
     }
 
     this.initializationPromise = (async () => {
+      this.logger?.debug("Initializing DuckDB", { dbPath: this.dbPath });
+
       if (this.dbPath !== ":memory:") {
         await mkdir(dirname(this.dbPath), { recursive: true });
       }
 
       this.databaseHandle = await openDatabase(this.dbPath);
       await initializeSchema(this.databaseHandle.connection);
-      const migrationResult = await applyMigrations(this.databaseHandle.connection);
+      const migrationResult = await applyMigrations(this.databaseHandle.connection, this.logger);
       if (migrationResult.status === "failed") {
         throw new SchemaError(migrationResult.reason);
       }
+
+      this.logger?.debug("Initialized DuckDB", { dbPath: this.dbPath });
     })();
 
     await this.initializationPromise;
   }
 
   async indexFile(
+    absolutePath: string,
+    workspaceRoot: string,
+    cacheIdentity?: WorkspaceCacheIdentity,
+  ): Promise<IndexResult> {
+    const existing = this.indexFileInFlight.get(absolutePath);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const promise = this.doIndexFile(absolutePath, workspaceRoot, cacheIdentity);
+    this.indexFileInFlight.set(absolutePath, promise);
+    try {
+      return await promise;
+    } finally {
+      this.indexFileInFlight.delete(absolutePath);
+    }
+  }
+
+  private async doIndexFile(
     absolutePath: string,
     workspaceRoot: string,
     cacheIdentity?: WorkspaceCacheIdentity,
@@ -169,6 +202,10 @@ class DuckTreeIndexer implements Indexer {
       : null;
 
     try {
+      this.logger?.debug("indexFile start", {
+        relativePath: absolutePath.split("/").pop() ?? absolutePath,
+      });
+
       const result = await this.registry.run({
         absolutePath,
         workspaceRoot,
@@ -268,11 +305,18 @@ class DuckTreeIndexer implements Indexer {
 
       const symbols = await getSymbolsForFile(database.connection, extracted.file.relativePath);
 
+      const elapsedMs = Date.now() - startedAt;
+      this.logger?.debug("indexFile complete", {
+        relativePath: extracted.file.relativePath,
+        symbolCount: symbols.length,
+        elapsedMs,
+      });
+
       return {
         relativePath: extracted.file.relativePath,
         symbolCount: symbols.length,
         symbols,
-        elapsedMs: Date.now() - startedAt,
+        elapsedMs,
       };
     } finally {
       tree?.delete();
@@ -282,7 +326,7 @@ class DuckTreeIndexer implements Indexer {
   async detectWorkspaceFrameworks(workspaceRoot: string): Promise<readonly FrameworkInfo[]> {
     await this.initialize();
     const database = this.requireDatabaseHandle();
-    const detected = await detectFrameworks(createNodeFsIO(workspaceRoot));
+    const detected = await detectFrameworks(createNodeFsIO(workspaceRoot, this.logger));
     this.frameworkCache.set(workspaceRoot, detected);
     await replaceWorkspaceFrameworks(
       database.connection,
@@ -303,6 +347,7 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     await resolveWorkspaceCrossFileEdges(database.connection, workspaceRoot);
+    this.logger?.info("Finalized workspace cross-file edges", { workspaceRoot });
   }
 
   async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {
@@ -378,6 +423,10 @@ class DuckTreeIndexer implements Indexer {
   }
 }
 
-export function createIndexer(dbPath: string, wasmDir: string): Indexer {
-  return new DuckTreeIndexer(dbPath, wasmDir);
+export function createIndexer(
+  dbPath: string,
+  wasmDir: string,
+  options?: IndexerFactoryOptions,
+): Indexer {
+  return new DuckTreeIndexer(dbPath, wasmDir, options);
 }

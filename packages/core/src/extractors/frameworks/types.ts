@@ -7,7 +7,7 @@
  * source of truth for the spec, and this file is the runtime declaration.
  * Keep both in sync.
  */
-import type { FrameworkDetectionSource } from "../../types.js";
+import type { FrameworkDetectionSource, Logger } from "../../types.js";
 
 export interface ManifestKeyPathPresent {
   kind: "present";
@@ -62,6 +62,7 @@ export interface DetectFrameworksParams {
   workspaceRoot: string;
   readFile: (relativePath: string) => Promise<string | null>;
   listFiles: (glob: string) => Promise<readonly string[]>;
+  logger?: Logger;
 }
 
 export type DetectFrameworksFn = (

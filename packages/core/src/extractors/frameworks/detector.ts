@@ -23,9 +23,7 @@ export const detectFrameworks: DetectFrameworksFn = async (
       const hit = await runMatchersFor(def, params);
       if (hit !== null) results.push(hit);
     } catch {
-      // FR-007: a single framework's matcher failing must not stop others.
-      // Failures are intentionally silent at the detector layer; the indexer
-      // wrapper logs the failure with the framework name for observability.
+      params.logger?.warn("Framework matcher failed", { framework: def.name });
     }
   }
 

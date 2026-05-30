@@ -99,8 +99,9 @@ describe("ExtractorRegistry", () => {
   });
 
   it("isolates per-extractor failures and continues with surviving extractors", async () => {
-    const registry = createExtractorRegistry();
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.fn();
+    const logger = { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() };
+    const registry = createExtractorRegistry(logger);
 
     const broken: Extractor = {
       name: "broken",
@@ -127,8 +128,6 @@ describe("ExtractorRegistry", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(result.edges).toHaveLength(1);
     expect(result.edges[0]?.kind).toBe("OK");
-
-    warn.mockRestore();
   });
 
   it("throws when two extractors both populate `file`", async () => {

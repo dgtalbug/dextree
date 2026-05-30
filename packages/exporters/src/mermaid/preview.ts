@@ -1,4 +1,4 @@
-import type { WorkspaceSubgraph } from "@dextree/core";
+import type { Logger, WorkspaceSubgraph } from "@dextree/core";
 
 import { serializeToScopedMermaid } from "./scopedSerializer.js";
 import type { MermaidDirection, MermaidGranularity, MermaidScope } from "./scopedSerializer.js";
@@ -82,6 +82,7 @@ function titleForOptions(options: MermaidPreviewOptions): string {
 export function generateMermaidPreview(
   subgraph: WorkspaceSubgraph,
   options: MermaidPreviewOptions,
+  logger?: Logger,
 ): MermaidPreviewResult {
   if (options.diagram === "sequenceDiagram") {
     return {
@@ -106,6 +107,11 @@ export function generateMermaidPreview(
       title: titleForOptions(options),
     };
   } catch (err) {
+    logger?.error("generateMermaidPreview failed", err, {
+      options: options as unknown as Record<string, unknown>,
+      nodeCount: subgraph.nodes.length,
+      edgeCount: subgraph.edges.length,
+    });
     const reason = err instanceof Error ? err.message : String(err);
     const status = classifyFailure(reason);
     return { status, options, reason };

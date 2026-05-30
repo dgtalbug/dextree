@@ -1,6 +1,7 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 
 import { SCHEMA_VERSION } from "../../types.js";
+import type { Logger } from "../../types.js";
 
 /**
  * Migrations are inlined as string constants rather than loaded from disk because
@@ -422,7 +423,10 @@ async function readCurrentVersion(connection: DuckDBConnection): Promise<number>
  * The runner does NOT throw on migration failure — callers (currently
  * `DuckTreeIndexer.initialize`) decide whether failure is fatal.
  */
-export async function applyMigrations(connection: DuckDBConnection): Promise<MigrationResult> {
+export async function applyMigrations(
+  connection: DuckDBConnection,
+  logger?: Logger,
+): Promise<MigrationResult> {
   const applied: string[] = [];
   let currentVersion: number;
   try {
@@ -455,6 +459,7 @@ export async function applyMigrations(connection: DuckDBConnection): Promise<Mig
       break;
     }
     try {
+      logger?.info(`Running migration ${migration.version}: ${migration.description}`);
       await connection.run("BEGIN TRANSACTION");
       if (migration.apply !== undefined) {
         await migration.apply(connection);
@@ -462,6 +467,7 @@ export async function applyMigrations(connection: DuckDBConnection): Promise<Mig
         await connection.run(migration.sql);
       }
       await connection.run("COMMIT");
+      logger?.info(`Migration ${migration.version} OK`);
       applied.push(migration.description);
       currentVersion = migration.version;
     } catch (error) {
