@@ -55,7 +55,7 @@
   box-sizing: border-box;
 }
 
-.lensRow:hover:not(.disabled) {
+.lensRow:hover {
   background: var(--vscode-toolbar-hoverBackground, transparent);
 }
 
@@ -68,12 +68,6 @@
   background: var(--vscode-list-activeSelectionBackground);
   color: var(--vscode-list-activeSelectionForeground);
   border-color: var(--vscode-focusBorder, transparent);
-}
-
-.disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-  color: var(--vscode-disabledForeground);
 }
 
 .lensIcon {
@@ -164,4 +158,26 @@
   background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
   font-size: 11px;
+}
+
+.lensLegend {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.lensLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: capitalize;
+}
+
+.lensLegendSwatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
 }

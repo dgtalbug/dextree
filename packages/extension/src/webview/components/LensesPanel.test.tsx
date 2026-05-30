@@ -1,4 +1,4 @@
-import { LENS_IDS, STUB_TOOLTIP_REQUIRED_SUBSTRING, type LensId } from "@dextree/core/lenses";
+import { LENS_IDS, type LensId } from "@dextree/core/lenses";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -80,42 +80,29 @@ describe("LensesPanel", () => {
     }
   });
 
-  it("marks Entry points and Architecture rows as aria-disabled with a tooltip naming slice 026", () => {
+  it("renders Entry points and Architecture rows as enabled with no slice-026 tooltip", () => {
     render(
       <LensesPanel activeLensId={null} lensCounts={makeCounts()} onLensToggle={() => undefined} />,
     );
 
     for (const id of ["entry-points", "architecture"] as const) {
       const row = screen.getByTestId(`lens-row-${id}`);
-      expect(row.getAttribute("aria-disabled")).toBe("true");
-      expect(row.getAttribute("title")).toContain(STUB_TOOLTIP_REQUIRED_SUBSTRING);
+      expect(row.getAttribute("aria-disabled")).toBeNull();
+      const title = row.getAttribute("title");
+      expect(title === null || !title.includes("slice 026")).toBe(true);
     }
   });
 
-  it("does not invoke onLensToggle when a disabled stub row is clicked", () => {
+  it("invokes onLensToggle when the entry-points or architecture row is clicked", () => {
     const onToggle = vi.fn();
     render(<LensesPanel activeLensId={null} lensCounts={makeCounts()} onLensToggle={onToggle} />);
 
     fireEvent.click(screen.getByTestId("lens-row-entry-points"));
     fireEvent.click(screen.getByTestId("lens-row-architecture"));
 
-    expect(onToggle).not.toHaveBeenCalled();
-  });
-
-  it("preserves an active lens when a disabled stub row is clicked", () => {
-    const onToggle = vi.fn();
-    render(
-      <LensesPanel
-        activeLensId="god-class"
-        lensCounts={makeCounts({ "god-class": 5 })}
-        onLensToggle={onToggle}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("lens-row-architecture"));
-
-    expect(onToggle).not.toHaveBeenCalled();
-    expect(screen.getByTestId("lens-row-god-class").getAttribute("aria-pressed")).toBe("true");
+    expect(onToggle).toHaveBeenCalledTimes(2);
+    expect(onToggle).toHaveBeenNthCalledWith(1, "entry-points");
+    expect(onToggle).toHaveBeenNthCalledWith(2, "architecture");
   });
 
   // Slice 033 US2 — mockup lens row structure

@@ -1,5 +1,5 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
-import type { LensId } from "@dextree/core/lenses";
+import { CLASSIFIED_LAYERS, countArchitectureNodes, type LensId } from "@dextree/core/lenses";
 import { createNodeBorderProgram } from "@sigma/node-border";
 import { NodeSquareProgram } from "@sigma/node-square";
 import { MultiDirectedGraph } from "graphology";
@@ -36,7 +36,7 @@ import {
 import shellStyles from "./GraphView.module.css";
 import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
-import { dimColor } from "./lensColor.js";
+import { dimColor, layerColor } from "./lensColor.js";
 import {
   TRACE_STATE_IDLE,
   entryVisualState,
@@ -62,6 +62,27 @@ const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 const FLOW_MAX_DEPTH = 4;
+
+// Default GraphView focuses on the code-structure core: class/function/method/
+// interface nodes connected by calls and imports. Every other type stays in the
+// rail chips and can be toggled back on. Defaults are expressed as the hidden
+// complement because the Sigma reducers filter by membership in the hidden set.
+// Node keys are lowercase SymbolKind values (plus "file"); edge keys are the
+// uppercase GraphEdgeKind values. IMPLEMENTS is omitted: it is a permanently
+// "always shown" stub that the edge panel never lets the user hide.
+const DEFAULT_HIDDEN_NODE_KINDS: readonly string[] = [
+  "file",
+  "property",
+  "variable",
+  "enum",
+  "type",
+  "decorator",
+];
+const DEFAULT_HIDDEN_EDGE_KINDS: ReadonlyArray<GraphEdge["kind"]> = [
+  "DEFINES",
+  "INHERITS",
+  "INSTANTIATES",
+];
 
 // 2px is the smallest border that stays visible at the smallest rendered
 // symbol-node size (5px). Fallback hex is muted gold; the live color comes
@@ -1151,7 +1172,9 @@ export function GraphView({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(false);
-  const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(new Set());
+  const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(
+    () => new Set(DEFAULT_HIDDEN_EDGE_KINDS),
+  );
   // Slice 025 — layout preset selection. ForceAtlas2 is the session default
   // for every fresh GraphView open per FR-003; preset state is local to this
   // component and never persisted or sent to the extension host.
@@ -1224,13 +1247,16 @@ export function GraphView({
     return () => window.clearTimeout(handle);
   }, [layoutSelection.notice]);
   const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
-  const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(new Set());
+  const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(
+    () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
+  );
   const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
   // Slice 031 US3 — set of node IDs that carry the "decorator-backed" flag,
   // so the Sigma node reducer can hide them when the Decorator chip is off.
   const decoratorBackedNodeIdsRef = useRef<Set<string>>(new Set());
   const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
   const lensMatchSetRef = useRef<ReadonlySet<string> | null>(null);
+  const lensColorOfRef = useRef<((archLayer: string | undefined) => string | null) | null>(null);
   // Search state (slice 022). `searchQuery` is the committed (post-debounce)
   // value; the SearchBar manages its own pending input internally.
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -1264,24 +1290,32 @@ export function GraphView({
     if (graph === null) return empty;
     const out = { ...empty };
     for (const id of Object.keys(LENS_REGISTRY) as LensId[]) {
-      const selector = LENS_REGISTRY[id].selector;
-      if (selector !== null) {
-        out[id] = selector(graph, nodes).size;
-      }
+      const mode = LENS_REGISTRY[id].mode;
+      out[id] =
+        mode.kind === "match" ? mode.selector(graph, nodes).size : countArchitectureNodes(nodes);
     }
     return out;
   }, [nodes]);
 
   // Compute the set of node IDs the active lens matches. Recomputes when the
-  // user switches lenses or the subgraph changes. `null` means no lens active.
+  // user switches lenses or the subgraph changes. `null` means no lens active
+  // OR the active lens is a recolour lens (which dims nothing).
   const lensMatchSet = useMemo<ReadonlySet<string> | null>(() => {
     if (activeLensId === null) return null;
     const graph = graphRef.current;
     if (graph === null) return null;
-    const selector = LENS_REGISTRY[activeLensId].selector;
-    if (selector === null) return null;
-    return selector(graph, nodes);
+    const mode = LENS_REGISTRY[activeLensId].mode;
+    if (mode.kind !== "match") return null;
+    return mode.selector(graph, nodes);
   }, [activeLensId, nodes]);
+
+  // The active recolour lens's colour fn, or null when no recolour lens is
+  // active. Drives the node reducer's recolour branch.
+  const lensColorOf = useMemo<((archLayer: string | undefined) => string | null) | null>(() => {
+    if (activeLensId === null) return null;
+    const mode = LENS_REGISTRY[activeLensId].mode;
+    return mode.kind === "recolor" ? mode.colorOf : null;
+  }, [activeLensId]);
 
   const onLensToggle = useCallback((id: LensId) => {
     setActiveLensId((current) => (current === id ? null : id));
@@ -1802,6 +1836,18 @@ export function GraphView({
                   color: dimColor(String(data.color)),
                 };
               }
+              // Architecture (recolour) lens — recolour by layer instead of
+              // dimming. A null result means "keep base colour" (unknown layer).
+              const colorOf = lensColorOfRef.current;
+              if (colorOf !== null) {
+                const layerColorValue = colorOf(data.archLayer as string | undefined);
+                if (layerColorValue !== null) {
+                  return {
+                    ...data,
+                    color: layerColorValue,
+                  };
+                }
+              }
             }
 
             return data;
@@ -2064,6 +2110,16 @@ export function GraphView({
       refreshSigma(sigma);
     }
   }, [lensMatchSet]);
+
+  // Sync the recolour-lens colour fn ref so the nodeReducer can recolour by
+  // layer without being recreated. Null when no recolour lens is active.
+  useEffect(() => {
+    lensColorOfRef.current = lensColorOf;
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [lensColorOf]);
 
   // Slice 022 — sync matched-node ids + depth visibility set into refs so the
   // nodeReducer reads them without being recreated. The depth-visible set is
@@ -2581,6 +2637,20 @@ export function GraphView({
               />
               {`Lens: ${LENS_REGISTRY[activeLensId].title}`}
             </span>
+            {activeLensId === "architecture" && (
+              <span className={lensesPanelStyles.lensLegend} data-testid="lens-layer-legend">
+                {CLASSIFIED_LAYERS.map((layer) => (
+                  <span key={layer} className={lensesPanelStyles.lensLegendItem}>
+                    <span
+                      className={lensesPanelStyles.lensLegendSwatch}
+                      style={{ background: layerColor(layer) ?? "transparent" }}
+                      aria-hidden="true"
+                    />
+                    {layer}
+                  </span>
+                ))}
+              </span>
+            )}
           </footer>
         )}
         {traceState.phase !== "idle" && (

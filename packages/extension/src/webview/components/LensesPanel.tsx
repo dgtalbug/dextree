@@ -1,5 +1,6 @@
 import {
   LENS_IDS,
+  selectEntryPoints,
   selectGodClass,
   selectLeastUsed,
   selectMostUsed,
@@ -8,16 +9,30 @@ import {
 } from "@dextree/core/lenses";
 import type React from "react";
 
+import { layerColor } from "./lensColor.js";
 import styles from "./LensesPanel.module.css";
+
+/**
+ * A lens either matches a set of nodes (dimming non-matches) or recolours every
+ * node by an attribute. The two modes are typed distinctly so each lens declares
+ * what it does rather than overloading one selector shape.
+ *
+ * - `match`  — the four importance lenses + entry-points. Non-matching nodes are
+ *   dimmed; matching nodes keep their base colour.
+ * - `recolor` — the architecture lens. No dimming; each node is recoloured by its
+ *   layer. `colorOf` returns `null` for nodes that should keep their base colour
+ *   (unknown / unclassified layer).
+ */
+export type LensMode =
+  | { kind: "match"; selector: LensSelector }
+  | { kind: "recolor"; colorOf: (archLayer: string | undefined) => string | null };
 
 interface LensDescriptor {
   id: LensId;
   title: string;
   description: string;
   iconKey: string;
-  selector: LensSelector | null;
-  /** Tooltip rendered on disabled rows; must contain substring "slice 026". */
-  disabledTooltip?: string;
+  mode: LensMode;
 }
 
 export const LENS_REGISTRY: Readonly<Record<LensId, LensDescriptor>> = {
@@ -26,39 +41,35 @@ export const LENS_REGISTRY: Readonly<Record<LensId, LensDescriptor>> = {
     title: "God class / function",
     description: "Top-10 by PageRank",
     iconKey: "star",
-    selector: selectGodClass,
+    mode: { kind: "match", selector: selectGodClass },
   },
   "most-used": {
     id: "most-used",
     title: "Most used",
     description: "Highest fan-in",
     iconKey: "flame",
-    selector: selectMostUsed,
+    mode: { kind: "match", selector: selectMostUsed },
   },
   "least-used": {
     id: "least-used",
     title: "Least used",
     description: "Fan-in ≤ 1 in main component",
     iconKey: "trash",
-    selector: selectLeastUsed,
+    mode: { kind: "match", selector: selectLeastUsed },
   },
   "entry-points": {
     id: "entry-points",
     title: "Entry points",
     description: "Runtime · handler · test · public-API",
     iconKey: "key",
-    selector: null,
-    disabledTooltip:
-      "Available after slice 026 — entry-point and architectural layer classification.",
+    mode: { kind: "match", selector: selectEntryPoints },
   },
   architecture: {
     id: "architecture",
     title: "Architecture",
-    description: "Colour by layer (entry / domain / I/O / util)",
+    description: "Colour by layer (presentation / app / domain / infra)",
     iconKey: "layers",
-    selector: null,
-    disabledTooltip:
-      "Available after slice 026 — entry-point and architectural layer classification.",
+    mode: { kind: "recolor", colorOf: layerColor },
   },
 };
 
@@ -82,27 +93,20 @@ export function LensesPanel({
       <div className={styles.body}>
         {LENS_IDS.map((id) => {
           const descriptor = LENS_REGISTRY[id];
-          const disabled = descriptor.selector === null;
           const pressed = activeLensId === id;
           const count = lensCounts[id];
 
-          const rowClass = disabled ? `${styles.lensRow} ${styles.disabled}` : styles.lensRow;
-
           const handleClick = (): void => {
-            if (!disabled) {
-              onLensToggle(id);
-            }
+            onLensToggle(id);
           };
 
           return (
             <button
               key={id}
               type="button"
-              className={rowClass}
+              className={styles.lensRow}
               data-testid={`lens-row-${id}`}
               aria-pressed={pressed}
-              aria-disabled={disabled || undefined}
-              title={disabled ? descriptor.disabledTooltip : undefined}
               onClick={handleClick}
             >
               <span className={styles.lensIcon} data-testid="lens-icon" aria-hidden="true">

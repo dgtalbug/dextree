@@ -2,9 +2,13 @@ import { MultiDirectedGraph } from "graphology";
 import { describe, expect, it } from "vitest";
 
 import {
+  CLASSIFIED_LAYERS,
+  countArchitectureNodes,
+  ENTRY_POINT_KINDS,
   GOD_CLASS_TOP_K,
   LEAST_USED_FAN_IN_THRESHOLD,
   MOST_USED_TOP_K,
+  selectEntryPoints,
   selectGodClass,
   selectLeastUsed,
   selectMostUsed,
@@ -219,5 +223,80 @@ describe("selectLeastUsed", () => {
     expect(result.has("a")).toBe(true);
     expect(result.has("b")).toBe(false);
     expect(result.has("c")).toBe(true);
+  });
+});
+
+describe("selectEntryPoints", () => {
+  const emptyGraph = new MultiDirectedGraph();
+
+  it("matches every real entry kind and excludes unclassified/absent", () => {
+    const nodes: LensInputNode[] = [
+      { id: "rt", entryKind: "runtime" },
+      { id: "hd", entryKind: "handler" },
+      { id: "ts", entryKind: "test" },
+      { id: "pa", entryKind: "public-api" },
+      { id: "uc", entryKind: "unclassified" },
+      { id: "none" }, // entryKind absent
+    ];
+
+    const result = selectEntryPoints(emptyGraph, nodes);
+
+    expect(result.size).toBe(4);
+    expect(result.has("rt")).toBe(true);
+    expect(result.has("hd")).toBe(true);
+    expect(result.has("ts")).toBe(true);
+    expect(result.has("pa")).toBe(true);
+    expect(result.has("uc")).toBe(false);
+    expect(result.has("none")).toBe(false);
+  });
+
+  it("ENTRY_POINT_KINDS excludes the unclassified sentinel", () => {
+    expect(ENTRY_POINT_KINDS.has("unclassified")).toBe(false);
+    expect(ENTRY_POINT_KINDS.size).toBe(4);
+  });
+
+  it("returns an empty set for empty input and a new Set each call", () => {
+    const a = selectEntryPoints(emptyGraph, []);
+    const b = selectEntryPoints(emptyGraph, []);
+    expect(a.size).toBe(0);
+    expect(a).not.toBe(b);
+  });
+
+  it("is deterministic — same input yields equal sets", () => {
+    const nodes: LensInputNode[] = [
+      { id: "b", entryKind: "handler" },
+      { id: "a", entryKind: "runtime" },
+    ];
+    const first = selectEntryPoints(emptyGraph, nodes);
+    const second = selectEntryPoints(emptyGraph, nodes);
+    expect([...first].sort()).toEqual([...second].sort());
+    expect([...first].sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("architecture lens helpers", () => {
+  it("CLASSIFIED_LAYERS lists the five real layers and excludes unknown", () => {
+    expect(CLASSIFIED_LAYERS).toEqual([
+      "presentation",
+      "application",
+      "domain",
+      "infrastructure",
+      "test",
+    ]);
+    expect(CLASSIFIED_LAYERS).not.toContain("unknown");
+  });
+
+  it("countArchitectureNodes counts known-layer nodes only", () => {
+    const nodes: LensInputNode[] = [
+      { id: "a", archLayer: "presentation" },
+      { id: "b", archLayer: "domain" },
+      { id: "c", archLayer: "unknown" }, // excluded
+      { id: "d" }, // absent — excluded
+    ];
+    expect(countArchitectureNodes(nodes)).toBe(2);
+  });
+
+  it("returns 0 for empty input", () => {
+    expect(countArchitectureNodes([])).toBe(0);
   });
 });

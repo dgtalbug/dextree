@@ -799,6 +799,123 @@ describe("GraphView", () => {
     });
   });
 
+  describe("entry-points + architecture lenses", () => {
+    const layeredNodes = [
+      ...baseNodes,
+      {
+        id: "symbol-pres",
+        type: "symbol" as const,
+        label: "render",
+        filePath: "/workspace/src/ui/render.ts",
+        startLine: 2,
+        symbolKind: "function" as const,
+        entryKind: "handler" as const,
+        archLayer: "presentation" as const,
+      },
+      {
+        id: "symbol-unknown",
+        type: "symbol" as const,
+        label: "misc",
+        filePath: "/workspace/src/misc.ts",
+        startLine: 2,
+        symbolKind: "function" as const,
+        entryKind: "unclassified" as const,
+        archLayer: "unknown" as const,
+      },
+    ];
+
+    function getNodeReducer() {
+      return (
+        sigmaConstructor.mock.calls[0]?.[2] as {
+          nodeReducer: (node: string, data: Record<string, unknown>) => Record<string, unknown>;
+        }
+      ).nodeReducer;
+    }
+
+    it("recolours a known-layer node and shows the layer legend when architecture is active", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-architecture"));
+
+      expect(screen.getByTestId("lens-layer-legend")).toBeTruthy();
+
+      const nodeReducer = getNodeReducer();
+      const out = nodeReducer("symbol-pres", {
+        color: "#808080",
+        archLayer: "presentation",
+        size: 6,
+      });
+      expect(out.color).toContain("var(--vscode-charts-blue");
+    });
+
+    it("leaves an unknown-layer node at its base colour under the architecture lens", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-architecture"));
+
+      const nodeReducer = getNodeReducer();
+      const out = nodeReducer("symbol-unknown", {
+        color: "#808080",
+        archLayer: "unknown",
+        size: 6,
+      });
+      expect(out.color).toBe("#808080");
+    });
+
+    it("dims a non-entry node under the entry-points lens", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-entry-points"));
+
+      const nodeReducer = getNodeReducer();
+      // symbol-unknown is unclassified → not an entry point → dimmed.
+      const dimmed = nodeReducer("symbol-unknown", { color: "rgb(128, 128, 128)", size: 6 });
+      expect(String(dimmed.color)).toMatch(/rgba?\([^)]*0\.35\)/);
+      // symbol-pres is a handler → matches → keeps base colour.
+      const kept = nodeReducer("symbol-pres", { color: "rgb(128, 128, 128)", size: 6 });
+      expect(kept.color).toBe("rgb(128, 128, 128)");
+    });
+
+    it("does not show the layer legend for a match-set lens", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-entry-points"));
+      expect(screen.queryByTestId("lens-layer-legend")).toBeNull();
+    });
+  });
+
   describe("search + depth (slice 022)", () => {
     it("renders the toolbar search input and depth slider", () => {
       render(
@@ -1430,13 +1547,48 @@ describe("GraphView", () => {
 
     it("toggling a node-type checkbox does not throw and updates the checkbox", () => {
       renderWired();
-      const fileRow = screen.getByTestId("filter-row-file");
-      const checkbox = fileRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      // Class is visible in the default view, so it starts checked.
+      const classRow = screen.getByTestId("filter-row-class");
+      const checkbox = classRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
       expect(checkbox.checked).toBe(true);
       act(() => {
         fireEvent.click(checkbox);
       });
       expect(checkbox.checked).toBe(false);
+    });
+
+    it("default view shows only class/function/method/interface nodes and calls/import edges", () => {
+      renderWired();
+
+      // Structure-core node kinds are visible (checked) by default.
+      for (const key of ["class", "function", "method", "interface"]) {
+        const row = screen.queryByTestId(`filter-row-${key}`);
+        if (row === null) continue; // row only renders when the kind exists in the graph
+        const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(checkbox.checked).toBe(true);
+      }
+
+      // Everything else starts hidden (unchecked), incl. file/folder nodes.
+      for (const key of ["file", "property", "variable", "enum", "type"]) {
+        const row = screen.queryByTestId(`filter-row-${key}`);
+        if (row === null) continue;
+        const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(checkbox.checked).toBe(false);
+      }
+
+      // Calls + Imports edges visible by default; Defines starts hidden.
+      const callsRow = screen.getByTestId("edge-row-CALLS");
+      expect((callsRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(
+        true,
+      );
+      const importsRow = screen.getByTestId("edge-row-IMPORTS");
+      expect((importsRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(
+        true,
+      );
+      const definesRow = screen.getByTestId("edge-row-DEFINES");
+      expect((definesRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(
+        false,
+      );
     });
 
     it("toggling an edge-type checkbox does not throw and updates the checkbox", () => {
