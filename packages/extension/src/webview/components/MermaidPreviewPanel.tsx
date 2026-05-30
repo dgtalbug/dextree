@@ -322,8 +322,19 @@ export function MermaidPreviewPanel({
                 : styles.exportWorking
           }
           role={exportStatus.type === "error" ? "alert" : "status"}
+          aria-live="polite"
         >
-          {exportStatus.message}
+          <span>{exportStatus.message}</span>
+          {exportStatus.type !== "working" && (
+            <button
+              type="button"
+              onClick={() => setExportStatus({ type: "idle" })}
+              aria-label="Close export status message"
+              className={styles.statusCloseButton}
+            >
+              <span className="codicon codicon-close" aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
       {preview.status !== "ok" ? (
