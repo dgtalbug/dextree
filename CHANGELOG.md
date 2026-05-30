@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/dgtalbug/dextree/compare/v1.13.0...v1.14.0) (2026-05-30)
+
+
+### Features
+
+* **slice-031:** sequence diagram export + IMPLEMENTS + decorator capture ([#135](https://github.com/dgtalbug/dextree/issues/135)) ([3d71e3a](https://github.com/dgtalbug/dextree/commit/3d71e3a930064fdce7ed4fa45a3895be42954d8e))
+
 ## [1.13.0](https://github.com/dgtalbug/dextree/compare/v1.12.0...v1.13.0) (2026-05-26)
 
 ### Features
