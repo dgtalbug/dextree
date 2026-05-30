@@ -66,9 +66,15 @@ function badgeFor(key: InspectorBadgeKey, node: GraphNode): BadgeRendering {
     case "framework":
       return renderFramework(node);
     case "layer":
+      return { text: capitalize(node.archLayer ?? PLACEHOLDER) };
     case "entry":
-      return { text: PLACEHOLDER };
+      return { text: capitalize(node.entryKind ?? PLACEHOLDER) };
   }
+}
+
+function capitalize(value: string): string {
+  if (value.length === 0) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function EmptyState(): React.ReactElement {

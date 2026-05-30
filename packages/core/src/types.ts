@@ -8,6 +8,17 @@
 //   7 — adds symbol.enclosing_symbol_id classification column (migration 007)
 export const SCHEMA_VERSION = 7;
 
+export interface Logger {
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, error?: unknown, context?: Record<string, unknown>): void;
+}
+
+export interface IndexerFactoryOptions {
+  logger?: Logger;
+}
+
 export interface WorkspaceCacheIdentity {
   cacheKey: string;
   workspaceRoot: string;

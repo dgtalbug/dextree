@@ -4,6 +4,7 @@ import picomatch from "picomatch";
 
 const ALWAYS_EXCLUDE = new Set(["node_modules", "dist", "build", "out", ".git"]);
 
+import type { Logger } from "../../types.js";
 import type { DetectFrameworksParams } from "./types.js";
 
 /**
@@ -11,9 +12,10 @@ import type { DetectFrameworksParams } from "./types.js";
  * Skips heavy dirs (node_modules/dist/build/out/.git) and reads files
  * lazily. Errors during read are surfaced as `null` so matchers stay silent.
  */
-export function createNodeFsIO(workspaceRoot: string): DetectFrameworksParams {
+export function createNodeFsIO(workspaceRoot: string, logger?: Logger): DetectFrameworksParams {
   return {
     workspaceRoot,
+    ...(logger === undefined ? {} : { logger }),
     async readFile(rel: string) {
       try {
         return await readFile(join(workspaceRoot, rel), "utf8");

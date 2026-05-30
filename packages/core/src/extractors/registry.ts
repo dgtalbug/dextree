@@ -1,4 +1,4 @@
-import type { ExtractedImportRef, StoredSymbol } from "../types.js";
+import type { ExtractedImportRef, Logger, StoredSymbol } from "../types.js";
 import type {
   EdgeRow,
   Extractor,
@@ -25,6 +25,11 @@ function toKnownSymbol(s: StoredSymbol): KnownSymbol {
 
 class InMemoryExtractorRegistry implements ExtractorRegistry {
   private readonly extractors: Extractor[] = [];
+  private logger: Logger | undefined;
+
+  constructor(logger?: Logger) {
+    this.logger = logger;
+  }
 
   register(extractor: Extractor): void {
     if (this.extractors.some((existing) => existing.name === extractor.name)) {
@@ -55,13 +60,12 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
       let result: ExtractionResult;
       try {
         result = await extractor.extract(enrichedInput);
-      } catch (error) {
+      } catch (err) {
         // Per FR-007 / contract: failure isolation. Log and continue.
-        console.warn({
+        this.logger?.warn("Extractor failed", {
           extractor: extractor.name,
-          version: extractor.version,
           file: input.absolutePath,
-          error,
+          error: err instanceof Error ? err.message : String(err),
         });
         continue;
       }
@@ -96,8 +100,8 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
   }
 }
 
-export function createExtractorRegistry(): ExtractorRegistry {
-  return new InMemoryExtractorRegistry();
+export function createExtractorRegistry(logger?: Logger): ExtractorRegistry {
+  return new InMemoryExtractorRegistry(logger);
 }
 
 export type { Extractor, ExtractorRegistry } from "./types.js";

@@ -12,7 +12,13 @@ const mockIsIgnored = vi.fn().mockReturnValue(false);
 const mockReadFile = vi.fn();
 const mockCreateFileSystemWatcher = vi.fn();
 const mockGetConfiguration = vi.fn();
-const mockLogger = { debug: vi.fn(), error: vi.fn(), dispose: vi.fn() };
+const mockLogger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  dispose: vi.fn(),
+};
 
 type EventHandler = (uri: { fsPath: string }) => void;
 let onChangeHandler: EventHandler = () => {};

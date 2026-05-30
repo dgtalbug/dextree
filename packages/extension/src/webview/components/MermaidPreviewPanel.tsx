@@ -121,23 +121,13 @@ export function MermaidPreviewPanel({
   const [exportStatus, setExportStatus] = useState<
     | { type: "idle" }
     | { type: "working"; message: string }
-    | { type: "error"; message: string }
-    | { type: "success"; message: string }
+    | { type: "error"; message: string; timestamp: number }
+    | { type: "success"; message: string; timestamp: number }
   >({ type: "idle" });
 
   const okPreview = useMemo(() => (preview?.status === "ok" ? preview : null), [preview]);
   const renderedSvg = renderState.status === "ok" ? renderState.svg : null;
   const exportResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function scheduleExportStatusReset(): void {
-    if (exportResetTimerRef.current !== null) {
-      clearTimeout(exportResetTimerRef.current);
-    }
-    exportResetTimerRef.current = setTimeout(() => {
-      setExportStatus({ type: "idle" });
-      exportResetTimerRef.current = null;
-    }, 3000);
-  }
 
   useEffect(
     () => () => {
@@ -201,11 +191,15 @@ export function MermaidPreviewPanel({
       setExportStatus({
         type: "success",
         message: `${format.toUpperCase()} ready — choose where to save.`,
+        timestamp: Date.now(),
       });
-      scheduleExportStatusReset();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setExportStatus({ type: "error", message: `Export failed: ${message}` });
+      setExportStatus({
+        type: "error",
+        message: `Export failed: ${message}`,
+        timestamp: Date.now(),
+      });
     }
   }
 
@@ -214,11 +208,14 @@ export function MermaidPreviewPanel({
     setExportStatus({ type: "working", message: "Copying image…" });
     try {
       await copyClipboardImage(renderedSvg, writeClipboardImage);
-      setExportStatus({ type: "success", message: "Image copied to clipboard." });
-      scheduleExportStatusReset();
+      setExportStatus({
+        type: "success",
+        message: "Image copied to clipboard.",
+        timestamp: Date.now(),
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setExportStatus({ type: "error", message: `Copy failed: ${message}` });
+      setExportStatus({ type: "error", message: `Copy failed: ${message}`, timestamp: Date.now() });
     }
   }
 
@@ -229,14 +226,17 @@ export function MermaidPreviewPanel({
       const snippet = buildMarkdownSnippet(okPreview.source);
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(snippet);
-        setExportStatus({ type: "success", message: "Markdown snippet copied." });
-        scheduleExportStatusReset();
+        setExportStatus({
+          type: "success",
+          message: "Markdown snippet copied.",
+          timestamp: Date.now(),
+        });
       } else {
         throw new Error("Clipboard text API unavailable");
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setExportStatus({ type: "error", message: `Copy failed: ${message}` });
+      setExportStatus({ type: "error", message: `Copy failed: ${message}`, timestamp: Date.now() });
     }
   }
 
@@ -418,6 +418,14 @@ function ControlBar({ options, onOptionsChange }: ControlBarProps) {
     emitIfChanged({ ...options, direction: next });
   }
 
+  function handleScopeChange(event: ChangeEvent<HTMLSelectElement>): void {
+    const next = event.target.value;
+    if (next === "workspace") {
+      emitIfChanged({ ...options, scope: { kind: "workspace" } });
+    }
+    // "file" is listed but disabled — scope stays workspace for now
+  }
+
   return (
     <div className={styles.controls} role="group" aria-label="Mermaid preview controls">
       <label className={styles.controlLabel} htmlFor={diagramId}>
@@ -441,13 +449,14 @@ function ControlBar({ options, onOptionsChange }: ControlBarProps) {
           id={scopeId}
           className={styles.controlSelect}
           value={options.scope.kind}
-          disabled
-          title="Scope changes from entry points (file right-click, symbol context menu) — slice 030"
+          onChange={onOptionsChange !== undefined ? handleScopeChange : undefined}
+          disabled={onOptionsChange === undefined}
+          title="Choose the diagram scope"
         >
           <option value="workspace">Workspace</option>
-          {options.scope.kind !== "workspace" ? (
-            <option value={options.scope.kind}>{options.scope.kind}</option>
-          ) : null}
+          <option value="file" disabled title="Per-file scoping available in a future release">
+            File (future release)
+          </option>
         </select>
       </label>
       <label className={styles.controlLabel} htmlFor={granularityId}>

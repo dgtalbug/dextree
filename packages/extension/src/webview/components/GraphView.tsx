@@ -1157,6 +1157,7 @@ export function GraphView({
   const reducedMotion = useReducedMotionPreference();
 
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
@@ -1554,6 +1555,7 @@ export function GraphView({
 
     const colors = readThemeColors();
     const graph = buildGraph(nodes, edges, colors);
+    const canceledRef = { current: false };
 
     // Degree-based size boost: hub nodes (high connectivity) render larger so
     // important call-sites and widely-imported files stand out visually.
@@ -1652,6 +1654,8 @@ export function GraphView({
 
     if (!canUseWebGL()) {
       sigmaRef.current = null;
+      if (canceledRef.current) return;
+      if (canceledRef.current) return;
       setError(null);
       setFallbackGraph(buildFallbackGraph());
       return () => {
@@ -1835,6 +1839,11 @@ export function GraphView({
 
       sigmaRef.current = sigma;
       applyTheme(graph, sigma, container);
+      if (canceledRef.current) {
+        sigma.kill();
+        sigmaRef.current = null;
+        return;
+      }
       setFallbackGraph(null);
       setOverlaySegments([]);
 
@@ -1943,11 +1952,13 @@ export function GraphView({
     } catch (err) {
       console.error("Dextree graph renderer failed", err);
       sigmaRef.current = null;
+      if (canceledRef.current) return;
       setError(err instanceof Error ? err.message : "Could not initialize graph renderer.");
       setFallbackGraph(buildFallbackGraph());
     }
 
     return () => {
+      canceledRef.current = true;
       if (clickTimeoutRef.current !== null) {
         window.clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
@@ -1961,7 +1972,7 @@ export function GraphView({
       sigmaRef.current = null;
       graphRef.current = null;
     };
-  }, [edges, nodes, onNavigate, reducedMotion]);
+  }, [edges, nodes, onNavigate, reducedMotion, retryCount]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -2097,10 +2108,37 @@ export function GraphView({
   }
 
   if (error !== null) {
+    const handleRetry = (): void => {
+      setError(null);
+      setFallbackGraph(null);
+      setRetryCount((prev) => prev + 1);
+    };
+    const handleShowFallback = (): void => {
+      if (graphRef.current !== null) {
+        setFallbackGraph(snapshotGraph(graphRef.current));
+      }
+    };
+
     return (
       <div className="dxt-error" role="alert">
         <span className="codicon codicon-error" aria-hidden="true" />
         <p>Could not initialize graph renderer.</p>
+        <div className="dxt-error-actions">
+          <button type="button" onClick={handleRetry} aria-label="Retry graph initialization">
+            <span className="codicon codicon-refresh" aria-hidden="true" />
+            Retry
+          </button>
+          {graphRef.current !== null && (
+            <button
+              type="button"
+              onClick={handleShowFallback}
+              aria-label="Show fallback static graph view"
+            >
+              <span className="codicon codicon-graph" aria-hidden="true" />
+              Show fallback view
+            </button>
+          )}
+        </div>
       </div>
     );
   }
