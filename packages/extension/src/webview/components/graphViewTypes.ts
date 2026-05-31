@@ -87,6 +87,10 @@ export interface ThemeColors {
   tracePathEdgeColor: string;
   /** Gold-ish border applied to classified entry symbols (slice 026). */
   entryBorderColor: string;
+  /** Inbound CALLS (callers) of the selected node — direction-aware emphasis. */
+  callerEdgeColor: string;
+  /** Outbound CALLS (callees) of the selected node — direction-aware emphasis. */
+  calleeEdgeColor: string;
 }
 
 export interface GraphViewProps {

@@ -1,5 +1,11 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
-import { CLASSIFIED_LAYERS, countArchitectureNodes, type LensId } from "@dextree/core/lenses";
+import {
+  CLASSIFIED_LAYERS,
+  countArchitectureNodes,
+  rankLensMatches,
+  type LensId,
+  type RankableLensId,
+} from "@dextree/core/lenses";
 import { createNodeBorderProgram } from "@sigma/node-border";
 import { NodeSquareProgram } from "@sigma/node-square";
 import { MultiDirectedGraph } from "graphology";
@@ -21,12 +27,14 @@ import {
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
 import { EdgeTypesPanel, type EdgeTypeEntry } from "./EdgeTypesPanel.js";
+import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
 import {
   InspectorPanel,
   type InspectorNeighbor,
   type InspectorNeighbors,
 } from "./InspectorPanel.js";
 import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
+import { LensResultTable, type LensResultRow } from "./LensResultTable.js";
 import lensesPanelStyles from "./LensesPanel.module.css";
 import {
   CANONICAL_NODE_FILTER_LIST,
@@ -62,6 +70,9 @@ const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 const FLOW_MAX_DEPTH = 4;
+// Target camera ratio when flying to a search result — small enough to read
+// the node clearly. Clamped so we only ever zoom in, never out.
+const SEARCH_FLY_TO_RATIO = 0.5;
 
 // Default GraphView focuses on the code-structure core: class/function/method/
 // interface nodes connected by calls and imports. Every other type stays in the
@@ -188,6 +199,11 @@ function readThemeColors(): ThemeColors {
     // Slice 023 — trace path edge color. Reuses the chart yellow if defined;
     // falls back to a static yellow that survives all known VS Code themes.
     tracePathEdgeColor: styles.getPropertyValue("--vscode-charts-yellow").trim() || "#dcdcaa",
+    // Direction-aware CALLS emphasis for the selected node: callers (inbound)
+    // vs callees (outbound) get distinct hues so "who calls me" reads apart from
+    // "what I call".
+    callerEdgeColor: styles.getPropertyValue("--vscode-charts-green").trim() || foreground,
+    calleeEdgeColor: styles.getPropertyValue("--vscode-charts-orange").trim() || foreground,
     entryBorderColor:
       styles.getPropertyValue("--vscode-charts-yellow").trim() || ENTRY_BORDER_COLOR_FALLBACK,
   };
@@ -1090,6 +1106,15 @@ function refreshSigma(sigma: Sigma): void {
   maybeRefresh.refresh?.();
 }
 
+/**
+ * Format a lens ranking metric for the result table. Integer-valued metrics
+ * (fan-out / fan-in counts) render as integers; fractional metrics (PageRank
+ * importance) render to 3 decimals so distinct scores stay distinguishable.
+ */
+function formatLensMetric(metric: number): string {
+  return Number.isInteger(metric) ? String(metric) : metric.toFixed(3);
+}
+
 function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivElement): void {
   const colors = readThemeColors();
 
@@ -1212,7 +1237,19 @@ export function GraphView({
 
       if (result.status === "applied") {
         setLayoutSelection({ activePreset: result.preset, notice: null });
-        sigmaRef.current?.refresh();
+        const sigma = sigmaRef.current;
+        sigma?.refresh();
+        // A preset can move nodes into a coordinate range outside the current
+        // camera view (Hierarchical's origin-centred layers, Circular's ring),
+        // which would leave the canvas looking empty. Re-frame the new layout.
+        const container = containerRef.current;
+        if (sigma !== null && container !== null) {
+          fitCameraToNodes(
+            sigma as SigmaWithExtras,
+            container,
+            graph as unknown as NodeBoundsGraph,
+          );
+        }
         return;
       }
 
@@ -1281,9 +1318,11 @@ export function GraphView({
   const lensCounts = useMemo<Record<LensId, number>>(() => {
     const graph = graphRef.current;
     const empty: Record<LensId, number> = {
+      "god-function": 0,
       "god-class": 0,
       "most-used": 0,
       "least-used": 0,
+      "dead-code": 0,
       "entry-points": 0,
       architecture: 0,
     };
@@ -1320,6 +1359,21 @@ export function GraphView({
   const onLensToggle = useCallback((id: LensId) => {
     setActiveLensId((current) => (current === id ? null : id));
   }, []);
+
+  // Ranked result rows for the active rankable lens (architecture recolours and
+  // has no table). Enriches the core `rankLensMatches` output with display
+  // labels and a formatted metric. Recomputes when the lens or graph changes.
+  const lensResultRows = useMemo<LensResultRow[] | null>(() => {
+    if (activeLensId === null || activeLensId === "architecture") return null;
+    const graph = graphRef.current;
+    if (graph === null) return null;
+    const labelById = new Map(nodes.map((n) => [n.id, n.label]));
+    return rankLensMatches(activeLensId as RankableLensId, graph, nodes).map((row) => ({
+      nodeId: row.nodeId,
+      label: labelById.get(row.nodeId) ?? row.nodeId,
+      metric: row.metric === null ? null : formatLensMetric(row.metric),
+    }));
+  }, [activeLensId, nodes]);
 
   // Search results (slice 022). Case-insensitive substring match on label +
   // filePath. `fqn` is referenced in the spec but not yet present on GraphNode;
@@ -1363,24 +1417,44 @@ export function GraphView({
     setSearchFocusedIndex(0);
   }, []);
 
-  const handleSearchSelectResult = useCallback((nodeId: string, index: number): void => {
-    setSearchFocusedIndex(index);
+  // Select a node (highlight + neighbourhood + Inspector) the same way a canvas
+  // single-click does, then fly the camera to it with a zoom so the move is
+  // obvious. `selectNode` lives in the Sigma effect closure, so the state writes
+  // are replicated here. Shared by search-result and lens-row selection.
+  const selectAndFlyToNode = useCallback((nodeId: string): void => {
     const sigma = sigmaRef.current;
     const graph = graphRef.current;
-    if (sigma === null || graph === null || !graph.hasNode(nodeId)) {
-      return;
-    }
-    const sigmaWithExtras = sigma as SigmaWithExtras;
-    const camera = sigmaWithExtras.getCamera?.();
-    if (camera?.animate !== undefined) {
-      const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
-      const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+    if (graph === null || !graph.hasNode(nodeId)) return;
+    setSelectedNodeId(nodeId);
+    selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
+    if (sigma !== null) refreshSigma(sigma);
+
+    // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
+    // zoomed-out graph). Clamp so we only ever zoom in, never out.
+    const camera = (sigma as SigmaWithExtras | null)?.getCamera?.();
+    const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
+    const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+    if (camera?.animate !== undefined && typeof x === "number" && typeof y === "number") {
       const currentRatio = camera.getState?.().ratio ?? 1;
-      if (typeof x === "number" && typeof y === "number") {
-        camera.animate({ x, y, ratio: currentRatio }, { duration: CAMERA_CENTER_DURATION_MS });
-      }
+      const ratio = Math.min(currentRatio, SEARCH_FLY_TO_RATIO);
+      camera.animate({ x, y, ratio }, { duration: CAMERA_CENTER_DURATION_MS });
     }
   }, []);
+
+  const handleSearchSelectResult = useCallback(
+    (nodeId: string, index: number): void => {
+      setSearchFocusedIndex(index);
+      selectAndFlyToNode(nodeId);
+      // Open the file at the symbol's line. Works even when the node lacks
+      // coordinates (selectAndFlyToNode still selects) or is missing from the
+      // live graph — we navigate from the search result's own data.
+      const target = nodes.find((n) => n.id === nodeId);
+      if (target !== undefined) {
+        onNavigate(target.filePath, target.startLine);
+      }
+    },
+    [nodes, onNavigate, selectAndFlyToNode],
+  );
 
   const handleSearchClear = useCallback((): void => {
     setSearchQuery("");
@@ -1434,35 +1508,10 @@ export function GraphView({
 
   const handleZoomFit = useCallback((): void => {
     const sigma = sigmaRef.current;
-    if (sigma === null) return;
     const container = containerRef.current;
-    if (container === null) return;
     const g = graphRef.current;
-    if (g === null || g.order === 0) return;
-
-    // Fit all nodes in viewport with 40px padding
-    let minX = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    g.forEachNode((node) => {
-      const attrs = g.getNodeAttributes(node) as GraphNodeAttributes;
-      if (attrs.x < minX) minX = attrs.x;
-      if (attrs.x > maxX) maxX = attrs.x;
-      if (attrs.y < minY) minY = attrs.y;
-      if (attrs.y > maxY) maxY = attrs.y;
-    });
-    const padding = 40;
-    const width = container.clientWidth - padding * 2;
-    const height = container.clientHeight - padding * 2;
-    const graphWidth = maxX - minX + 1;
-    const graphHeight = maxY - minY + 1;
-    const ratio = Math.max(graphWidth / width, graphHeight / height, 0.1);
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-
-    const camera = (sigma as SigmaWithExtras).getCamera?.();
-    camera?.animate?.({ x: centerX, y: centerY, ratio }, { duration: 300 });
+    if (sigma === null || container === null || g === null) return;
+    fitCameraToNodes(sigma as SigmaWithExtras, container, g as unknown as NodeBoundsGraph);
   }, []);
 
   const handleZoomReset = useCallback((): void => {
@@ -1892,11 +1941,23 @@ export function GraphView({
 
           if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
             if (selection !== null && hover === null && selection.edgeIds.has(edge)) {
-              return {
+              const emphasised = {
                 ...data,
                 size: Number(data.baseSize ?? data.size) * 1.34,
                 zIndex: 1,
               };
+              // Direction-aware CALLS emphasis: colour a selected node's inbound
+              // calls (callers) distinctly from its outbound calls (callees).
+              if (edgeAttrs.edgeKind === "CALLS") {
+                const selectedId = selection.selectedNodeId;
+                if (graph.target(edge) === selectedId) {
+                  return { ...emphasised, color: colors.callerEdgeColor, type: "dashed" };
+                }
+                if (graph.source(edge) === selectedId) {
+                  return { ...emphasised, color: colors.calleeEdgeColor, type: "dashed" };
+                }
+              }
+              return emphasised;
             }
 
             return data;
@@ -2452,16 +2513,29 @@ export function GraphView({
           </section>
         </aside>
       ) : (
-        <aside className={shellStyles.left} aria-label="Graph lenses and node filters">
+        <aside className={shellStyles.left} aria-label="Graph lenses and filters">
           <LensesPanel
             activeLensId={activeLensId}
             lensCounts={lensCounts}
             onLensToggle={onLensToggle}
           />
+          {activeLensId !== null && lensResultRows !== null && (
+            <LensResultTable
+              lensTitle={LENS_REGISTRY[activeLensId].title}
+              rows={lensResultRows}
+              selectedNodeId={selectedNodeId}
+              onSelectRow={selectAndFlyToNode}
+            />
+          )}
           <NodeFilterPanel
             entries={nodeFilterEntries}
             hiddenKinds={hiddenNodeKinds}
             onToggle={handleToggleNodeKind}
+          />
+          <EdgeTypesPanel
+            entries={edgeTypeEntries}
+            hiddenKinds={hiddenEdgeKinds}
+            onToggle={handleToggleEdgeKind}
           />
         </aside>
       )}
@@ -2692,28 +2766,19 @@ export function GraphView({
             onStepClick={handleTraceStepClick}
           />
         ) : (
-          <>
-            <EdgeTypesPanel
-              entries={edgeTypeEntries}
-              hiddenKinds={hiddenEdgeKinds}
-              onToggle={handleToggleEdgeKind}
-            />
-            <InspectorPanel
-              selectedNode={
-                selectedNodeId === null
-                  ? null
-                  : (nodes.find((n) => n.id === selectedNodeId) ?? null)
+          <InspectorPanel
+            selectedNode={
+              selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
+            }
+            onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
+            neighbors={inspectorNeighbors}
+            onNeighborClick={(id) => {
+              const target = nodes.find((n) => n.id === id);
+              if (target !== undefined) {
+                onNavigate(target.filePath, target.startLine);
               }
-              onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
-              neighbors={inspectorNeighbors}
-              onNeighborClick={(id) => {
-                const target = nodes.find((n) => n.id === id);
-                if (target !== undefined) {
-                  onNavigate(target.filePath, target.startLine);
-                }
-              }}
-            />
-          </>
+            }}
+          />
         )}
       </aside>
 

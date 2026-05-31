@@ -5,26 +5,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
 
 function makeCounts(overrides: Partial<Record<LensId, number>> = {}): Record<LensId, number> {
-  return {
-    "god-class": 0,
-    "most-used": 0,
-    "least-used": 0,
-    "entry-points": 0,
-    architecture: 0,
-    ...overrides,
-  };
+  const base = Object.fromEntries(LENS_IDS.map((id) => [id, 0])) as Record<LensId, number>;
+  return { ...base, ...overrides };
 }
 
 describe("LensesPanel", () => {
   afterEach(() => cleanup());
 
-  it("renders the five lens rows in canonical order", () => {
+  it("renders every lens row in canonical order", () => {
     render(
       <LensesPanel activeLensId={null} lensCounts={makeCounts()} onLensToggle={() => undefined} />,
     );
 
     const rows = LENS_IDS.map((id) => screen.getByTestId(`lens-row-${id}`));
-    expect(rows.length).toBe(5);
+    expect(rows.length).toBe(LENS_IDS.length);
 
     const orderedTestIds = Array.from(document.querySelectorAll("[data-testid^=lens-row-]")).map(
       (el) => el.getAttribute("data-testid"),
@@ -120,7 +114,7 @@ describe("LensesPanel", () => {
       // Icon is present (Codicon span inside .lensIcon)
       expect(row.querySelector(".codicon-star")).not.toBeNull();
       // Title text is rendered
-      expect(row.textContent).toContain("God class / function");
+      expect(row.textContent).toContain("God class");
       // Description is rendered
       expect(row.textContent).toContain("Top-10 by PageRank");
       // Count badge shows value

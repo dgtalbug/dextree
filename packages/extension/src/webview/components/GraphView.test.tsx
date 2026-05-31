@@ -433,6 +433,39 @@ describe("GraphView", () => {
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 1);
   });
 
+  it("opens the file when a search result is selected (slice graphview-lens-v2)", () => {
+    const onNavigate = vi.fn();
+    const animate = vi.fn();
+    mockSigma.getCamera = () => ({
+      animate,
+      getState: () => ({ x: 0.5, y: 0.5, ratio: 1 }),
+    });
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={onNavigate}
+        onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
+      />,
+    );
+
+    // Type a query that matches "greet" (symbol-1). SearchBar debounces before
+    // committing the query upward, so flush timers to surface the results.
+    const input = screen.getByPlaceholderText(/search symbols/i);
+    fireEvent.change(input, { target: { value: "greet" } });
+    act(() => {
+      vi.runAllTimers();
+    });
+    const option = screen.getByRole("option", { name: /greet/i });
+    fireEvent.click(option);
+
+    // The file opens at the symbol's line — the core fix (was camera-only).
+    expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 6);
+    // And the camera flies (animate called), unlike a plain canvas selection.
+    expect(animate).toHaveBeenCalled();
+  });
+
   it("re-applies theme-derived colors when the VS Code body class changes", () => {
     render(
       <GraphView
@@ -691,6 +724,42 @@ describe("GraphView", () => {
     expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.06\)/);
   });
 
+  it("colours a selected node's outbound CALLS edge as a dashed callee edge", () => {
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
+      />,
+    );
+
+    const settings = sigmaConstructor.mock.calls[0]?.[2] as {
+      edgeReducer: (edge: string, data: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+    // Select symbol-1; edge-calls (symbol-1 -> symbol-2) is its OUTBOUND call.
+    clickNodeHandler?.({ node: "symbol-1" });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    const calleeEdge = settings.edgeReducer("edge-calls", {
+      edgeKind: "CALLS",
+      color: "rgb(255, 170, 90)",
+      baseColor: "rgb(255, 170, 90)",
+      size: 1.8,
+      baseSize: 1.8,
+    });
+
+    // Outbound CALLS from the selected node renders dashed (direction emphasis).
+    expect(calleeEdge.type).toBe("dashed");
+    expect(typeof calleeEdge.color).toBe("string");
+    expect(Number(calleeEdge.size)).toBeGreaterThan(1.8);
+  });
+
   it("renders overlay travelers and neighbor navigation after selecting a node", () => {
     const onNavigate = vi.fn();
     const toolbarNodes = [
@@ -776,7 +845,7 @@ describe("GraphView", () => {
       // Status-bar pill appears with the title.
       const statusBar = screen.getByTestId("lens-status-bar");
       expect(statusBar).toBeTruthy();
-      expect(statusBar.textContent).toContain("Lens: God class / function");
+      expect(statusBar.textContent).toContain("Lens: God class");
     });
 
     it("clears the status-bar pill when the active lens is toggled off", () => {
@@ -796,6 +865,52 @@ describe("GraphView", () => {
 
       fireEvent.click(godClassRow);
       expect(screen.queryByTestId("lens-status-bar")).toBeNull();
+    });
+
+    it("shows the result table on lens activation and removes it on toggle-off", () => {
+      const rankedNodes = [
+        { ...baseNodes[0]!, fanIn: 5 },
+        { ...baseNodes[1]!, fanIn: 9 },
+        { ...baseNodes[2]!, fanIn: 1 },
+      ];
+      render(
+        <GraphView
+          nodes={rankedNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // No lens → no table.
+      expect(screen.queryByTestId("lens-result-table")).toBeNull();
+
+      // Activate Most-used (a rankable lens) → table appears with ranked rows.
+      fireEvent.click(screen.getByTestId("lens-row-most-used"));
+      const table = screen.getByTestId("lens-result-table");
+      expect(table.textContent).toContain("Most used");
+      expect(screen.getAllByTestId(/lens-result-row-/).length).toBeGreaterThan(0);
+
+      // Toggle off → table is removed.
+      fireEvent.click(screen.getByTestId("lens-row-most-used"));
+      expect(screen.queryByTestId("lens-result-table")).toBeNull();
+    });
+
+    it("does not show the result table for the architecture (recolour) lens", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-architecture"));
+      // Architecture recolours the graph; it has no ranked table.
+      expect(screen.queryByTestId("lens-result-table")).toBeNull();
     });
   });
 

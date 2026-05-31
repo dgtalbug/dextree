@@ -1,7 +1,9 @@
 import {
   LENS_IDS,
+  selectDeadCode,
   selectEntryPoints,
   selectGodClass,
+  selectGodFunction,
   selectLeastUsed,
   selectMostUsed,
   type LensId,
@@ -36,9 +38,16 @@ interface LensDescriptor {
 }
 
 export const LENS_REGISTRY: Readonly<Record<LensId, LensDescriptor>> = {
+  "god-function": {
+    id: "god-function",
+    title: "God function",
+    description: "Calls the most others (fan-out)",
+    iconKey: "broadcast",
+    mode: { kind: "match", selector: selectGodFunction },
+  },
   "god-class": {
     id: "god-class",
-    title: "God class / function",
+    title: "God class",
     description: "Top-10 by PageRank",
     iconKey: "star",
     mode: { kind: "match", selector: selectGodClass },
@@ -56,6 +65,13 @@ export const LENS_REGISTRY: Readonly<Record<LensId, LensDescriptor>> = {
     description: "Fan-in ≤ 1 in main component",
     iconKey: "trash",
     mode: { kind: "match", selector: selectLeastUsed },
+  },
+  "dead-code": {
+    id: "dead-code",
+    title: "Dead code",
+    description: "Uncalled, not an entry point",
+    iconKey: "circle-slash",
+    mode: { kind: "match", selector: selectDeadCode },
   },
   "entry-points": {
     id: "entry-points",
