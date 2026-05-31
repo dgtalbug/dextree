@@ -1197,6 +1197,8 @@ export function GraphView({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(false);
+  const [showClusterHulls, setShowClusterHulls] = useState(true);
+  const showClusterHullsRef = useRef(true);
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(
     () => new Set(DEFAULT_HIDDEN_EDGE_KINDS),
   );
@@ -1311,6 +1313,19 @@ export function GraphView({
 
   const onToggleMinimap = useCallback(() => {
     setShowMinimap((visible) => !visible);
+  }, []);
+
+  const onToggleClusterHulls = useCallback(() => {
+    setShowClusterHulls((visible) => {
+      showClusterHullsRef.current = !visible;
+      return !visible;
+    });
+    const cc = clusterCanvasRef.current;
+    if (cc !== null) {
+      const ctx = cc.getContext("2d");
+      if (!showClusterHullsRef.current) ctx?.clearRect(0, 0, cc.width, cc.height);
+      else sigmaRef.current?.refresh();
+    }
   }, []);
 
   // Compute counts for all five lenses against the current subgraph. Stub
@@ -1918,15 +1933,17 @@ export function GraphView({
             return { ...data, hidden: true };
           }
 
-          // Trace path styling (slice 023) — on-path edges render as dashed
+          // Trace path styling (slice 023) — on-path edges render as a bold
           // yellow; off-path edges are dimmed. Wins over hover/selection.
+          // Distinction is carried by colour + size, not an edge `type`: only
+          // the "line" program is registered, and Sigma throws on an unknown
+          // edge type (e.g. "dashed") the moment it has to render one.
           if (tracePhaseRef.current === "path-active" && pathEdgeIdsRef.current.size > 0) {
             if (pathEdgeIdsRef.current.has(edge)) {
               return {
                 ...data,
                 color: colors.tracePathEdgeColor,
-                type: "dashed",
-                size: Number(data.baseSize ?? data.size) * 1.2,
+                size: Number(data.baseSize ?? data.size) * 1.6,
                 zIndex: 1,
               };
             }
@@ -1948,13 +1965,15 @@ export function GraphView({
               };
               // Direction-aware CALLS emphasis: colour a selected node's inbound
               // calls (callers) distinctly from its outbound calls (callees).
+              // Only `color`/`size` are touched — the edge keeps the registered
+              // "line" program (Sigma throws on an unregistered edge `type`).
               if (edgeAttrs.edgeKind === "CALLS") {
                 const selectedId = selection.selectedNodeId;
                 if (graph.target(edge) === selectedId) {
-                  return { ...emphasised, color: colors.callerEdgeColor, type: "dashed" };
+                  return { ...emphasised, color: colors.callerEdgeColor };
                 }
                 if (graph.source(edge) === selectedId) {
-                  return { ...emphasised, color: colors.calleeEdgeColor, type: "dashed" };
+                  return { ...emphasised, color: colors.calleeEdgeColor };
                 }
               }
               return emphasised;
@@ -2044,24 +2063,28 @@ export function GraphView({
         try {
           const cc = clusterCanvasRef.current;
           if (cc !== null) {
-            const hoveredFilePath =
-              hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
-                ? String(
-                    (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
-                      .filePath,
-                  )
-                : null;
-            const selectedFilePath =
-              selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
-                ? String(
-                    (
-                      graph.getNodeAttributes(
-                        selectionRef.current.selectedNodeId,
-                      ) as GraphNodeAttributes
-                    ).filePath,
-                  )
-                : null;
-            drawClusterHulls(graph, sigma!, cc, hoveredFilePath, selectedFilePath);
+            if (!showClusterHullsRef.current) {
+              cc.getContext("2d")?.clearRect(0, 0, cc.width, cc.height);
+            } else {
+              const hoveredFilePath =
+                hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
+                  ? String(
+                      (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
+                        .filePath,
+                    )
+                  : null;
+              const selectedFilePath =
+                selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
+                  ? String(
+                      (
+                        graph.getNodeAttributes(
+                          selectionRef.current.selectedNodeId,
+                        ) as GraphNodeAttributes
+                      ).filePath,
+                    )
+                  : null;
+              drawClusterHulls(graph, sigma!, cc, hoveredFilePath, selectedFilePath);
+            }
           }
           if (minimapCanvasRef.current !== null && graph.order > 20) {
             drawMinimap(graph, sigma!, minimapCanvasRef.current, container);
@@ -2409,6 +2432,8 @@ export function GraphView({
           onExportMermaid={onExportMermaid}
           showMinimap={showMinimap}
           onToggleMinimap={onToggleMinimap}
+          showClusterHulls={showClusterHulls}
+          onToggleClusterHulls={onToggleClusterHulls}
           searchQuery={searchQuery}
           searchResults={searchResults}
           searchFocusedIndex={searchFocusedIndex}

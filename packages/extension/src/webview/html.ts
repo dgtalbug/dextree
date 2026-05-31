@@ -40,6 +40,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
     `script-src 'nonce-${nonce}'`,
     `style-src 'nonce-${nonce}' ${webview.cspSource}`,
     `font-src ${webview.cspSource}`,
+    `img-src blob: data:`,
   ].join("; ");
 
   return `<!DOCTYPE html>

@@ -746,16 +746,19 @@ describe("GraphView", () => {
       vi.runAllTimers();
     });
 
+    const baseCallsColor = "rgb(255, 170, 90)";
     const calleeEdge = settings.edgeReducer("edge-calls", {
       edgeKind: "CALLS",
-      color: "rgb(255, 170, 90)",
-      baseColor: "rgb(255, 170, 90)",
+      color: baseCallsColor,
+      baseColor: baseCallsColor,
       size: 1.8,
       baseSize: 1.8,
     });
 
-    // Outbound CALLS from the selected node renders dashed (direction emphasis).
-    expect(calleeEdge.type).toBe("dashed");
+    // Outbound CALLS from the selected node is emphasised: enlarged and
+    // recoloured to the callee hue (NOT given an unregistered edge `type`,
+    // which would crash Sigma's renderer).
+    expect(calleeEdge.type).toBeUndefined();
     expect(typeof calleeEdge.color).toBe("string");
     expect(Number(calleeEdge.size)).toBeGreaterThan(1.8);
   });

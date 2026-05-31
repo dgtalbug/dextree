@@ -8,6 +8,8 @@ export interface GraphToolbarProps {
   onExportMermaid: () => void;
   showMinimap: boolean;
   onToggleMinimap: () => void;
+  showClusterHulls: boolean;
+  onToggleClusterHulls: () => void;
   searchQuery: string;
   searchResults: SearchResultItem[];
   searchFocusedIndex: number;
@@ -48,6 +50,8 @@ export function GraphToolbar({
   onExportMermaid,
   showMinimap,
   onToggleMinimap,
+  showClusterHulls,
+  onToggleClusterHulls,
   searchQuery,
   searchResults,
   searchFocusedIndex,
@@ -292,6 +296,16 @@ export function GraphToolbar({
 
       {/* Group 7: Minimap + Export */}
       <div className={styles.group} data-testid="toolbar-group" aria-label="View controls">
+        <button
+          type="button"
+          className={styles.iconBtn}
+          onClick={onToggleClusterHulls}
+          title="Toggle file cluster hulls"
+          aria-label="Toggle file cluster hulls"
+          aria-pressed={showClusterHulls}
+        >
+          <span className="codicon codicon-type-hierarchy" aria-hidden="true" />
+        </button>
         <button
           type="button"
           className={styles.iconBtn}

@@ -55,4 +55,12 @@ describe("getWebviewContent", () => {
     // must permit cspSource in style-src (alongside the nonce for inline style).
     expect(html).toMatch(/style-src 'nonce-[^']+' vscode-resource:\/\/test/);
   });
+
+  it("permits blob: and data: in img-src for PNG export and SVG rasterization", () => {
+    const html = getWebviewContent(makeWebview(), makeExtensionUri());
+    // exportPreview uses URL.createObjectURL (blob:) to load an SVG into an
+    // <img> and canvas.toDataURL (data:) to produce the PNG output. Without
+    // img-src blob: data: the default-src 'none' fallback blocks both.
+    expect(html).toContain("img-src blob: data:");
+  });
 });
