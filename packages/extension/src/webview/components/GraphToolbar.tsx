@@ -1,37 +1,15 @@
-import type { GraphEdge } from "@dextree/core";
-
 import { DepthSlider } from "./DepthSlider.js";
-import { NodeFilterPanel } from "./NodeFilterPanel.js";
-import type { NodeFilterEntry } from "./NodeFilterPanel.js";
 import { SearchBar } from "./SearchBar.js";
 import type { LayoutPresetId, SearchResultItem, TracePhase } from "./graphViewTypes.js";
 import { LAYOUT_PRESET_OPTIONS } from "./graphLayoutPresets.js";
-
-const EDGE_KIND_LABELS: Record<GraphEdge["kind"], string> = {
-  DEFINES: "Defines",
-  IMPORTS: "Imports",
-  CALLS: "Calls",
-  INHERITS: "Extends",
-  INSTANTIATES: "New",
-  IMPLEMENTS: "Implements",
-};
-
-// The Implements edge filter chip is now rendered through the standard
-// EDGE_KIND_LABELS path (slice 031 US2); no disabled stub is needed.
+import styles from "./GraphToolbar.module.css";
 
 export interface GraphToolbarProps {
   onExportMermaid: () => void;
-  onExportCurrentView: () => void;
   showMinimap: boolean;
   onToggleMinimap: () => void;
-  edgeKinds: GraphEdge["kind"][];
-  hiddenEdgeKinds: Set<GraphEdge["kind"]>;
-  onToggleEdgeKind: (kind: GraphEdge["kind"]) => void;
-  // Node filter (new — slice 019):
-  nodeFilterEntries: NodeFilterEntry[];
-  hiddenNodeKinds: Set<string>;
-  onToggleNodeKind: (key: string) => void;
-  // Search + Depth (new — slice 022):
+  showClusterHulls: boolean;
+  onToggleClusterHulls: () => void;
   searchQuery: string;
   searchResults: SearchResultItem[];
   searchFocusedIndex: number;
@@ -41,73 +19,39 @@ export interface GraphToolbarProps {
   depth: number;
   depthEnabled: boolean;
   onDepthChange: (depth: number) => void;
-  // Trace mode (new — slice 023):
   tracePhase: TracePhase;
   onTraceToggle: () => void;
   onTraceExit: () => void;
-  /**
-   * Slice 031 (US1). Snapshot is built by GraphView from its TraceState and
-   * passed through unmodified. Undefined keeps the export button disabled
-   * (host has not wired the command yet).
-   */
   onExportTrace?: () => void;
-  /** Trace export is only meaningful when the path is resolved (slice 031 US1). */
   canExportTrace?: boolean;
-  // Workspace switcher (new — slice 024):
   workspaceName?: string;
   workspaceFrameworks?: readonly string[];
   onWorkspaceSwitcherClick?: () => void;
-  // Layout presets (new — slice 025):
   activeLayoutPreset: LayoutPresetId;
   onSelectLayoutPreset: (preset: LayoutPresetId) => void;
-}
-
-function EdgeFilterBar({
-  edgeKinds,
-  hiddenKinds,
-  onToggle,
-}: {
-  edgeKinds: GraphEdge["kind"][];
-  hiddenKinds: Set<GraphEdge["kind"]>;
-  onToggle: (kind: GraphEdge["kind"]) => void;
-}) {
-  return (
-    <div className="dxt-edge-filter-bar" role="group" aria-label="Edge type filters">
-      {edgeKinds.map((kind) => {
-        const active = !hiddenKinds.has(kind);
-        const label = `${active ? "Hide" : "Show"} ${EDGE_KIND_LABELS[kind]} edges`;
-
-        return (
-          <button
-            key={kind}
-            type="button"
-            className={`dxt-edge-filter-pill${active ? "" : " dxt-edge-filter-pill--disabled"}`}
-            data-kind={kind}
-            onClick={() => onToggle(kind)}
-            aria-label={label}
-            aria-pressed={active}
-            title={label}
-          >
-            <span className="dxt-edge-filter-dot" aria-hidden="true" />
-            {EDGE_KIND_LABELS[kind]}
-          </button>
-        );
-      })}
-    </div>
-  );
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomFit: () => void;
+  onZoomReset: () => void;
+  /**
+   * Workspace actions relocated from the legacy right-rail panel (slice 033).
+   * The whole group renders only when `onReindex` is provided, so GraphView
+   * usages that don't own these handlers keep the mockup-clean toolbar.
+   */
+  onReindex?: () => void;
+  onClearWorkspace?: () => void;
+  onClearAll?: () => void;
+  onToggleSourceOnly?: () => void;
+  sourceOnly?: boolean;
+  isIndexing?: boolean;
 }
 
 export function GraphToolbar({
   onExportMermaid,
-  onExportCurrentView,
   showMinimap,
   onToggleMinimap,
-  edgeKinds,
-  hiddenEdgeKinds,
-  onToggleEdgeKind,
-  nodeFilterEntries,
-  hiddenNodeKinds,
-  onToggleNodeKind,
+  showClusterHulls,
+  onToggleClusterHulls,
   searchQuery,
   searchResults,
   searchFocusedIndex,
@@ -127,120 +71,161 @@ export function GraphToolbar({
   onWorkspaceSwitcherClick,
   activeLayoutPreset,
   onSelectLayoutPreset,
+  onZoomIn,
+  onZoomOut,
+  onZoomFit,
+  onZoomReset,
+  onReindex,
+  onClearWorkspace,
+  onClearAll,
+  onToggleSourceOnly,
+  sourceOnly = false,
+  isIndexing = false,
 }: GraphToolbarProps) {
   const traceActive = tracePhase !== "idle";
   return (
-    <div className="dxt-toolbar" role="toolbar" aria-label="Graph toolbar">
+    <header className={styles.toolbar} role="toolbar" aria-label="Graph toolbar">
+      {/* Group 1: Workspace switcher */}
       {workspaceName !== undefined && (
-        <button
-          type="button"
-          className="dxt-workspace-switcher"
-          onClick={onWorkspaceSwitcherClick}
-          title={`Switch workspace (current: ${workspaceName})`}
-          aria-label={`Switch workspace (current: ${workspaceName})`}
-        >
-          <span className="codicon codicon-folder-active" aria-hidden="true" />
-          <span className="dxt-workspace-switcher__name">{workspaceName}</span>
-          {workspaceFrameworks && workspaceFrameworks.length > 0 && (
-            <span className="dxt-workspace-switcher__chips">
-              {workspaceFrameworks.map((fw) => (
-                <span key={fw} className="dxt-badge dxt-badge--framework" data-framework={fw}>
-                  {fw}
+        <div className={styles.group} data-testid="toolbar-group" aria-label="Workspace switcher">
+          <button
+            type="button"
+            className={styles.workspaceSwitcher}
+            onClick={onWorkspaceSwitcherClick}
+            title={`Switch workspace (current: ${workspaceName})`}
+            aria-label={`Switch workspace (current: ${workspaceName})`}
+          >
+            <span className="codicon codicon-database" aria-hidden="true" />
+            <span>
+              <span className={styles.workspaceName}>{workspaceName}</span>
+              {workspaceFrameworks && workspaceFrameworks.length > 0 && (
+                <span className={styles.workspaceMeta}>
+                  {" · "}
+                  {workspaceFrameworks.join(" + ")}
                 </span>
-              ))}
+              )}
             </span>
-          )}
-        </button>
-      )}
-      <button
-        type="button"
-        className="dxt-export-mermaid dxt-toolbar__export"
-        onClick={onExportMermaid}
-        title="Export graph as Mermaid (.mmd)"
-        aria-label="Export as Mermaid"
-      >
-        <span className="codicon codicon-export" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className="dxt-export-mermaid dxt-toolbar__export"
-        onClick={onExportCurrentView}
-        title="Export current view as Mermaid"
-        aria-label="Export current view"
-      >
-        <span className="codicon codicon-eye" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className="dxt-toolbar__trace"
-        onClick={onTraceToggle}
-        title={traceActive ? "Cancel trace" : "Trace route between two nodes"}
-        aria-label="Toggle trace route mode"
-        aria-pressed={traceActive}
-      >
-        <span className="codicon codicon-rocket" aria-hidden="true" />
-      </button>
-      {traceActive && (
-        <>
-          <button
-            type="button"
-            className="dxt-toolbar__trace-export"
-            disabled={!canExportTrace || onExportTrace === undefined}
-            onClick={onExportTrace}
-            title={
-              canExportTrace && onExportTrace !== undefined
-                ? "Export this trace as a Mermaid sequence diagram"
-                : "Resolve a trace path between two nodes to enable sequence export"
-            }
-            aria-label={
-              canExportTrace && onExportTrace !== undefined
-                ? "Export this trace as a sequence diagram"
-                : "Export this trace (disabled)"
-            }
-          >
-            <span className="codicon codicon-export" aria-hidden="true" />
-            Export
+            <span className="codicon codicon-chevron-down" aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="dxt-toolbar__trace-exit"
-            onClick={onTraceExit}
-            title="Exit trace mode (Esc)"
-            aria-label="Exit trace mode"
-          >
-            <span className="codicon codicon-close" aria-hidden="true" />
-            Exit trace
-          </button>
-        </>
+        </div>
       )}
-      <SearchBar
-        query={searchQuery}
-        results={searchResults}
-        focusedIndex={searchFocusedIndex}
-        onQueryChange={onSearchQueryChange}
-        onSelectResult={onSearchSelectResult}
-        onClear={onSearchClear}
-      />
-      <NodeFilterPanel
-        entries={nodeFilterEntries}
-        hiddenKinds={hiddenNodeKinds}
-        onToggle={onToggleNodeKind}
-      />
-      <div className="dxt-toolbar__pills">
-        <EdgeFilterBar
-          edgeKinds={edgeKinds}
-          hiddenKinds={hiddenEdgeKinds}
-          onToggle={onToggleEdgeKind}
+
+      {/* Group 2: Search */}
+      <div
+        className={`${styles.group} ${styles.searchGroup}`}
+        data-testid="toolbar-group"
+        aria-label="Search"
+      >
+        <SearchBar
+          query={searchQuery}
+          results={searchResults}
+          focusedIndex={searchFocusedIndex}
+          onQueryChange={onSearchQueryChange}
+          onSelectResult={onSearchSelectResult}
+          onClear={onSearchClear}
         />
       </div>
-      <DepthSlider depth={depth} enabled={depthEnabled} onDepthChange={onDepthChange} />
-      <label className="dxt-layout-preset" title="Switch graph layout">
-        <span className="codicon codicon-layout" aria-hidden="true" />
-        <span className="dxt-layout-preset__label-text">Layout</span>
+
+      {/* Group 3: Zoom controls */}
+      <div className={styles.group} data-testid="toolbar-group" aria-label="Zoom controls">
+        <button
+          type="button"
+          className={styles.iconBtn}
+          title="Zoom in"
+          aria-label="Zoom in"
+          onClick={onZoomIn}
+        >
+          <span className="codicon codicon-zoom-in" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={styles.iconBtn}
+          title="Zoom out"
+          aria-label="Zoom out"
+          onClick={onZoomOut}
+        >
+          <span className="codicon codicon-zoom-out" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={styles.iconBtn}
+          title="Fit to screen"
+          aria-label="Fit to screen"
+          onClick={onZoomFit}
+        >
+          <span className="codicon codicon-screen-full" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={styles.iconBtn}
+          title="Reset layout"
+          aria-label="Reset layout"
+          onClick={onZoomReset}
+        >
+          <span className="codicon codicon-refresh" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Group 4: Depth slider */}
+      <div className={styles.group} data-testid="toolbar-group" aria-label="Depth controls">
+        <DepthSlider depth={depth} enabled={depthEnabled} onDepthChange={onDepthChange} />
+      </div>
+
+      {/* Group 5: Trace */}
+      <div className={styles.group} data-testid="toolbar-group" aria-label="Trace controls">
+        <button
+          type="button"
+          className={traceActive ? styles.accentBtn : styles.iconBtn}
+          title={traceActive ? "Cancel trace" : "Trace route between two nodes"}
+          aria-label="Toggle trace route mode"
+          aria-pressed={traceActive}
+          onClick={onTraceToggle}
+        >
+          <span className="codicon codicon-rocket" aria-hidden="true" />
+          Trace
+        </button>
+        {traceActive && (
+          <>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              disabled={!canExportTrace || onExportTrace === undefined}
+              onClick={onExportTrace}
+              title={
+                canExportTrace && onExportTrace !== undefined
+                  ? "Export this trace as a Mermaid sequence diagram"
+                  : "Resolve a trace path between two nodes to enable sequence export"
+              }
+              aria-label={
+                canExportTrace && onExportTrace !== undefined
+                  ? "Export this trace as a sequence diagram"
+                  : "Export this trace (disabled)"
+              }
+            >
+              <span className="codicon codicon-export" aria-hidden="true" />
+              Export trace
+            </button>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={onTraceExit}
+              title="Exit trace mode (Esc)"
+              aria-label="Exit trace mode"
+            >
+              <span className="codicon codicon-close" aria-hidden="true" />
+              Exit
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Group 6: Layout */}
+      <div className={styles.group} data-testid="toolbar-group" aria-label="Layout controls">
         <select
-          className="dxt-layout-preset__select"
+          className={styles.layoutSelect}
           value={activeLayoutPreset}
           aria-label="Layout preset"
+          title="Switch graph layout"
           onChange={(event) => {
             onSelectLayoutPreset(event.target.value as LayoutPresetId);
           }}
@@ -251,17 +236,98 @@ export function GraphToolbar({
             </option>
           ))}
         </select>
-      </label>
-      <button
-        type="button"
-        className="dxt-minimap-toggle dxt-toolbar__minimap-toggle"
-        onClick={onToggleMinimap}
-        title="Toggle minimap"
-        aria-label="Toggle minimap"
-        aria-pressed={showMinimap}
-      >
-        <span className="codicon codicon-map" aria-hidden="true" />
-      </button>
-    </div>
+      </div>
+
+      {/* Group: Workspace actions (relocated from legacy right panel, slice 033) */}
+      {onReindex !== undefined && (
+        <div className={styles.group} data-testid="toolbar-group" aria-label="Workspace actions">
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={onReindex}
+            disabled={isIndexing}
+            title={isIndexing ? "Indexing…" : "Re-index this workspace"}
+            aria-label={isIndexing ? "Indexing" : "Re-index workspace"}
+          >
+            <span className="codicon codicon-sync" aria-hidden="true" />
+            {isIndexing ? "Indexing…" : "Re-index"}
+          </button>
+          {onToggleSourceOnly !== undefined && (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={onToggleSourceOnly}
+              aria-pressed={sourceOnly}
+              title="Toggle source-only view (hides markdown and test files)"
+              aria-label="Toggle source-only view"
+            >
+              <span className="codicon codicon-filter" aria-hidden="true" />
+              {sourceOnly ? "All files" : "Source only"}
+            </button>
+          )}
+          {onClearWorkspace !== undefined && (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={onClearWorkspace}
+              disabled={isIndexing}
+              title="Clear the current workspace index"
+              aria-label="Clear current workspace index"
+            >
+              <span className="codicon codicon-trash" aria-hidden="true" />
+            </button>
+          )}
+          {onClearAll !== undefined && (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={onClearAll}
+              disabled={isIndexing}
+              title="Clear all indexed workspaces"
+              aria-label="Clear all indexed workspaces"
+            >
+              <span className="codicon codicon-clear-all" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className={styles.spacer} />
+
+      {/* Group 7: Minimap + Export */}
+      <div className={styles.group} data-testid="toolbar-group" aria-label="View controls">
+        <button
+          type="button"
+          className={styles.iconBtn}
+          onClick={onToggleClusterHulls}
+          title="Toggle file cluster hulls"
+          aria-label="Toggle file cluster hulls"
+          aria-pressed={showClusterHulls}
+        >
+          <span className="codicon codicon-type-hierarchy" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={styles.iconBtn}
+          onClick={onToggleMinimap}
+          title="Toggle minimap"
+          aria-label="Toggle minimap"
+          aria-pressed={showMinimap}
+        >
+          <span className="codicon codicon-map" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={styles.accentBtn}
+          onClick={onExportMermaid}
+          title="Open Mermaid preview"
+          aria-label="Open Mermaid preview export"
+          data-testid="export-accent"
+        >
+          <span className="codicon codicon-export" aria-hidden="true" />
+          Export
+        </button>
+      </div>
+    </header>
   );
 }

@@ -37,6 +37,9 @@ export function serializeToMermaid(
     granularity: "symbol",
     direction: "auto",
     theme: opts.theme,
+    // Legacy shim predates the workspace granularity floor; opt out so its
+    // symbol-level output stays byte-identical for the snapshot/fuzz callers.
+    allowUnscopedSymbols: true,
   });
 
   return output.replace(/^graph TB$/m, "graph TD");

@@ -1,7 +1,8 @@
 import type { GraphEdge, GraphNode, WorkspaceSubgraph } from "@dextree/core";
 import { describe, expect, it } from "vitest";
 
-import { applyMermaidGranularity } from "./granularity.js";
+import { applyMermaidGranularity, clampGranularityToScope } from "./granularity.js";
+import type { MermaidScope } from "./scopedSerializer.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures: a small monorepo-shaped graph with two packages, two files
@@ -200,5 +201,44 @@ describe("applyMermaidGranularity — package", () => {
     };
     const result = applyMermaidGranularity(flat, "package");
     expect(result.nodes.map((n) => n.label)).toEqual(["src"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// clampGranularityToScope — symbol detail is gated behind a narrow scope
+// ---------------------------------------------------------------------------
+
+describe("clampGranularityToScope", () => {
+  const WORKSPACE: MermaidScope = { kind: "workspace" };
+  const FILE: MermaidScope = { kind: "file", relativePath: "src/a.ts" };
+  const CALLERS: MermaidScope = { kind: "symbol-callers", symbolId: "s-1" };
+  const CALLEES: MermaidScope = { kind: "symbol-callees", symbolId: "s-1" };
+
+  it("floors workspace + symbol up to file (no whole-workspace symbol dump)", () => {
+    expect(clampGranularityToScope(WORKSPACE, "symbol")).toBe("file");
+  });
+
+  it("leaves workspace + file unchanged (already at or above the floor)", () => {
+    expect(clampGranularityToScope(WORKSPACE, "file")).toBe("file");
+  });
+
+  it("leaves workspace + package unchanged (coarser than the floor)", () => {
+    expect(clampGranularityToScope(WORKSPACE, "package")).toBe("package");
+  });
+
+  it("allows symbol detail when scoped to a single file", () => {
+    expect(clampGranularityToScope(FILE, "symbol")).toBe("symbol");
+  });
+
+  it("allows symbol detail when scoped to a single symbol's callers", () => {
+    expect(clampGranularityToScope(CALLERS, "symbol")).toBe("symbol");
+  });
+
+  it("allows symbol detail when scoped to a single symbol's callees", () => {
+    expect(clampGranularityToScope(CALLEES, "symbol")).toBe("symbol");
+  });
+
+  it("never coarsens a narrow-scope request (file scope + package stays package)", () => {
+    expect(clampGranularityToScope(FILE, "package")).toBe("package");
   });
 });

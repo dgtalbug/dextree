@@ -56,23 +56,26 @@ Ship **truth before breadth**:
 
 ---
 
-## 2. Current reality (2026-05-24)
+## 2. Current reality (2026-05-30)
 
-Honest snapshot from git history + spec task lists:
+Honest snapshot from git history + spec task lists.
 
-| Area               | Reality                                                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Packages           | `packages/core`, `packages/extension`, `packages/exporters` (added in 016)                                                      |
-| CI/CD              | Foundation fixes (004) + GitHub Actions (005) merged + release-truth gate (015) live                                            |
-| Schema             | Schema alignment (009/S3.5) merged; `Annotation`, `Module`, `Test` tables present; migration runner active                      |
-| Graph              | Hello Graph (010/S4) merged with `ExtractorRegistry` + naive `CALLS`; webview renders the graph the runtime actually writes     |
-| Persistence        | Persistent workspace cache (011/S5) merged with migration 004                                                                   |
-| Workspace indexing | Full-workspace indexing (012/S6) merged + auto-sync watcher (013/S6.5) merged                                                   |
-| Session summary    | 014/S6.8 mostly done                                                                                                            |
-| Release-truth gate | 015/S6.9 mostly done                                                                                                            |
-| Hello Mermaid (S7) | **Active.** Exporters package added, serializer + theme system live, Export button in GraphView toolbar; finishing tasks remain |
+> **Status-sync 2026-05-30:** Phase 2 (S7.1 → S7.14 = specs 017–031) is **complete** — all merged. An unplanned `032-audit-remediation` slice also merged (logger integration, export-status UX, verification hardening). Work has moved on to `033-graphview-mockup-replica` (a closer pixel match to the frozen mockup — phases 1–2 merged, more in progress). The earlier "S7 active / S7.1 next-up" framing below is superseded; the slice board (§3) and phase tables (§7) now reflect git reality.
 
-**Current branch:** `016-hello-mermaid`. **Active slice:** Hello Mermaid finalisation.
+| Area                  | Reality                                                                                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Packages              | `packages/core`, `packages/extension`, `packages/exporters` (added in 016)                                                                                                          |
+| CI/CD                 | Foundation fixes (004) + GitHub Actions (005) merged + release-truth gate (015) live                                                                                                |
+| Schema                | Schema alignment (009/S3.5) merged; `Annotation` / `Module` / `Test` tables present; migration runner active; v6 adds `entry_kind` / `arch_layer`, plus `enclosing_symbol_id` (028) |
+| Graph                 | Hello Graph (010/S4) merged with `ExtractorRegistry` + naive `CALLS`; webview renders the graph the runtime actually writes                                                         |
+| Persistence           | Persistent workspace cache (011/S5) merged with migration 004                                                                                                                       |
+| Workspace indexing    | Full-workspace indexing (012/S6) merged + auto-sync watcher (013/S6.5) merged                                                                                                       |
+| Index-time enrichment | Framework detection (018), entry-point + arch-layer classification (026), `enclosing_symbol_id` (028) all merged and populating on every reindex                                    |
+| GraphView UX          | Toolbar (017), node/edge filters (019), Inspector (020), Lenses (021), search + depth (022), trace route (023), workspace switcher (024), layout presets (025) all merged           |
+| Mermaid v2            | Scoped serializer + caps (027), classDiagram v1 (028), preview panel (029), context menus + click-links (030), sequenceDiagram + IMPLEMENTS + decorator extractors (031) all merged |
+| Hello Mermaid (S7)    | **Done** — merged via PR #56                                                                                                                                                        |
+
+**Current branch:** `033-graphview-mockup-replica`. **Active slice:** 033 — GraphView mockup-replica pixel pass (phases 1–2 merged).
 
 ---
 
@@ -92,31 +95,51 @@ Renumbered to reflect git reality. Spec dir is the on-disk folder; design slice 
 
 ### 3.1 Shipped + active
 
-| Spec dir                                  | Design slice | State                        | Notes                                                                                                                                                                         |
-| ----------------------------------------- | ------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `001-hello-symbol`                        | S1           | `done`                       | One-file parse → DuckDB → extension command                                                                                                                                   |
-| `002-hello-tree-view`                     | S2           | `done`                       | Sidebar tree of files → symbols                                                                                                                                               |
-| `003-hello-webview`                       | S3           | `done`                       | React webview, message bridge, symbol list                                                                                                                                    |
-| `004-cicd-foundation-fixes`               | —            | `done`                       | Lint/typecheck/coverage scripts honest                                                                                                                                        |
-| `005-cicd-github-actions`                 | —            | `done`                       | CI/CD wired                                                                                                                                                                   |
-| `006-hello-graph` (intent)                | S4 (intent)  | superseded                   | Replaced by `010-hello-graph` after schema-alignment                                                                                                                          |
-| `007-persistent-workspace-cache` (intent) | S5 (intent)  | superseded                   | Replaced by `011-persistent-workspace-cache`                                                                                                                                  |
-| `008-hello-workspace` (intent)            | S6 (intent)  | superseded                   | Replaced by `012-hello-workspace`                                                                                                                                             |
-| `009-align-schema-migrations`             | S3.5         | `done`                       | Migration runner; `Annotation` / `Module` / `Test` tables; `_schema_version` registry                                                                                         |
-| `010-hello-graph`                         | S4           | `done`                       | `ExtractorRegistry`; pass-1 naive `CALLS`; Sigma webview render                                                                                                               |
-| `011-persistent-workspace-cache`          | S5           | `done`                       | Cache identity, schema-versioned DB reuse across restarts                                                                                                                     |
-| `012-hello-workspace`                     | S6           | `done`                       | Workspace-scale indexing, progress, PageRank node sizing                                                                                                                      |
-| `013-auto-sync-watcher`                   | S6.5         | `done`                       | Debounced FS watcher + selective reparse                                                                                                                                      |
-| `014-session-summary-export`              | S6.8         | `done` (final tasks pending) | User-pull session summary export                                                                                                                                              |
-| `015-release-truth-gate`                  | S6.9         | `done` (final tasks pending) | Validation gate before releases                                                                                                                                               |
-| `016-hello-mermaid`                       | S7           | `done`                       | Exporters package + `.mmd` serializer + Light/Dark/Print themes; merged via PR #56                                                                                            |
-| `017-toolbar-consolidation`               | S7.1         | **`active`**                 | Spec authored + signed off; implementation has not started. Branch carries the spec + the security/docs commits from the 2026-05-24 session — split or bundle before merging. |
+| Spec dir                                  | Design slice | State        | Notes                                                                                                                                                                     |
+| ----------------------------------------- | ------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001-hello-symbol`                        | S1           | `done`       | One-file parse → DuckDB → extension command                                                                                                                               |
+| `002-hello-tree-view`                     | S2           | `done`       | Sidebar tree of files → symbols                                                                                                                                           |
+| `003-hello-webview`                       | S3           | `done`       | React webview, message bridge, symbol list                                                                                                                                |
+| `004-cicd-foundation-fixes`               | —            | `done`       | Lint/typecheck/coverage scripts honest                                                                                                                                    |
+| `005-cicd-github-actions`                 | —            | `done`       | CI/CD wired                                                                                                                                                               |
+| `006-hello-graph` (intent)                | S4 (intent)  | superseded   | Replaced by `010-hello-graph` after schema-alignment                                                                                                                      |
+| `007-persistent-workspace-cache` (intent) | S5 (intent)  | superseded   | Replaced by `011-persistent-workspace-cache`                                                                                                                              |
+| `008-hello-workspace` (intent)            | S6 (intent)  | superseded   | Replaced by `012-hello-workspace`                                                                                                                                         |
+| `009-align-schema-migrations`             | S3.5         | `done`       | Migration runner; `Annotation` / `Module` / `Test` tables; `_schema_version` registry                                                                                     |
+| `010-hello-graph`                         | S4           | `done`       | `ExtractorRegistry`; pass-1 naive `CALLS`; Sigma webview render                                                                                                           |
+| `011-persistent-workspace-cache`          | S5           | `done`       | Cache identity, schema-versioned DB reuse across restarts                                                                                                                 |
+| `012-hello-workspace`                     | S6           | `done`       | Workspace-scale indexing, progress, PageRank node sizing                                                                                                                  |
+| `013-auto-sync-watcher`                   | S6.5         | `done`       | Debounced FS watcher + selective reparse                                                                                                                                  |
+| `014-session-summary-export`              | S6.8         | `done`       | User-pull session summary export                                                                                                                                          |
+| `015-release-truth-gate`                  | S6.9         | `done`       | Validation gate before releases                                                                                                                                           |
+| `016-hello-mermaid`                       | S7           | `done`       | Exporters package + `.mmd` serializer + Light/Dark/Print themes; merged via PR #56                                                                                        |
+| `017-toolbar-consolidation`               | S7.1         | `done`       | Unified top toolbar; minimap default OFF; `GraphToolbar` extracted                                                                                                        |
+| `018-framework-detection`                 | S7.2         | `done`       | Manifest parser + framework registry; `workspace_framework` table + `file.framework` columns                                                                              |
+| `019-node-edge-filters`                   | S7.3         | `done`       | Left-rail node-type + right-rail edge-type filters; `INHERITS` → "Extends" in UI                                                                                          |
+| `020-inspector-panel`                     | S7.4         | `done`       | Right-rail Inspector (signature, docstring, badges, neighbor lists); `graphology-metrics` adopted                                                                         |
+| `021-lenses-panel`                        | S7.4 (cont.) | `done`       | God-class / most-used / least-used / entry-points / architecture lenses; dim-non-match + recolor                                                                          |
+| `022-search-and-focus-depth`              | S7.5         | `done`       | Search box + depth slider (BFS hops via `bfsFromNode`); camera fly-to                                                                                                     |
+| `023-trace-route`                         | S7.6         | `done`       | Two-click trace; dashed path + off-path dimming; bidirectional shortest path                                                                                              |
+| `024-workspace-switcher`                  | S7.7         | `done`       | Workspace popover + Workspaces page; `dextree.switchWorkspace`                                                                                                            |
+| `025-layout-presets`                      | S7.8         | `done`       | ForceAtlas2 / circular / hierarchical layout dropdown                                                                                                                     |
+| `026-entry-point-tagging-and-layer`       | S7.9         | `done`       | `entry_kind` + `arch_layer` classifiers; gold-bordered square entry nodes                                                                                                 |
+| `027-mermaid-scoped-serializer`           | S7.10        | `done`       | Discriminated-union serializer; scope + granularity + direction; fail-closed caps                                                                                         |
+| `028-enclosing-symbol-classdiagram`       | S7.11        | `done`       | `enclosing_symbol_id` column + `serializeToClassDiagram` v1                                                                                                               |
+| `029-mermaid-preview-panel`               | S7.12        | `done`       | Preview webview tab; inline picker; SVG render; `.mmd`/`.svg`/`.png`/clipboard/snippet                                                                                    |
+| `030-mermaid-context-menus-clicklinks`    | S7.13        | `done`       | Right-click exports + `vscode://` click-links; `exportCallers`/`Callees`/`ClassHierarchy`/`Package`/`Trace`/`CurrentView`                                                 |
+| `031-sequence-diagram-and-extractors`     | S7.14        | `done`       | `serializeToSequenceDiagram` from trace; `IMPLEMENTS` + decorator extractors                                                                                              |
+| `032-audit-remediation`                   | —            | `done`       | Unplanned: logger interface across extractors; export-status close button; verification hardening (#137, #139)                                                            |
+| `033-graphview-mockup-replica`            | —            | **`active`** | Pixel-replica pass at the frozen mockup. Phases 1–2 merged (layer/fw tokens, 4-tab strip, 3-column shell, framework badges, camera behavior). Further phases in progress. |
 
 > Specs `006/007/008` exist as folders but their implementations were rewritten under `010/011/012` after the schema-alignment correction. They remain on disk for history.
+>
+> **Phase 2 (017–031) is fully shipped.** The "next-up queue" in §3.2 below is retained as a historical record of the Phase 2 plan; every row in it is now `done` (see this table). Live work is `033` plus the gap backlog in §3.5.
 
-### 3.2 Next-up queue (Phase 2 — reach the mockup)
+### 3.2 Next-up queue (Phase 2 — reach the mockup) — ✅ ALL SHIPPED (historical)
 
-These rows ARE the SpecKit handoff. Each has a stable spec-dir name reserved; when ready to author, run the `/speckit-specify` flow against the slice's Notes column. The mockup at [scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html) is the visual contract for every row.
+> **Superseded 2026-05-30.** Every row below shipped — see the `done` rows in §3.1. This table is kept only as the historical Phase 2 plan + scope-seed record. Do **not** treat any row here as `next-up`; live work is `033` (§3.3) and the gap backlog (§3.5).
+
+These rows WERE the SpecKit handoff. Each had a stable spec-dir name reserved; the `/speckit-specify` flow was run against each slice's Notes column. The mockup at [scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html) is the visual contract for every row.
 
 | Spec dir                               | Design slice | State     | Spec when… | Notes (scope seed for `/speckit-specify`)                                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------------------- | ------------ | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -139,26 +162,47 @@ After 031 ships, Phase 2 is complete and the mockup is realised in product. Phas
 
 ### 3.3 Active slice (most recent `active` row above)
 
-| Field         | Value                                                                                                                                                                                                                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec dir      | `017-toolbar-consolidation`                                                                                                                                                                                                                                                        |
-| Design slice  | `S7.1 — Toolbar consolidation`                                                                                                                                                                                                                                                     |
-| Branch        | `017-toolbar-consolidation`                                                                                                                                                                                                                                                        |
-| Primary proof | Single top toolbar replaces the floating edge-filter pills + minimap toggle + export button + scattered zoom controls. Minimap default OFF. `GraphToolbar` extracted as sub-component.                                                                                             |
-| Done when     | Spec's task list all checked; `pnpm test` + `pnpm lint` + `pnpm typecheck` green; PR merged; mockup's top toolbar visibly matches.                                                                                                                                                 |
-| **Caveat**    | Branch currently carries two out-of-scope commits from the 2026-05-24 session (`chore(docs): wall of honest + roadmap consolidation`, `fix(security): narrow workflow permissions`). Decide before merge: split into separate PRs (cleanest) or bundle in PR description (faster). |
+| Field         | Value                                                                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec dir      | `033-graphview-mockup-replica`                                                                                                                                                      |
+| Design slice  | `033 — GraphView mockup-replica pixel pass`                                                                                                                                         |
+| Branch        | `033-graphview-mockup-replica`                                                                                                                                                      |
+| Primary proof | GraphView matches the frozen mockup more closely: layer/framework tokens, 4-tab strip, 3-column shell, framework-specific badges, camera-on-select behavior, completed lens system. |
+| Done when     | Mockup parity acceptably close; `pnpm test` + `pnpm lint` + `pnpm typecheck` green; PR merged.                                                                                      |
+| Note          | This slice is **not** in the original Phase 2 plan (017–031) — it is a polish pass on top of a complete Phase 2. Phases 1–2 of it are merged; further phases in progress.           |
 
-### 3.4 Note to next SpecKit session
+### 3.5 Gap backlog (GraphView / lens UX — discovered 2026-05-30)
 
-When you return to spec the next slice:
+A code-grounded audit of the lens + GraphView interaction model (the data and lenses all work; these are UX/feature gaps, sized as small follow-up slices). Not yet specced. **Sequenced after `033` and BEFORE S8 (Hello LSP)** — Phase 3 UI work should not layer on top of these gaps (§7).
 
-1. Read §3.2 top-to-bottom; find the topmost `next-up`. That's your target.
-2. Open the corresponding row's `Notes` cell — that's your scope seed.
-3. Check the open questions in §8 for any that block that slice's spec (the `(Phase 0a)` / `(UI)` / etc. tags map to slice categories).
+#### 3.5a — Sequenced pre-LSP (committed direction, 2026-05-31)
+
+| Slice (proposed)        | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Why before LSP                                                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GraphView bug fixes** | (1) Hierarchical layout renders an empty page — `applied` path refreshes Sigma but never re-fits the camera, so origin-centred coords land off-screen ([GraphView.tsx](packages/extension/src/webview/components/GraphView.tsx) `handleSelectLayoutPreset`). (2) Search-result click does nothing — `handleSearchSelectResult` only pans the camera; should select + open the file. (3) Move `EdgeTypesPanel` from the right rail to the left rail, under `NodeFilterPanel`.                                                                                                                                                                                                                                                       | Broken interactions undermine every later UI slice; cheap, well-scoped, self-contained.                                                           |
+| **Lens system v2**      | Reframe lenses from "dim non-matches" to "ranked **table** of matches + emphasis on the selected match, graph stays visible". New lenses: **God function** (max fan-out / orchestrator — the function that calls the most others), **Dead code** (fan-in 0, exclude entry-points). Keep: God class (PageRank), Most-used (fan-in), Least-used/trivial (fan-in ≤1 in main component), Architecture (recolour by layer). `fanOut` computed client-side (no migration). Selecting a row flies-to + draws that node's direction-relevant `CALLS` edges dotted (folds in the "called-by vs calls colours" gap). Architecture's one-level Mermaid diagram (classes/functions, depth 1) is a **separate export button**, not in the lens. | Lenses are the headline "hindsight about code relationships" surface; LSP enrichment makes them _more_ valuable, so the UX should be right first. |
+
+> Brainstorm captured 2026-05-31. Open decision before spec: compute `fanOut` client-side (recommended, no schema change) vs add a `fan_out` column. Lens model confirmed as "table + keep full graph" (not full isolation).
+
+#### 3.5b — Remaining carry-forward gaps
+
+| Candidate                       | Problem (grounded in code)                                                                                                                                                                                | Sketch                                                                                                                                                        |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty-graph affordance          | Node/edge **kind filters** hide (`hidden:true`); enough toggles → blank canvas with no explanation. (Lenses only dim, so a blank-from-lens would be a separate bug.)                                      | Empty-state overlay: "All node types hidden — re-enable a filter." Confirm no lens path can blank the canvas.                                                 |
+| Architecture default visibility | `arch_layer` flows end-to-end (classifier → DB → subgraph → lens) but architecture only shows when the Architecture lens is selected, and only recolours classified layers (`unknown` keeps base colour). | Investigate `unknown`-rate from the classifier; consider a persistent layer legend / default-on tint so architecture is visible without hunting for the lens. |
+| Depth-disabled affordance       | Depth slider is gated on an anchor (`selectedNodeId !== null \|\| matchedNodeIds.size > 0`); dragging it with nothing selected silently does nothing.                                                     | Disable + tooltip the slider when no anchor ("Select a node or search first"), or auto-anchor to the highest-importance node.                                 |
+| Inspector completeness          | `implements` neighbor list is always empty (`CALLS`-only path) and neighbors cap at 8 with no "+N more".                                                                                                  | Wire `IMPLEMENTS` edges (031 extractor exists) into the Inspector; add overflow count.                                                                        |
+| Flow lens (API begin→end)       | No lens shows a full call chain from an entry-point to its leaves — the closest tool is the two-click Trace route (023).                                                                                  | A "flow" lens: pick an entry-point → BFS its outbound `CALLS` to leaves, highlight the whole chain (reuses `buildDepthSelection`).                            |
+
+### 3.6 Note to next SpecKit session
+
+Phase 2 is shipped. The live queue is: finish `033`, then §3.5a (GraphView bug fixes → lens system v2), then §3.5b carry-forward, then promote S8 (Hello LSP). When you spec next:
+
+1. If continuing GraphView polish → pick a §3.5 row as the scope seed.
+2. If starting Phase 3 → S8 (Hello LSP) per §7.
+3. Check open questions in §9 for any that block the chosen slice's spec.
 4. Author `specs/<Spec dir>/spec.md` using `/speckit-specify`. Use the bundling discipline from §1 — **one primary surface, ≤400 LOC net**.
 5. Update §3.1's table by adding a row + flipping the new slice to `active`; demote the previously-active slice to `done`.
-
-If the slice you're about to spec doesn't appear in §3.2, **stop**. Either it's premature (a Phase 3+ slice that should wait), or §3.2 needs an update first.
 
 ---
 
@@ -284,22 +328,22 @@ The serializer becomes a **discriminated union — one function per diagram type
 
 Slices: `003`, `004`, `005`. **All done.** Exit gate cleared: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and packaging are green.
 
-### Phase 1 — v0.1 truthful local graph loop (mostly done)
+### Phase 1 — v0.1 truthful local graph loop ✅
 
 **Definition:** a developer can index a real local workspace in VS Code, reopen it from cache, edit files, and see the graph remain truthful and responsive.
 
-| Slice                                                   | Status                            |
-| ------------------------------------------------------- | --------------------------------- |
-| `S3.5` (009) — Schema alignment + migration scaffolding | ✅ done                           |
-| `S4` (010) — Hello Graph                                | ✅ done                           |
-| `S5` (011) — Persistent Workspace Cache                 | ✅ done                           |
-| `S6` (012) — Hello Workspace                            | ✅ done                           |
-| `S6.5` (013) — Auto-sync watcher                        | ✅ done                           |
-| `S6.8` (014) — Session summary export                   | ✅ done (final tasks)             |
-| `S6.9` (015) — Release-truth gate                       | ✅ done (final tasks)             |
-| **`S7` (016) — Hello Mermaid**                          | **🟡 active** — baseline shipping |
+| Slice                                                   | Status  |
+| ------------------------------------------------------- | ------- |
+| `S3.5` (009) — Schema alignment + migration scaffolding | ✅ done |
+| `S4` (010) — Hello Graph                                | ✅ done |
+| `S5` (011) — Persistent Workspace Cache                 | ✅ done |
+| `S6` (012) — Hello Workspace                            | ✅ done |
+| `S6.5` (013) — Auto-sync watcher                        | ✅ done |
+| `S6.8` (014) — Session summary export                   | ✅ done |
+| `S6.9` (015) — Release-truth gate                       | ✅ done |
+| `S7` (016) — Hello Mermaid                              | ✅ done |
 
-**Exit gate (mostly met):**
+**Exit gate (met):**
 
 - Pass 1 writes the graph the UI visualizes ✅
 - `CALLS` is real naive pass-1 data ✅
@@ -307,11 +351,13 @@ Slices: `003`, `004`, `005`. **All done.** Exit gate cleared: `pnpm lint`, `pnpm
 - Workspace reopen from cache is safe and obvious ✅
 - Runtime doctor flow for DuckDB / WASM — partial (S6.9 covers release gating)
 - README / extension metadata match shipped commands ✅
-- `S7` baseline Mermaid export — finalising
+- `S7` baseline Mermaid export ✅
 
-### Phase 2 — v0.2 reach the mockup (NEW SEQUENCE)
+### Phase 2 — v0.2 reach the mockup ✅ (SHIPPED)
 
 **Definition:** Dextree's GraphView matches [scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html). Toolbar consolidated, filters/lenses functional, search + depth + trace + workspace switcher live, layout presets, entry-point styling, and Mermaid v2 (scoped + classDiagram + preview panel) all shipped.
+
+**Status (2026-05-30):** ✅ **Complete.** All slices S7.1 → S7.14 (specs 017–031) merged, plus an unplanned `032-audit-remediation`. Slice `033-graphview-mockup-replica` is an in-progress polish pass tightening the pixel match to the mockup. The per-slice descriptions below are kept as the build record; every one is shipped.
 
 The mockup IS the spec. Each slice's success = "this part of the mockup now works."
 
@@ -430,12 +476,14 @@ Closes the remaining mockup stubs.
 - `ImplementsExtractor` — class-to-interface relationships; populates Inspector "Implements" group + `classDiagram` UML implements arrows
 - `DecoratorExtractor` — populates `annotation` table; enables "Decorator" node-type filter
 
-**Phase 2 exit gate:**
+**Phase 2 exit gate — ✅ met (2026-05-30):**
 
-- The final-state mockup ([scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html)) is realised in product, all four scenes (GraphView, Mermaid preview, Trace mode, Workspaces) functional
-- Phase 0 enrichment (framework / entry / layer / enclosing_symbol_id) populates on every reindex
-- Mermaid v2 (scoped + classDiagram + sequenceDiagram + preview panel + click links) ships
-- README + marketplace metadata reflect the new commands + settings
+- The final-state mockup ([scratch/graphview-mockup-final.html](scratch/graphview-mockup-final.html)) is realised in product, all four scenes (GraphView, Mermaid preview, Trace mode, Workspaces) functional ✅ (`033` is tightening the pixel match)
+- Phase 0 enrichment (framework / entry / layer / enclosing_symbol_id) populates on every reindex ✅
+- Mermaid v2 (scoped + classDiagram + sequenceDiagram + preview panel + click links) ships ✅
+- README + marketplace metadata reflect the new commands + settings — verify during `033` close-out
+
+> **Carry-forward from the Phase 2 audit (§3.5 gap backlog):** the GraphView UX has known polish gaps (lens result table, called-by/calls edge colours, empty-graph affordance, architecture default visibility, depth-disabled affordance, Inspector `IMPLEMENTS` wiring). These do not block the Phase 2 exit gate but should be cleared during/after `033` before Phase 3 UI work layers on top.
 
 ---
 
@@ -572,17 +620,18 @@ Token-budgeted text snapshot built from PageRank top-K per file. Default 1024 to
 
 ## 8. Recommended working order
 
-This is the practical queue. **Anything below row 4 stays at roadmap level until the active slice above it is nearly merged.**
+This is the practical queue. **Anything below row 2 stays at roadmap level until the active slice above it is nearly merged.**
 
-| Priority | Slice                              | State     | Why now                                                 |
-| -------- | ---------------------------------- | --------- | ------------------------------------------------------- |
-| 1        | `016-hello-mermaid` (S7)           | `active`  | Finish the Phase 1 exit gate                            |
-| 2        | `017-toolbar-consolidation` (S7.1) | `next-up` | First mockup-visible win post-S7; small, low-risk       |
-| 3        | `018-framework-detection` (S7.2)   | roadmap   | Phase 0a enrichment — feeds S7.4                        |
-| 4        | `019-node-edge-filters` (S7.3)     | roadmap   | Left + right rails functional                           |
-| 5+       | S7.4 → S7.14                       | roadmap   | In sequence above; each gets its own spec when promoted |
+| Priority | Slice                          | State    | Why now                                                                           |
+| -------- | ------------------------------ | -------- | --------------------------------------------------------------------------------- |
+| 1        | `033-graphview-mockup-replica` | `active` | Finish the pixel-replica pass; close the Phase 2 mockup-parity exit gate          |
+| 2        | §3.5a GraphView bug fixes      | roadmap  | Hierarchical empty-page, search-click dead, edge-panel move — broken interactions |
+| 3        | §3.5a Lens system v2           | roadmap  | God-function (fan-out) + dead-code lenses; table + emphasis model — headline UX   |
+| 4        | §3.5b carry-forward gaps       | roadmap  | Empty-state, architecture visibility, depth affordance, Inspector completeness    |
+| 5        | `S8 — Hello LSP`               | roadmap  | First Phase 3 slice: pass-2 semantic enrichment over the now-stable mockup        |
+| 6+       | S8.5 → S11.8                   | roadmap  | Phase 3 moat overlays in §7 order; each gets its own spec when promoted           |
 
-After S7.14 (Phase 2 exit), promote S8 (Hello LSP) as the first Phase 3 slice.
+Phase 2 is shipped (017–031 + 032). The lens-v2 redesign and the GraphView bug fixes (§3.5a) are sequenced **before** S8 — Phase 3 enrichment makes the lenses more valuable, so the lens UX should be right first.
 
 ---
 
@@ -680,17 +729,14 @@ Numbered globally so slice specs can reference them by stable Q-number.
 
 ## 12. Near-term plan
 
-Concrete next moves:
+Concrete next moves (updated 2026-05-30 — Phase 2 shipped):
 
-1. **Finish S7 (016-hello-mermaid).** Close out the remaining tasks in [specs/016-hello-mermaid/tasks.md](specs/016-hello-mermaid/tasks.md); land the PR.
-2. **Answer open questions 1–6** (UI design — block specs for S7.1 through S7.4).
-3. **Spec S7.1 — Toolbar consolidation.** Smallest first mockup win.
-4. **Spec S7.2 — Framework detection** in parallel (it's a core slice, doesn't conflict with the webview work of S7.1).
-5. **Answer open questions 11–12** (framework detector design) before S7.2 spec finalises.
+1. **Finish `033-graphview-mockup-replica`.** Complete the remaining pixel-replica phases; land the PR; confirm the Phase 2 mockup-parity exit gate (§7).
+2. **Triage the §3.5 gap backlog.** The four flagged first: lens result table, called-by/calls edge colours, empty-graph affordance, architecture default visibility. Each is a small follow-up slice — spec the highest-value one next.
+3. **Verify README + marketplace metadata** reflect the shipped Mermaid v2 commands + settings (Phase 2 exit-gate item still to confirm).
+4. **Then promote S8 — Hello LSP** as the first Phase 3 slice.
 
-After S7.1 + S7.2 land, promote S7.3 → S7.14 in sequence.
-
-Per [CLAUDE.md](CLAUDE.md), implementation begins only after a slice's `spec.md` → `plan.md` → `tasks.md` chain is approved.
+Per [CLAUDE.md](CLAUDE.md), implementation begins only after a slice's `spec.md` → `plan.md` → `tasks.md` chain is approved. **Note (2026-05-30):** new spec-driven work now uses `openspec/changes/`, not the SpecKit `specs/NNN/` flow referenced throughout this doc; the slice-board mechanics here still describe the lifecycle, but the authoring tool has changed.
 
 ---
 

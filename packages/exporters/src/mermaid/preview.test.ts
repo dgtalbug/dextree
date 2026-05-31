@@ -63,15 +63,18 @@ const FLOWCHART_DEFAULTS: MermaidPreviewOptions = {
 
 describe("generateMermaidPreview — flowchart routing (slice 029 PR-A)", () => {
   it("returns ok with source + title for a populated workspace subgraph", () => {
+    // Workspace defaults floor to file granularity, so the export is file-level:
+    // two files joined by an IMPORTS edge that survives the symbol fold.
     const sg = subgraph(
-      [fileNode("f-1", "src/a.ts"), symbolNode("s-1", "foo")],
-      [edge("e-1", "f-1", "s-1", "DEFINES")],
+      [fileNode("f-1", "src/a.ts"), fileNode("f-2", "src/b.ts")],
+      [edge("e-1", "f-2", "f-1", "IMPORTS")],
     );
     const result = generateMermaidPreview(sg, FLOWCHART_DEFAULTS);
     expect(result.status).toBe("ok");
     if (result.status === "ok") {
       expect(result.source).toContain("graph TB");
-      expect(result.source).toContain("DEFINES");
+      expect(result.source).toContain("IMPORTS");
+      expect(result.source).not.toContain("[function]");
       expect(result.title).toContain("flowchart");
       expect(result.title).toContain("Workspace");
     }

@@ -1,30 +1,24 @@
-import { LENS_IDS, STUB_TOOLTIP_REQUIRED_SUBSTRING, type LensId } from "@dextree/core/lenses";
+import { LENS_IDS, type LensId } from "@dextree/core/lenses";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
 
 function makeCounts(overrides: Partial<Record<LensId, number>> = {}): Record<LensId, number> {
-  return {
-    "god-class": 0,
-    "most-used": 0,
-    "least-used": 0,
-    "entry-points": 0,
-    architecture: 0,
-    ...overrides,
-  };
+  const base = Object.fromEntries(LENS_IDS.map((id) => [id, 0])) as Record<LensId, number>;
+  return { ...base, ...overrides };
 }
 
 describe("LensesPanel", () => {
   afterEach(() => cleanup());
 
-  it("renders the five lens rows in canonical order", () => {
+  it("renders every lens row in canonical order", () => {
     render(
       <LensesPanel activeLensId={null} lensCounts={makeCounts()} onLensToggle={() => undefined} />,
     );
 
     const rows = LENS_IDS.map((id) => screen.getByTestId(`lens-row-${id}`));
-    expect(rows.length).toBe(5);
+    expect(rows.length).toBe(LENS_IDS.length);
 
     const orderedTestIds = Array.from(document.querySelectorAll("[data-testid^=lens-row-]")).map(
       (el) => el.getAttribute("data-testid"),
@@ -80,41 +74,76 @@ describe("LensesPanel", () => {
     }
   });
 
-  it("marks Entry points and Architecture rows as aria-disabled with a tooltip naming slice 026", () => {
+  it("renders Entry points and Architecture rows as enabled with no slice-026 tooltip", () => {
     render(
       <LensesPanel activeLensId={null} lensCounts={makeCounts()} onLensToggle={() => undefined} />,
     );
 
     for (const id of ["entry-points", "architecture"] as const) {
       const row = screen.getByTestId(`lens-row-${id}`);
-      expect(row.getAttribute("aria-disabled")).toBe("true");
-      expect(row.getAttribute("title")).toContain(STUB_TOOLTIP_REQUIRED_SUBSTRING);
+      expect(row.getAttribute("aria-disabled")).toBeNull();
+      const title = row.getAttribute("title");
+      expect(title === null || !title.includes("slice 026")).toBe(true);
     }
   });
 
-  it("does not invoke onLensToggle when a disabled stub row is clicked", () => {
+  it("invokes onLensToggle when the entry-points or architecture row is clicked", () => {
     const onToggle = vi.fn();
     render(<LensesPanel activeLensId={null} lensCounts={makeCounts()} onLensToggle={onToggle} />);
 
     fireEvent.click(screen.getByTestId("lens-row-entry-points"));
     fireEvent.click(screen.getByTestId("lens-row-architecture"));
 
-    expect(onToggle).not.toHaveBeenCalled();
+    expect(onToggle).toHaveBeenCalledTimes(2);
+    expect(onToggle).toHaveBeenNthCalledWith(1, "entry-points");
+    expect(onToggle).toHaveBeenNthCalledWith(2, "architecture");
   });
 
-  it("preserves an active lens when a disabled stub row is clicked", () => {
-    const onToggle = vi.fn();
-    render(
-      <LensesPanel
-        activeLensId="god-class"
-        lensCounts={makeCounts({ "god-class": 5 })}
-        onLensToggle={onToggle}
-      />,
-    );
+  // Slice 033 US2 — mockup lens row structure
+  describe("mockup structure (slice 033 US2)", () => {
+    it("renders each lens row with icon, title, description, and count badge", () => {
+      render(
+        <LensesPanel
+          activeLensId={null}
+          lensCounts={makeCounts({ "god-class": 7 })}
+          onLensToggle={() => undefined}
+        />,
+      );
 
-    fireEvent.click(screen.getByTestId("lens-row-architecture"));
+      const row = screen.getByTestId("lens-row-god-class");
+      // Icon is present (Codicon span inside .lensIcon)
+      expect(row.querySelector(".codicon-star")).not.toBeNull();
+      // Title text is rendered
+      expect(row.textContent).toContain("God class");
+      // Description is rendered
+      expect(row.textContent).toContain("Top-10 by PageRank");
+      // Count badge shows value
+      expect(row.textContent).toContain("7");
+    });
 
-    expect(onToggle).not.toHaveBeenCalled();
-    expect(screen.getByTestId("lens-row-god-class").getAttribute("aria-pressed")).toBe("true");
+    it("activates lens row with aria-pressed=true", () => {
+      render(
+        <LensesPanel
+          activeLensId="god-class"
+          lensCounts={makeCounts({ "god-class": 7 })}
+          onLensToggle={() => undefined}
+        />,
+      );
+
+      const row = screen.getByTestId("lens-row-god-class");
+      expect(row.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("renders section header", () => {
+      render(
+        <LensesPanel
+          activeLensId={null}
+          lensCounts={makeCounts()}
+          onLensToggle={() => undefined}
+        />,
+      );
+
+      expect(screen.getByText("LENSES")).toBeTruthy();
+    });
   });
 });

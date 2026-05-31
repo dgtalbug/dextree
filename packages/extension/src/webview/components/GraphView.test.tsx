@@ -248,24 +248,9 @@ describe("GraphView", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Export as Mermaid" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Mermaid preview export" }));
 
     expect(onExportMermaid).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onExportCurrentView from the toolbar export-current-view button", () => {
-    const onExportCurrentView = vi.fn();
-    render(
-      <GraphView
-        nodes={baseNodes}
-        edges={baseEdges}
-        onNavigate={vi.fn()}
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={onExportCurrentView}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Export current view" }));
-    expect(onExportCurrentView).toHaveBeenCalledTimes(1);
   });
 
   it("toggles the minimap visibility from the toolbar button", () => {
@@ -288,26 +273,6 @@ describe("GraphView", () => {
 
     expect(minimapCanvas?.className).not.toContain("dxt-minimap-canvas--hidden");
     expect(minimapButton.getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("updates edge filter pill state from the toolbar", () => {
-    render(
-      <GraphView
-        nodes={baseNodes}
-        edges={baseEdges}
-        onNavigate={vi.fn()}
-        onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
-      />,
-    );
-
-    const definesButton = screen.getByRole("button", { name: "Hide Defines edges" });
-
-    fireEvent.click(definesButton);
-
-    expect(
-      screen.getByRole("button", { name: "Show Defines edges" }).getAttribute("aria-pressed"),
-    ).toBe("false");
   });
 
   it("assigns distinct node size and color attributes for file and symbol nodes", () => {
@@ -420,6 +385,34 @@ describe("GraphView", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
+  it("does not recenter the camera when a node is selected by single click (slice 033)", () => {
+    // Selecting a node should highlight + inspect it without moving the viewport;
+    // an auto-recenter makes the whole graph jump under the cursor. The camera
+    // only moves on explicit Fit / search-result navigation.
+    const animate = vi.fn();
+    mockSigma.getCamera = () => ({
+      animate,
+      getState: () => ({ x: 0.5, y: 0.5, ratio: 1 }),
+    });
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
+      />,
+    );
+
+    const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+    clickNodeHandler?.({ node: "symbol-1" });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(animate).not.toHaveBeenCalled();
+  });
+
   it("navigates on double click", () => {
     const onNavigate = vi.fn();
     render(
@@ -438,6 +431,39 @@ describe("GraphView", () => {
     doubleClickNodeHandler?.({ node: "file-1" });
 
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 1);
+  });
+
+  it("opens the file when a search result is selected (slice graphview-lens-v2)", () => {
+    const onNavigate = vi.fn();
+    const animate = vi.fn();
+    mockSigma.getCamera = () => ({
+      animate,
+      getState: () => ({ x: 0.5, y: 0.5, ratio: 1 }),
+    });
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={onNavigate}
+        onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
+      />,
+    );
+
+    // Type a query that matches "greet" (symbol-1). SearchBar debounces before
+    // committing the query upward, so flush timers to surface the results.
+    const input = screen.getByPlaceholderText(/search symbols/i);
+    fireEvent.change(input, { target: { value: "greet" } });
+    act(() => {
+      vi.runAllTimers();
+    });
+    const option = screen.getByRole("option", { name: /greet/i });
+    fireEvent.click(option);
+
+    // The file opens at the symbol's line — the core fix (was camera-only).
+    expect(onNavigate).toHaveBeenCalledWith("/workspace/src/app.ts", 6);
+    // And the camera flies (animate called), unlike a plain canvas selection.
+    expect(animate).toHaveBeenCalled();
   });
 
   it("re-applies theme-derived colors when the VS Code body class changes", () => {
@@ -698,6 +724,45 @@ describe("GraphView", () => {
     expect(String(fadedEdge.color)).toMatch(/rgba?\([^)]*0\.06\)/);
   });
 
+  it("colours a selected node's outbound CALLS edge as a dashed callee edge", () => {
+    render(
+      <GraphView
+        nodes={baseNodes}
+        edges={baseEdges}
+        onNavigate={vi.fn()}
+        onExportMermaid={vi.fn()}
+        onExportCurrentView={vi.fn()}
+      />,
+    );
+
+    const settings = sigmaConstructor.mock.calls[0]?.[2] as {
+      edgeReducer: (edge: string, data: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+    // Select symbol-1; edge-calls (symbol-1 -> symbol-2) is its OUTBOUND call.
+    clickNodeHandler?.({ node: "symbol-1" });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    const baseCallsColor = "rgb(255, 170, 90)";
+    const calleeEdge = settings.edgeReducer("edge-calls", {
+      edgeKind: "CALLS",
+      color: baseCallsColor,
+      baseColor: baseCallsColor,
+      size: 1.8,
+      baseSize: 1.8,
+    });
+
+    // Outbound CALLS from the selected node is emphasised: enlarged and
+    // recoloured to the callee hue (NOT given an unregistered edge `type`,
+    // which would crash Sigma's renderer).
+    expect(calleeEdge.type).toBeUndefined();
+    expect(typeof calleeEdge.color).toBe("string");
+    expect(Number(calleeEdge.size)).toBeGreaterThan(1.8);
+  });
+
   it("renders overlay travelers and neighbor navigation after selecting a node", () => {
     const onNavigate = vi.fn();
     const toolbarNodes = [
@@ -749,131 +814,16 @@ describe("GraphView", () => {
 
     expect(container.querySelectorAll(".dxt-selection-path").length).toBeGreaterThan(0);
     expect(container.querySelectorAll(".dxt-selection-traveler").length).toBeGreaterThan(0);
-    expect(screen.getByText("Called by")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "formatCaller" }));
+    // Neighbors now render in the Inspector (right rail), not a floating canvas
+    // panel. Group titles carry a count ("Called by · N"); rows are addressable
+    // by neighbor-row-<id> and clicking one navigates to that symbol.
+    expect(screen.getByText(/Called by/)).toBeTruthy();
+    fireEvent.click(screen.getByTestId("neighbor-row-symbol-3"));
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/caller.ts", 9);
 
-    fireEvent.click(screen.getByRole("button", { name: "formatDate" }));
+    fireEvent.click(screen.getByTestId("neighbor-row-symbol-2"));
 
     expect(onNavigate).toHaveBeenCalledWith("/workspace/src/util.ts", 4);
-  });
-
-  describe("node-kind filter (slice 019)", () => {
-    it("node filter panel renders in the toolbar with all canonical kinds", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      expect(screen.getByRole("group", { name: "Node type filters" })).toBeTruthy();
-      // Folder, Class, Interface, Function, Method, Property, Variable, Enum, Type, Decorator = 10
-      expect(screen.getAllByRole("checkbox").length).toBe(10);
-    });
-
-    it("hiddenNodeKinds starts as empty set — all chips aria-checked=true (FR-010)", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      const chips = screen.getAllByRole("checkbox");
-      const activeChips = chips.filter((c) => c.getAttribute("aria-disabled") !== "true");
-      expect(activeChips.length).toBeGreaterThan(0);
-      for (const chip of activeChips) {
-        expect(chip.getAttribute("aria-checked")).toBe("true");
-      }
-    });
-
-    it("toggling a node-kind chip updates aria-checked state", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      const functionChip = screen.getByRole("checkbox", { name: "Hide Function nodes" });
-      expect(functionChip.getAttribute("aria-checked")).toBe("true");
-
-      fireEvent.click(functionChip);
-
-      expect(
-        screen.getByRole("checkbox", { name: "Show Function nodes" }).getAttribute("aria-checked"),
-      ).toBe("false");
-    });
-
-    it("toggling a chip twice returns it to visible state", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      const functionChip = screen.getByRole("checkbox", { name: "Hide Function nodes" });
-      fireEvent.click(functionChip);
-      fireEvent.click(screen.getByRole("checkbox", { name: "Show Function nodes" }));
-
-      expect(
-        screen.getByRole("checkbox", { name: "Hide Function nodes" }).getAttribute("aria-checked"),
-      ).toBe("true");
-    });
-
-    it("nodeFilterEntries counts are derived from nodes prop", () => {
-      // baseNodes: 1 file, 1 function, 1 class
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      // baseNodes: 1 file, 1 function, 1 class — Folder chip should show count 1
-      const folderChip = screen.getByRole("checkbox", { name: /Folder/ });
-      expect(folderChip).toBeTruthy();
-      // The badge should show "1"
-      const badge =
-        folderChip.querySelector("span[aria-label]") ??
-        folderChip.parentElement?.querySelector("span[aria-label]");
-      expect(badge ?? folderChip.textContent).toBeTruthy();
-    });
-
-    it("Decorator chip is disabled and not clickable", () => {
-      render(
-        <GraphView
-          nodes={baseNodes}
-          edges={baseEdges}
-          onNavigate={vi.fn()}
-          onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
-        />,
-      );
-
-      // Find chip by aria-disabled
-      const chips = screen.getAllByRole("checkbox");
-      const disabledChip = chips.find((c) => c.getAttribute("aria-disabled") === "true");
-      expect(disabledChip).toBeTruthy();
-      expect(disabledChip?.textContent).toContain("Decorator");
-    });
   });
 
   describe("lens activation (slice 021)", () => {
@@ -898,7 +848,7 @@ describe("GraphView", () => {
       // Status-bar pill appears with the title.
       const statusBar = screen.getByTestId("lens-status-bar");
       expect(statusBar).toBeTruthy();
-      expect(statusBar.textContent).toContain("Lens: God class / function");
+      expect(statusBar.textContent).toContain("Lens: God class");
     });
 
     it("clears the status-bar pill when the active lens is toggled off", () => {
@@ -918,6 +868,169 @@ describe("GraphView", () => {
 
       fireEvent.click(godClassRow);
       expect(screen.queryByTestId("lens-status-bar")).toBeNull();
+    });
+
+    it("shows the result table on lens activation and removes it on toggle-off", () => {
+      const rankedNodes = [
+        { ...baseNodes[0]!, fanIn: 5 },
+        { ...baseNodes[1]!, fanIn: 9 },
+        { ...baseNodes[2]!, fanIn: 1 },
+      ];
+      render(
+        <GraphView
+          nodes={rankedNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // No lens → no table.
+      expect(screen.queryByTestId("lens-result-table")).toBeNull();
+
+      // Activate Most-used (a rankable lens) → table appears with ranked rows.
+      fireEvent.click(screen.getByTestId("lens-row-most-used"));
+      const table = screen.getByTestId("lens-result-table");
+      expect(table.textContent).toContain("Most used");
+      expect(screen.getAllByTestId(/lens-result-row-/).length).toBeGreaterThan(0);
+
+      // Toggle off → table is removed.
+      fireEvent.click(screen.getByTestId("lens-row-most-used"));
+      expect(screen.queryByTestId("lens-result-table")).toBeNull();
+    });
+
+    it("does not show the result table for the architecture (recolour) lens", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-architecture"));
+      // Architecture recolours the graph; it has no ranked table.
+      expect(screen.queryByTestId("lens-result-table")).toBeNull();
+    });
+  });
+
+  describe("entry-points + architecture lenses", () => {
+    const layeredNodes = [
+      ...baseNodes,
+      {
+        id: "symbol-pres",
+        type: "symbol" as const,
+        label: "render",
+        filePath: "/workspace/src/ui/render.ts",
+        startLine: 2,
+        symbolKind: "function" as const,
+        entryKind: "handler" as const,
+        archLayer: "presentation" as const,
+      },
+      {
+        id: "symbol-unknown",
+        type: "symbol" as const,
+        label: "misc",
+        filePath: "/workspace/src/misc.ts",
+        startLine: 2,
+        symbolKind: "function" as const,
+        entryKind: "unclassified" as const,
+        archLayer: "unknown" as const,
+      },
+    ];
+
+    function getNodeReducer() {
+      return (
+        sigmaConstructor.mock.calls[0]?.[2] as {
+          nodeReducer: (node: string, data: Record<string, unknown>) => Record<string, unknown>;
+        }
+      ).nodeReducer;
+    }
+
+    it("recolours a known-layer node and shows the layer legend when architecture is active", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-architecture"));
+
+      expect(screen.getByTestId("lens-layer-legend")).toBeTruthy();
+
+      const nodeReducer = getNodeReducer();
+      const out = nodeReducer("symbol-pres", {
+        color: "#808080",
+        archLayer: "presentation",
+        size: 6,
+      });
+      expect(out.color).toContain("var(--vscode-charts-blue");
+    });
+
+    it("leaves an unknown-layer node at its base colour under the architecture lens", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-architecture"));
+
+      const nodeReducer = getNodeReducer();
+      const out = nodeReducer("symbol-unknown", {
+        color: "#808080",
+        archLayer: "unknown",
+        size: 6,
+      });
+      expect(out.color).toBe("#808080");
+    });
+
+    it("dims a non-entry node under the entry-points lens", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-entry-points"));
+
+      const nodeReducer = getNodeReducer();
+      // symbol-unknown is unclassified → not an entry point → dimmed.
+      const dimmed = nodeReducer("symbol-unknown", { color: "rgb(128, 128, 128)", size: 6 });
+      expect(String(dimmed.color)).toMatch(/rgba?\([^)]*0\.35\)/);
+      // symbol-pres is a handler → matches → keeps base colour.
+      const kept = nodeReducer("symbol-pres", { color: "rgb(128, 128, 128)", size: 6 });
+      expect(kept.color).toBe("rgb(128, 128, 128)");
+    });
+
+    it("does not show the layer legend for a match-set lens", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("lens-row-entry-points"));
+      expect(screen.queryByTestId("lens-layer-legend")).toBeNull();
     });
   });
 
@@ -1090,6 +1203,77 @@ describe("GraphView", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
       expect(searchInput.value).toBe("");
+    });
+
+    // Slice 033 Phase 5 — trace variant of the GraphView shell.
+    it("gives the Trace toolbar button accent styling and aria-pressed when active (T032)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: "Toggle trace route mode" });
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+      const idleClass = toggle.className;
+
+      fireEvent.click(toggle);
+
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+      // The active Trace button switches to the accent treatment (mockup).
+      expect(toggle.className).not.toBe(idleClass);
+    });
+
+    it("shows the Export this trace button only while tracing (T032)", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+          onExportTraceSequence={vi.fn()}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: /export this trace/i })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      expect(screen.getByRole("button", { name: /export this trace/i })).toBeTruthy();
+    });
+
+    it("swaps the left rail to trace path content when a path is active (T029)", async () => {
+      mockSigma.getNodeDisplayData = vi.fn(() => ({ x: 10, y: 10 }));
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // Standard left rail shows Lenses + Node Types before tracing.
+      expect(screen.getByTestId("node-filter-panel")).toBeTruthy();
+
+      const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+      // Enter trace mode, then pick start + end on a connected pair. The second
+      // pick schedules path resolution on a microtask, so flush microtasks.
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      clickNodeHandler?.({ node: "symbol-1" });
+      clickNodeHandler?.({ node: "symbol-2" });
+      await act(async () => {
+        await Promise.resolve();
+        vi.runOnlyPendingTimers();
+      });
+
+      // Once a path is active the left rail surfaces trace path content and the
+      // standard Node Types filter is no longer shown there.
+      expect(screen.getByTestId("trace-left-rail")).toBeTruthy();
+      expect(screen.queryByTestId("node-filter-panel")).toBeNull();
     });
   });
 
@@ -1428,6 +1612,119 @@ describe("GraphView", () => {
       expect(graph.getNodeAttribute("symbol-unclassified", "type")).toBeUndefined();
       expect(graph.getNodeAttribute("symbol-pass1only", "type")).toBeUndefined();
       expect(graph.getNodeAttribute("symbol-pass1only", "entryKind")).toBeUndefined();
+    });
+  });
+
+  // Slice 033 Phase 3 — shell wiring: rails + status into the grid.
+  describe("shell wiring (slice 033 Phase 3)", () => {
+    function renderWired() {
+      const result = render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+          workspaceName="dextree"
+          workspaceFrameworks={["react"]}
+        />,
+      );
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+      return result;
+    }
+
+    it("renders the shell as a 3-column grid root", () => {
+      const { container } = renderWired();
+      const shell = container.querySelector('[data-testid="graph-view-shell"]');
+      expect(shell).toBeTruthy();
+      // The shell root carries the grid module class, not the old flex layout.
+      expect(shell?.className.includes("dxt-graph-view")).toBe(false);
+    });
+
+    it("renders the toolbar in its own grid area (not inside the canvas surface)", () => {
+      const { container } = renderWired();
+      const toolbar = screen.getByRole("toolbar", { name: "Graph toolbar" });
+      const canvasSurface = container.querySelector('[data-testid="graph-view"]');
+      // Toolbar must not be a descendant of the canvas container.
+      expect(canvasSurface?.contains(toolbar)).toBe(false);
+    });
+
+    it("renders the Node Types filter panel in the left rail", () => {
+      renderWired();
+      expect(screen.getByTestId("node-filter-panel")).toBeTruthy();
+      // Lenses + Node Types coexist in the left rail.
+      expect(screen.getByTestId("lens-row-god-class")).toBeTruthy();
+    });
+
+    it("renders the Edge Types panel in the right rail", () => {
+      renderWired();
+      expect(screen.getByTestId("edge-types-panel")).toBeTruthy();
+    });
+
+    it("toggling a node-type checkbox does not throw and updates the checkbox", () => {
+      renderWired();
+      // Class is visible in the default view, so it starts checked.
+      const classRow = screen.getByTestId("filter-row-class");
+      const checkbox = classRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(checkbox.checked).toBe(true);
+      act(() => {
+        fireEvent.click(checkbox);
+      });
+      expect(checkbox.checked).toBe(false);
+    });
+
+    it("default view shows only class/function/method/interface nodes and calls/import edges", () => {
+      renderWired();
+
+      // Structure-core node kinds are visible (checked) by default.
+      for (const key of ["class", "function", "method", "interface"]) {
+        const row = screen.queryByTestId(`filter-row-${key}`);
+        if (row === null) continue; // row only renders when the kind exists in the graph
+        const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(checkbox.checked).toBe(true);
+      }
+
+      // Everything else starts hidden (unchecked), incl. file/folder nodes.
+      for (const key of ["file", "property", "variable", "enum", "type"]) {
+        const row = screen.queryByTestId(`filter-row-${key}`);
+        if (row === null) continue;
+        const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(checkbox.checked).toBe(false);
+      }
+
+      // Calls + Imports edges visible by default; Defines starts hidden.
+      const callsRow = screen.getByTestId("edge-row-CALLS");
+      expect((callsRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(
+        true,
+      );
+      const importsRow = screen.getByTestId("edge-row-IMPORTS");
+      expect((importsRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(
+        true,
+      );
+      const definesRow = screen.getByTestId("edge-row-DEFINES");
+      expect((definesRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(
+        false,
+      );
+    });
+
+    it("toggling an edge-type checkbox does not throw and updates the checkbox", () => {
+      renderWired();
+      const callsRow = screen.getByTestId("edge-row-CALLS");
+      const checkbox = callsRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(checkbox.checked).toBe(true);
+      act(() => {
+        fireEvent.click(checkbox);
+      });
+      expect(checkbox.checked).toBe(false);
+    });
+
+    it("renders a status bar with a right cluster showing the layout name", () => {
+      renderWired();
+      const statusBar = screen.getByTestId("graph-status-bar");
+      expect(statusBar).toBeTruthy();
+      expect(within(statusBar).getByText("ForceAtlas2")).toBeTruthy();
     });
   });
 });

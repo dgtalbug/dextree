@@ -1,6 +1,28 @@
 import type { GraphEdge, GraphNode, WorkspaceSubgraph } from "@dextree/core";
 
-import type { MermaidGranularity } from "./scopedSerializer.js";
+import type { MermaidGranularity, MermaidScope } from "./scopedSerializer.js";
+
+/**
+ * Raise a requested granularity to the floor permitted by the scope's breadth.
+ *
+ * A whole-workspace export may not descend to `symbol` — the resulting graph
+ * is the entire indexed symbol set, which blows the export cap on any
+ * non-trivial repo and renders nothing. The deepest detail a workspace export
+ * reaches is therefore `file`. Symbol-level detail is gated behind a narrow
+ * scope: a single file or a single symbol's caller/callee neighbourhood.
+ *
+ * Only ever coarsens `symbol` → `file` for the workspace scope; never
+ * coarsens `file` or `package`, and never touches a narrow scope.
+ */
+export function clampGranularityToScope(
+  scope: MermaidScope,
+  granularity: MermaidGranularity,
+): MermaidGranularity {
+  if (scope.kind === "workspace" && granularity === "symbol") {
+    return "file";
+  }
+  return granularity;
+}
 
 /**
  * Collapse a scoped subgraph to the requested granularity.

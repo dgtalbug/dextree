@@ -1,0 +1,158 @@
+/* GraphToolbar — slice 033 US3, grouped toolbar with separators */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 44px;
+  min-width: 0;
+  background: var(--vscode-editorWidget-background);
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* Control groups keep their intrinsic width; only the search group (below)
+     and the spacer absorb the squeeze so action buttons never clip. */
+  flex: 0 0 auto;
+}
+
+/* The Search group is the flexible one — it shrinks before any icon group. */
+.group:has(> div [type="search"]),
+.searchGroup {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.group + .group {
+  margin-left: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--vscode-editorWidget-border);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.iconBtn {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.iconBtn:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.iconBtn[aria-pressed="true"] {
+  background: var(--vscode-toolbar-activeBackground);
+}
+
+.iconBtn:disabled {
+  color: var(--vscode-disabledForeground);
+  cursor: default;
+}
+
+.accentBtn {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.accentBtn:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.workspaceSwitcher {
+  height: 30px;
+  max-width: 260px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--vscode-editorWidget-border);
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.workspaceSwitcher:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.workspaceName {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceMeta {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.depthControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  padding: 0 6px;
+}
+
+.depthControl input[type="range"] {
+  accent-color: var(--vscode-button-background);
+  width: 70px;
+}
+
+.depthValue {
+  color: var(--vscode-foreground);
+  width: 12px;
+  text-align: right;
+}
+
+.layoutSelect {
+  height: 28px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 4px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.layoutSelect:focus {
+  border-color: var(--vscode-focusBorder);
+  outline: none;
+}

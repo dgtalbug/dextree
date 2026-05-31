@@ -1,5 +1,11 @@
 import type { GraphEdge, GraphNode } from "@dextree/core";
-import type { LensId } from "@dextree/core/lenses";
+import {
+  CLASSIFIED_LAYERS,
+  countArchitectureNodes,
+  rankLensMatches,
+  type LensId,
+  type RankableLensId,
+} from "@dextree/core/lenses";
 import { createNodeBorderProgram } from "@sigma/node-border";
 import { NodeSquareProgram } from "@sigma/node-square";
 import { MultiDirectedGraph } from "graphology";
@@ -14,18 +20,31 @@ import { NodeCircleProgram } from "sigma/rendering";
 
 import {
   applyLayoutPreset,
+  LAYOUT_PRESET_OPTIONS,
   restoreNodePositions,
   snapshotNodePositions,
 } from "./graphLayoutPresets.js";
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
-import { InspectorPanel } from "./InspectorPanel.js";
+import { EdgeTypesPanel, type EdgeTypeEntry } from "./EdgeTypesPanel.js";
+import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
+import {
+  InspectorPanel,
+  type InspectorNeighbor,
+  type InspectorNeighbors,
+} from "./InspectorPanel.js";
 import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
+import { LensResultTable, type LensResultRow } from "./LensResultTable.js";
 import lensesPanelStyles from "./LensesPanel.module.css";
+import {
+  CANONICAL_NODE_FILTER_LIST,
+  NodeFilterPanel,
+  type NodeFilterEntry,
+} from "./NodeFilterPanel.js";
+import shellStyles from "./GraphView.module.css";
 import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
-import { dimColor } from "./lensColor.js";
-import { CANONICAL_NODE_FILTER_LIST, type NodeFilterEntry } from "./NodeFilterPanel.js";
+import { dimColor, layerColor } from "./lensColor.js";
 import {
   TRACE_STATE_IDLE,
   entryVisualState,
@@ -51,6 +70,30 @@ const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 const FLOW_MAX_DEPTH = 4;
+// Target camera ratio when flying to a search result — small enough to read
+// the node clearly. Clamped so we only ever zoom in, never out.
+const SEARCH_FLY_TO_RATIO = 0.5;
+
+// Default GraphView focuses on the code-structure core: class/function/method/
+// interface nodes connected by calls and imports. Every other type stays in the
+// rail chips and can be toggled back on. Defaults are expressed as the hidden
+// complement because the Sigma reducers filter by membership in the hidden set.
+// Node keys are lowercase SymbolKind values (plus "file"); edge keys are the
+// uppercase GraphEdgeKind values. IMPLEMENTS is omitted: it is a permanently
+// "always shown" stub that the edge panel never lets the user hide.
+const DEFAULT_HIDDEN_NODE_KINDS: readonly string[] = [
+  "file",
+  "property",
+  "variable",
+  "enum",
+  "type",
+  "decorator",
+];
+const DEFAULT_HIDDEN_EDGE_KINDS: ReadonlyArray<GraphEdge["kind"]> = [
+  "DEFINES",
+  "INHERITS",
+  "INSTANTIATES",
+];
 
 // 2px is the smallest border that stays visible at the smallest rendered
 // symbol-node size (5px). Fallback hex is muted gold; the live color comes
@@ -156,6 +199,11 @@ function readThemeColors(): ThemeColors {
     // Slice 023 — trace path edge color. Reuses the chart yellow if defined;
     // falls back to a static yellow that survives all known VS Code themes.
     tracePathEdgeColor: styles.getPropertyValue("--vscode-charts-yellow").trim() || "#dcdcaa",
+    // Direction-aware CALLS emphasis for the selected node: callers (inbound)
+    // vs callees (outbound) get distinct hues so "who calls me" reads apart from
+    // "what I call".
+    callerEdgeColor: styles.getPropertyValue("--vscode-charts-green").trim() || foreground,
+    calleeEdgeColor: styles.getPropertyValue("--vscode-charts-orange").trim() || foreground,
     entryBorderColor:
       styles.getPropertyValue("--vscode-charts-yellow").trim() || ENTRY_BORDER_COLOR_FALLBACK,
   };
@@ -675,14 +723,6 @@ function StaticGraphFallback({
   );
 }
 
-const ALL_EDGE_KINDS: GraphEdge["kind"][] = [
-  "DEFINES",
-  "IMPORTS",
-  "CALLS",
-  "INHERITS",
-  "INSTANTIATES",
-];
-
 function computeSelection(
   graph: MultiDirectedGraph,
   selectedNodeId: string | null,
@@ -1066,6 +1106,15 @@ function refreshSigma(sigma: Sigma): void {
   maybeRefresh.refresh?.();
 }
 
+/**
+ * Format a lens ranking metric for the result table. Integer-valued metrics
+ * (fan-out / fan-in counts) render as integers; fractional metrics (PageRank
+ * importance) render to 3 decimals so distinct scores stay distinguishable.
+ */
+function formatLensMetric(metric: number): string {
+  return Number.isInteger(metric) ? String(metric) : metric.toFixed(3);
+}
+
 function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivElement): void {
   const colors = readThemeColors();
 
@@ -1110,36 +1159,22 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
   refreshSigma(sigma);
 }
 
-function centerCameraOnNode(graph: MultiDirectedGraph, sigma: Sigma, nodeId: string): void {
-  const sigmaWithExtras = sigma as SigmaWithExtras;
-  const camera = sigmaWithExtras.getCamera?.();
-  const state = camera?.getState?.();
-
-  if (camera?.animate === undefined || state === undefined || !graph.hasNode(nodeId)) {
-    return;
-  }
-
-  const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
-  camera.animate(
-    {
-      x: attributes.x,
-      y: attributes.y,
-      ratio: state.ratio,
-    },
-    { duration: CAMERA_CENTER_DURATION_MS },
-  );
-}
-
 export function GraphView({
   nodes,
   edges,
   onNavigate,
   onExportMermaid,
-  onExportCurrentView,
+  onExportCurrentView: _onExportCurrentView,
   onExportTraceSequence,
   workspaceName,
   workspaceFrameworks,
   onWorkspaceSwitcherClick,
+  onReindex,
+  onClearWorkspace,
+  onClearAll,
+  onToggleSourceOnly,
+  sourceOnly,
+  isIndexing,
 }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MultiDirectedGraph | null>(null);
@@ -1162,7 +1197,11 @@ export function GraphView({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(false);
-  const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(new Set());
+  const [showClusterHulls, setShowClusterHulls] = useState(true);
+  const showClusterHullsRef = useRef(true);
+  const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(
+    () => new Set(DEFAULT_HIDDEN_EDGE_KINDS),
+  );
   // Slice 025 — layout preset selection. ForceAtlas2 is the session default
   // for every fresh GraphView open per FR-003; preset state is local to this
   // component and never persisted or sent to the extension host.
@@ -1200,7 +1239,19 @@ export function GraphView({
 
       if (result.status === "applied") {
         setLayoutSelection({ activePreset: result.preset, notice: null });
-        sigmaRef.current?.refresh();
+        const sigma = sigmaRef.current;
+        sigma?.refresh();
+        // A preset can move nodes into a coordinate range outside the current
+        // camera view (Hierarchical's origin-centred layers, Circular's ring),
+        // which would leave the canvas looking empty. Re-frame the new layout.
+        const container = containerRef.current;
+        if (sigma !== null && container !== null) {
+          fitCameraToNodes(
+            sigma as SigmaWithExtras,
+            container,
+            graph as unknown as NodeBoundsGraph,
+          );
+        }
         return;
       }
 
@@ -1235,13 +1286,16 @@ export function GraphView({
     return () => window.clearTimeout(handle);
   }, [layoutSelection.notice]);
   const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
-  const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(new Set());
+  const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(
+    () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
+  );
   const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
   // Slice 031 US3 — set of node IDs that carry the "decorator-backed" flag,
   // so the Sigma node reducer can hide them when the Decorator chip is off.
   const decoratorBackedNodeIdsRef = useRef<Set<string>>(new Set());
   const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
   const lensMatchSetRef = useRef<ReadonlySet<string> | null>(null);
+  const lensColorOfRef = useRef<((archLayer: string | undefined) => string | null) | null>(null);
   // Search state (slice 022). `searchQuery` is the committed (post-debounce)
   // value; the SearchBar manages its own pending input internally.
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -1257,96 +1311,84 @@ export function GraphView({
   const pathNodeIdsRef = useRef<Set<string>>(new Set());
   const pathEdgeIdsRef = useRef<Set<string>>(new Set());
 
-  const toggleEdgeKind = useCallback((kind: GraphEdge["kind"]) => {
-    setHiddenEdgeKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) {
-        next.delete(kind);
-      } else {
-        next.add(kind);
-      }
-      return next;
-    });
-  }, []);
-
-  const toggleNodeKind = useCallback((key: string) => {
-    setHiddenNodeKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }, []);
-
   const onToggleMinimap = useCallback(() => {
     setShowMinimap((visible) => !visible);
   }, []);
 
-  const nodeFilterEntries = useMemo<NodeFilterEntry[]>(() => {
-    const counts = new Map<string, number>();
-    let decoratorBackedCount = 0;
-    for (const node of nodes) {
-      const key = node.type === "file" ? "file" : (node.symbolKind ?? "function");
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-      // Slice 031 US3 — annotation-backed symbols carry a "decorator-backed"
-      // flag projected by core/src/query/subgraph.ts so the Decorator chip
-      // shows a truthful count instead of staying a placeholder.
-      if (node.flags?.includes("decorator-backed")) {
-        decoratorBackedCount += 1;
-      }
+  const onToggleClusterHulls = useCallback(() => {
+    setShowClusterHulls((visible) => {
+      showClusterHullsRef.current = !visible;
+      return !visible;
+    });
+    const cc = clusterCanvasRef.current;
+    if (cc !== null) {
+      const ctx = cc.getContext("2d");
+      if (!showClusterHullsRef.current) ctx?.clearRect(0, 0, cc.width, cc.height);
+      else sigmaRef.current?.refresh();
     }
-    counts.set("decorator", decoratorBackedCount);
-    return CANONICAL_NODE_FILTER_LIST.map((template) => ({
-      ...template,
-      count: counts.get(template.key) ?? 0,
-      // US3 — keep "decorator" honest: when the workspace has no annotation-
-      // backed nodes the chip stays available but disabled, so the user sees
-      // why filtering has no effect instead of getting a noisy zero chip.
-      ...(template.key === "decorator" && decoratorBackedCount === 0
-        ? { disabled: true, tooltip: "No decorator-backed symbols found in this workspace." }
-        : {}),
-    }));
-  }, [nodes]);
+  }, []);
 
   // Compute counts for all five lenses against the current subgraph. Stub
   // lenses (selector === null) contribute 0. Runs once per subgraph change.
   const lensCounts = useMemo<Record<LensId, number>>(() => {
     const graph = graphRef.current;
     const empty: Record<LensId, number> = {
+      "god-function": 0,
       "god-class": 0,
       "most-used": 0,
       "least-used": 0,
+      "dead-code": 0,
       "entry-points": 0,
       architecture: 0,
     };
     if (graph === null) return empty;
     const out = { ...empty };
     for (const id of Object.keys(LENS_REGISTRY) as LensId[]) {
-      const selector = LENS_REGISTRY[id].selector;
-      if (selector !== null) {
-        out[id] = selector(graph, nodes).size;
-      }
+      const mode = LENS_REGISTRY[id].mode;
+      out[id] =
+        mode.kind === "match" ? mode.selector(graph, nodes).size : countArchitectureNodes(nodes);
     }
     return out;
   }, [nodes]);
 
   // Compute the set of node IDs the active lens matches. Recomputes when the
-  // user switches lenses or the subgraph changes. `null` means no lens active.
+  // user switches lenses or the subgraph changes. `null` means no lens active
+  // OR the active lens is a recolour lens (which dims nothing).
   const lensMatchSet = useMemo<ReadonlySet<string> | null>(() => {
     if (activeLensId === null) return null;
     const graph = graphRef.current;
     if (graph === null) return null;
-    const selector = LENS_REGISTRY[activeLensId].selector;
-    if (selector === null) return null;
-    return selector(graph, nodes);
+    const mode = LENS_REGISTRY[activeLensId].mode;
+    if (mode.kind !== "match") return null;
+    return mode.selector(graph, nodes);
   }, [activeLensId, nodes]);
+
+  // The active recolour lens's colour fn, or null when no recolour lens is
+  // active. Drives the node reducer's recolour branch.
+  const lensColorOf = useMemo<((archLayer: string | undefined) => string | null) | null>(() => {
+    if (activeLensId === null) return null;
+    const mode = LENS_REGISTRY[activeLensId].mode;
+    return mode.kind === "recolor" ? mode.colorOf : null;
+  }, [activeLensId]);
 
   const onLensToggle = useCallback((id: LensId) => {
     setActiveLensId((current) => (current === id ? null : id));
   }, []);
+
+  // Ranked result rows for the active rankable lens (architecture recolours and
+  // has no table). Enriches the core `rankLensMatches` output with display
+  // labels and a formatted metric. Recomputes when the lens or graph changes.
+  const lensResultRows = useMemo<LensResultRow[] | null>(() => {
+    if (activeLensId === null || activeLensId === "architecture") return null;
+    const graph = graphRef.current;
+    if (graph === null) return null;
+    const labelById = new Map(nodes.map((n) => [n.id, n.label]));
+    return rankLensMatches(activeLensId as RankableLensId, graph, nodes).map((row) => ({
+      nodeId: row.nodeId,
+      label: labelById.get(row.nodeId) ?? row.nodeId,
+      metric: row.metric === null ? null : formatLensMetric(row.metric),
+    }));
+  }, [activeLensId, nodes]);
 
   // Search results (slice 022). Case-insensitive substring match on label +
   // filePath. `fqn` is referenced in the spec but not yet present on GraphNode;
@@ -1390,24 +1432,44 @@ export function GraphView({
     setSearchFocusedIndex(0);
   }, []);
 
-  const handleSearchSelectResult = useCallback((nodeId: string, index: number): void => {
-    setSearchFocusedIndex(index);
+  // Select a node (highlight + neighbourhood + Inspector) the same way a canvas
+  // single-click does, then fly the camera to it with a zoom so the move is
+  // obvious. `selectNode` lives in the Sigma effect closure, so the state writes
+  // are replicated here. Shared by search-result and lens-row selection.
+  const selectAndFlyToNode = useCallback((nodeId: string): void => {
     const sigma = sigmaRef.current;
     const graph = graphRef.current;
-    if (sigma === null || graph === null || !graph.hasNode(nodeId)) {
-      return;
-    }
-    const sigmaWithExtras = sigma as SigmaWithExtras;
-    const camera = sigmaWithExtras.getCamera?.();
-    if (camera?.animate !== undefined) {
-      const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
-      const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+    if (graph === null || !graph.hasNode(nodeId)) return;
+    setSelectedNodeId(nodeId);
+    selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
+    if (sigma !== null) refreshSigma(sigma);
+
+    // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
+    // zoomed-out graph). Clamp so we only ever zoom in, never out.
+    const camera = (sigma as SigmaWithExtras | null)?.getCamera?.();
+    const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
+    const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+    if (camera?.animate !== undefined && typeof x === "number" && typeof y === "number") {
       const currentRatio = camera.getState?.().ratio ?? 1;
-      if (typeof x === "number" && typeof y === "number") {
-        camera.animate({ x, y, ratio: currentRatio }, { duration: CAMERA_CENTER_DURATION_MS });
-      }
+      const ratio = Math.min(currentRatio, SEARCH_FLY_TO_RATIO);
+      camera.animate({ x, y, ratio }, { duration: CAMERA_CENTER_DURATION_MS });
     }
   }, []);
+
+  const handleSearchSelectResult = useCallback(
+    (nodeId: string, index: number): void => {
+      setSearchFocusedIndex(index);
+      selectAndFlyToNode(nodeId);
+      // Open the file at the symbol's line. Works even when the node lacks
+      // coordinates (selectAndFlyToNode still selects) or is missing from the
+      // live graph — we navigate from the search result's own data.
+      const target = nodes.find((n) => n.id === nodeId);
+      if (target !== undefined) {
+        onNavigate(target.filePath, target.startLine);
+      }
+    },
+    [nodes, onNavigate, selectAndFlyToNode],
+  );
 
   const handleSearchClear = useCallback((): void => {
     setSearchQuery("");
@@ -1438,6 +1500,68 @@ export function GraphView({
   const handleTraceExit = useCallback((): void => {
     tracePhaseRef.current = "idle";
     setTraceState(TRACE_STATE_IDLE);
+  }, []);
+
+  // Zoom handlers (slice 033 US3).
+  const handleZoomIn = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    const camera = (sigma as SigmaWithExtras).getCamera?.();
+    const state = camera?.getState?.();
+    if (camera?.animate !== undefined && state !== undefined) {
+      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 0.7 }, { duration: 200 });
+    }
+  }, []);
+
+  const handleZoomOut = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    const camera = (sigma as SigmaWithExtras).getCamera?.();
+    const state = camera?.getState?.();
+    if (camera?.animate !== undefined && state !== undefined) {
+      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 1.4 }, { duration: 200 });
+    }
+  }, []);
+
+  const handleZoomFit = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    const container = containerRef.current;
+    const g = graphRef.current;
+    if (sigma === null || container === null || g === null) return;
+    fitCameraToNodes(sigma as SigmaWithExtras, container, g as unknown as NodeBoundsGraph);
+  }, []);
+
+  const handleZoomReset = useCallback((): void => {
+    const sigma = sigmaRef.current;
+    const camera = (sigma as SigmaWithExtras).getCamera?.();
+    camera?.animate?.({ x: 0.5, y: 0.5, ratio: 1 }, { duration: 300 });
+  }, []);
+
+  // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
+  // Sigma node/edge reducers via their refs; these handlers expose the toggle
+  // to the left/right rail filter panels. A toggle that adds the kind hides
+  // it; removing the kind shows it again.
+  const handleToggleNodeKind = useCallback((key: string): void => {
+    setHiddenNodeKinds((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleEdgeKind = useCallback((kind: string): void => {
+    setHiddenEdgeKinds((current) => {
+      const next = new Set(current) as Set<GraphEdge["kind"]>;
+      const typed = kind as GraphEdge["kind"];
+      if (next.has(typed)) {
+        next.delete(typed);
+      } else {
+        next.add(typed);
+      }
+      return next;
+    });
   }, []);
 
   const handleTracePathCompute = useCallback((startId: string, endId: string): void => {
@@ -1628,12 +1752,13 @@ export function GraphView({
       setSelectedNodeId(nodeId);
       selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
 
+      // Selecting highlights the node + its neighborhood and opens the inspector,
+      // but deliberately does NOT recenter the camera — an auto-pan on every
+      // click makes the graph jump under the cursor. The viewport only moves on
+      // explicit Fit / search-result navigation.
       if (sigma !== null) {
         refreshSigma(sigma);
         updateOverlay();
-        if (!reducedMotion) {
-          centerCameraOnNode(graph, sigma, nodeId);
-        }
       }
     };
 
@@ -1775,6 +1900,18 @@ export function GraphView({
                   color: dimColor(String(data.color)),
                 };
               }
+              // Architecture (recolour) lens — recolour by layer instead of
+              // dimming. A null result means "keep base colour" (unknown layer).
+              const colorOf = lensColorOfRef.current;
+              if (colorOf !== null) {
+                const layerColorValue = colorOf(data.archLayer as string | undefined);
+                if (layerColorValue !== null) {
+                  return {
+                    ...data,
+                    color: layerColorValue,
+                  };
+                }
+              }
             }
 
             return data;
@@ -1796,15 +1933,17 @@ export function GraphView({
             return { ...data, hidden: true };
           }
 
-          // Trace path styling (slice 023) — on-path edges render as dashed
+          // Trace path styling (slice 023) — on-path edges render as a bold
           // yellow; off-path edges are dimmed. Wins over hover/selection.
+          // Distinction is carried by colour + size, not an edge `type`: only
+          // the "line" program is registered, and Sigma throws on an unknown
+          // edge type (e.g. "dashed") the moment it has to render one.
           if (tracePhaseRef.current === "path-active" && pathEdgeIdsRef.current.size > 0) {
             if (pathEdgeIdsRef.current.has(edge)) {
               return {
                 ...data,
                 color: colors.tracePathEdgeColor,
-                type: "dashed",
-                size: Number(data.baseSize ?? data.size) * 1.2,
+                size: Number(data.baseSize ?? data.size) * 1.6,
                 zIndex: 1,
               };
             }
@@ -1819,11 +1958,25 @@ export function GraphView({
 
           if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
             if (selection !== null && hover === null && selection.edgeIds.has(edge)) {
-              return {
+              const emphasised = {
                 ...data,
                 size: Number(data.baseSize ?? data.size) * 1.34,
                 zIndex: 1,
               };
+              // Direction-aware CALLS emphasis: colour a selected node's inbound
+              // calls (callers) distinctly from its outbound calls (callees).
+              // Only `color`/`size` are touched — the edge keeps the registered
+              // "line" program (Sigma throws on an unregistered edge `type`).
+              if (edgeAttrs.edgeKind === "CALLS") {
+                const selectedId = selection.selectedNodeId;
+                if (graph.target(edge) === selectedId) {
+                  return { ...emphasised, color: colors.callerEdgeColor };
+                }
+                if (graph.source(edge) === selectedId) {
+                  return { ...emphasised, color: colors.calleeEdgeColor };
+                }
+              }
+              return emphasised;
             }
 
             return data;
@@ -1910,24 +2063,28 @@ export function GraphView({
         try {
           const cc = clusterCanvasRef.current;
           if (cc !== null) {
-            const hoveredFilePath =
-              hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
-                ? String(
-                    (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
-                      .filePath,
-                  )
-                : null;
-            const selectedFilePath =
-              selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
-                ? String(
-                    (
-                      graph.getNodeAttributes(
-                        selectionRef.current.selectedNodeId,
-                      ) as GraphNodeAttributes
-                    ).filePath,
-                  )
-                : null;
-            drawClusterHulls(graph, sigma!, cc, hoveredFilePath, selectedFilePath);
+            if (!showClusterHullsRef.current) {
+              cc.getContext("2d")?.clearRect(0, 0, cc.width, cc.height);
+            } else {
+              const hoveredFilePath =
+                hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
+                  ? String(
+                      (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
+                        .filePath,
+                    )
+                  : null;
+              const selectedFilePath =
+                selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
+                  ? String(
+                      (
+                        graph.getNodeAttributes(
+                          selectionRef.current.selectedNodeId,
+                        ) as GraphNodeAttributes
+                      ).filePath,
+                    )
+                  : null;
+              drawClusterHulls(graph, sigma!, cc, hoveredFilePath, selectedFilePath);
+            }
           }
           if (minimapCanvasRef.current !== null && graph.order > 20) {
             drawMinimap(graph, sigma!, minimapCanvasRef.current, container);
@@ -2037,6 +2194,16 @@ export function GraphView({
       refreshSigma(sigma);
     }
   }, [lensMatchSet]);
+
+  // Sync the recolour-lens colour fn ref so the nodeReducer can recolour by
+  // layer without being recreated. Null when no recolour lens is active.
+  useEffect(() => {
+    lensColorOfRef.current = lensColorOf;
+    const sigma = sigmaRef.current;
+    if (sigma !== null) {
+      refreshSigma(sigma);
+    }
+  }, [lensColorOf]);
 
   // Slice 022 — sync matched-node ids + depth visibility set into refs so the
   // nodeReducer reads them without being recreated. The depth-visible set is
@@ -2150,14 +2317,15 @@ export function GraphView({
     travelerSegments.length > 0 ? travelerSegments : overlaySegments.slice(0, 3);
 
   // B3: Compute callers and callees from graph during render
-  const neighborCallers: Array<{ id: string; label: string; filePath: string; startLine: number }> =
-    [];
-  const neighborCallees: Array<{
+  type CanvasNeighbor = {
     id: string;
     label: string;
     filePath: string;
     startLine: number;
-  }> = [];
+    symbolKind: string;
+  };
+  const neighborCallers: CanvasNeighbor[] = [];
+  const neighborCallees: CanvasNeighbor[] = [];
 
   if (selectedNodeId !== null && graphRef.current !== null) {
     const g = graphRef.current;
@@ -2170,6 +2338,7 @@ export function GraphView({
           label: a.label,
           filePath: a.filePath,
           startLine: a.startLine,
+          symbolKind: a.symbolKind ?? "misc",
         });
       });
       g.forEachOutboundEdge(selectedNodeId, (_edge, attrs, _src, target) => {
@@ -2180,6 +2349,7 @@ export function GraphView({
           label: a.label,
           filePath: a.filePath,
           startLine: a.startLine,
+          symbolKind: a.symbolKind ?? "misc",
         });
       });
     }
@@ -2188,17 +2358,215 @@ export function GraphView({
   const MAX_NEIGHBORS = 8;
   const shownCallers = neighborCallers.slice(0, MAX_NEIGHBORS);
   const shownCallees = neighborCallees.slice(0, MAX_NEIGHBORS);
-  const extraCallers = neighborCallers.length - shownCallers.length;
-  const extraCallees = neighborCallees.length - shownCallees.length;
+
+  // Inspector neighbor lists (slice 033). The Inspector now owns neighbor
+  // rendering in the right rail; the canvas neighbor panel becomes redundant.
+  // Implements is not tracked separately yet (CALLS-only graph), so it is empty.
+  const toInspectorNeighbors = (items: CanvasNeighbor[]): InspectorNeighbor[] =>
+    items.map((n) => ({
+      id: n.id,
+      label: n.label,
+      filePath: n.filePath,
+      symbolKind: n.symbolKind,
+    }));
+  const inspectorNeighbors: InspectorNeighbors = {
+    calledBy: toInspectorNeighbors(shownCallers),
+    calls: toInspectorNeighbors(shownCallees),
+    implements: [],
+  };
+
+  // Left-rail node-type filter entries: canonical order, counts from the
+  // current node set, Decorator stays a disabled future stub (slice 031).
+  const nodeKindCounts = new Map<string, number>();
+  for (const node of nodes) {
+    const key = node.type === "file" ? "file" : (node.symbolKind ?? "misc");
+    nodeKindCounts.set(key, (nodeKindCounts.get(key) ?? 0) + 1);
+  }
+  const fileCount = nodeKindCounts.get("file") ?? 0;
+  const symbolCount = nodes.length - fileCount;
+  const nodeFilterEntries: NodeFilterEntry[] = CANONICAL_NODE_FILTER_LIST.map((entry) => ({
+    ...entry,
+    count: nodeKindCounts.get(entry.key) ?? 0,
+    ...(entry.key === "decorator"
+      ? {
+          disabled: true,
+          tooltip: "Available after slice 026 — decorator-relationship classification.",
+        }
+      : {}),
+  }));
+
+  // Right-rail edge-type filter entries: counts from the current edge set,
+  // ordered to match the mockup. INHERITS surfaces as "Extends".
+  const edgeKindCounts = new Map<string, number>();
+  for (const edge of edges) {
+    edgeKindCounts.set(edge.kind, (edgeKindCounts.get(edge.kind) ?? 0) + 1);
+  }
+  const EDGE_FILTER_ORDER: ReadonlyArray<{ kind: string; label: string }> = [
+    { kind: "DEFINES", label: "Defines" },
+    { kind: "IMPORTS", label: "Imports" },
+    { kind: "CALLS", label: "Calls" },
+    { kind: "INHERITS", label: "Extends" },
+    { kind: "INSTANTIATES", label: "New" },
+    { kind: "IMPLEMENTS", label: "Implements" },
+  ];
+  const edgeTypeEntries: EdgeTypeEntry[] = EDGE_FILTER_ORDER.filter(
+    (e) => (edgeKindCounts.get(e.kind) ?? 0) > 0 || e.kind === "IMPLEMENTS",
+  ).map((e) => ({
+    kind: e.kind,
+    label: e.label,
+    count: edgeKindCounts.get(e.kind) ?? 0,
+    ...(e.kind === "IMPLEMENTS"
+      ? { disabled: true, tooltip: "Implements edges are always shown." }
+      : {}),
+  }));
+
+  const activeLayoutLabel =
+    LAYOUT_PRESET_OPTIONS.find((o) => o.id === layoutSelection.activePreset)?.label ??
+    layoutSelection.activePreset;
 
   return (
-    <div className="dxt-graph-view dxt-graph-stage" data-testid="graph-view-shell">
-      <LensesPanel
-        activeLensId={activeLensId}
-        lensCounts={lensCounts}
-        onLensToggle={onLensToggle}
-      />
-      <div className="dxt-graph-surface">
+    <div className={shellStyles.shell} data-testid="graph-view-shell">
+      {/* TOOLBAR area */}
+      <div className={shellStyles.toolbarArea}>
+        <GraphToolbar
+          onExportMermaid={onExportMermaid}
+          showMinimap={showMinimap}
+          onToggleMinimap={onToggleMinimap}
+          showClusterHulls={showClusterHulls}
+          onToggleClusterHulls={onToggleClusterHulls}
+          searchQuery={searchQuery}
+          searchResults={searchResults}
+          searchFocusedIndex={searchFocusedIndex}
+          onSearchQueryChange={handleSearchQueryChange}
+          onSearchSelectResult={handleSearchSelectResult}
+          onSearchClear={handleSearchClear}
+          depth={depth}
+          depthEnabled={depthEnabled}
+          onDepthChange={handleDepthChange}
+          tracePhase={traceState.phase}
+          onTraceToggle={handleTraceToggle}
+          onTraceExit={handleTraceExit}
+          canExportTrace={
+            traceState.phase === "path-active" &&
+            traceState.startNodeId !== null &&
+            traceState.endNodeId !== null &&
+            traceState.pathNodeIds.length > 0
+          }
+          {...(onExportTraceSequence !== undefined && {
+            onExportTrace: () => {
+              if (
+                traceState.phase !== "path-active" ||
+                traceState.startNodeId === null ||
+                traceState.endNodeId === null ||
+                traceState.pathNodeIds.length === 0
+              ) {
+                return;
+              }
+              onExportTraceSequence({
+                phase: "path-active",
+                startNodeId: traceState.startNodeId,
+                endNodeId: traceState.endNodeId,
+                nodeIds: [...traceState.pathNodeIds],
+                edgeIds: [...traceState.pathEdgeIds],
+              });
+            },
+          })}
+          {...(workspaceName !== undefined && { workspaceName })}
+          {...(workspaceFrameworks !== undefined && { workspaceFrameworks })}
+          {...(onWorkspaceSwitcherClick !== undefined && { onWorkspaceSwitcherClick })}
+          activeLayoutPreset={layoutSelection.activePreset}
+          onSelectLayoutPreset={handleSelectLayoutPreset}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onZoomFit={handleZoomFit}
+          onZoomReset={handleZoomReset}
+          {...(onReindex !== undefined && { onReindex })}
+          {...(onClearWorkspace !== undefined && { onClearWorkspace })}
+          {...(onClearAll !== undefined && { onClearAll })}
+          {...(onToggleSourceOnly !== undefined && { onToggleSourceOnly })}
+          {...(sourceOnly !== undefined && { sourceOnly })}
+          {...(isIndexing !== undefined && { isIndexing })}
+        />
+      </div>
+
+      {/* LEFT rail: trace path (in trace mode) or Lenses + Node Types */}
+      {traceState.phase === "path-active" ? (
+        <aside className={shellStyles.left} aria-label="Trace path" data-testid="trace-left-rail">
+          <section className={shellStyles.traceSection}>
+            <header className={shellStyles.traceHeader}>Trace</header>
+            <p className={shellStyles.traceHint}>From start through the call chain</p>
+            {(() => {
+              const stepNode = (id: string) => nodes.find((n) => n.id === id) ?? null;
+              const rows: Array<{ group: string; ids: string[] }> = [
+                { group: "Start", ids: traceState.startNodeId ? [traceState.startNodeId] : [] },
+                { group: "End", ids: traceState.endNodeId ? [traceState.endNodeId] : [] },
+                {
+                  group: `Path (${traceState.pathEdgeIds.length} hops)`,
+                  ids: traceState.pathNodeIds,
+                },
+              ];
+              return rows.map((row) => (
+                <div key={row.group}>
+                  <div className={shellStyles.traceGroupTitle}>{row.group}</div>
+                  {row.ids.map((id) => {
+                    const node = stepNode(id);
+                    return (
+                      <button
+                        key={`${row.group}-${id}`}
+                        type="button"
+                        className={shellStyles.traceRow}
+                        data-testid={`trace-left-step-${id}`}
+                        onClick={() => handleTraceStepClick(id)}
+                        title={node ? `${node.filePath}:${node.startLine}` : id}
+                      >
+                        <span
+                          className={`codicon codicon-symbol-${node?.symbolKind ?? "misc"}`}
+                          aria-hidden="true"
+                        />
+                        <span className={shellStyles.traceRowLabel}>{node?.label ?? id}</span>
+                        {node && (
+                          <span className={shellStyles.traceRowPath}>
+                            {node.filePath.split(/[/\\]/).pop()}:{node.startLine}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ));
+            })()}
+          </section>
+        </aside>
+      ) : (
+        <aside className={shellStyles.left} aria-label="Graph lenses and filters">
+          <LensesPanel
+            activeLensId={activeLensId}
+            lensCounts={lensCounts}
+            onLensToggle={onLensToggle}
+          />
+          {activeLensId !== null && lensResultRows !== null && (
+            <LensResultTable
+              lensTitle={LENS_REGISTRY[activeLensId].title}
+              rows={lensResultRows}
+              selectedNodeId={selectedNodeId}
+              onSelectRow={selectAndFlyToNode}
+            />
+          )}
+          <NodeFilterPanel
+            entries={nodeFilterEntries}
+            hiddenKinds={hiddenNodeKinds}
+            onToggle={handleToggleNodeKind}
+          />
+          <EdgeTypesPanel
+            entries={edgeTypeEntries}
+            hiddenKinds={hiddenEdgeKinds}
+            onToggle={handleToggleEdgeKind}
+          />
+        </aside>
+      )}
+
+      {/* CANVAS area */}
+      <main className={`${shellStyles.canvas} dxt-graph-stage`}>
         <canvas className="dxt-cluster-layer" ref={clusterCanvasRef} />
         <div id="dxt-graph-container" data-testid="graph-view" ref={containerRef} />
         <svg
@@ -2254,109 +2622,90 @@ export function GraphView({
             : null}
         </svg>
 
-        {selectedNodeId !== null && (neighborCallers.length > 0 || neighborCallees.length > 0) && (
-          <div className="dxt-neighbor-panel">
-            {neighborCallers.length > 0 && (
-              <div className="dxt-neighbor-section">
-                <div className="dxt-neighbor-section-title">Called by</div>
-                {shownCallers.map((caller) => (
-                  <button
-                    key={caller.id}
-                    type="button"
-                    className="dxt-neighbor-row"
-                    onClick={() => {
-                      onNavigate(caller.filePath, caller.startLine);
-                    }}
-                    title={`${caller.filePath}:${caller.startLine}`}
-                  >
-                    <span className="codicon codicon-symbol-function" aria-hidden="true" />
-                    {caller.label}
-                  </button>
-                ))}
-                {extraCallers > 0 && (
-                  <span className="dxt-neighbor-more">+ {extraCallers} more</span>
-                )}
-              </div>
-            )}
-            {neighborCallees.length > 0 && (
-              <div className="dxt-neighbor-section">
-                <div className="dxt-neighbor-section-title">Calls</div>
-                {shownCallees.map((callee) => (
-                  <button
-                    key={callee.id}
-                    type="button"
-                    className="dxt-neighbor-row"
-                    onClick={() => {
-                      onNavigate(callee.filePath, callee.startLine);
-                    }}
-                    title={`${callee.filePath}:${callee.startLine}`}
-                  >
-                    <span className="codicon codicon-symbol-function" aria-hidden="true" />
-                    {callee.label}
-                  </button>
-                ))}
-                {extraCallees > 0 && (
-                  <span className="dxt-neighbor-more">+ {extraCallees} more</span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Canvas overlays (slice 033 US4) */}
+        <div className="dxt-floating dxt-zoom-controls" data-testid="canvas-zoom-controls">
+          <button
+            type="button"
+            className="dxt-icon-btn"
+            title="Zoom in"
+            aria-label="Zoom in"
+            onClick={handleZoomIn}
+          >
+            <span className="codicon codicon-zoom-in" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="dxt-icon-btn"
+            title="Zoom out"
+            aria-label="Zoom out"
+            onClick={handleZoomOut}
+          >
+            <span className="codicon codicon-zoom-out" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="dxt-icon-btn"
+            title="Fit to screen"
+            aria-label="Fit"
+            onClick={handleZoomFit}
+          >
+            <span className="codicon codicon-screen-full" aria-hidden="true" />
+          </button>
+        </div>
 
-        <GraphToolbar
-          onExportMermaid={onExportMermaid}
-          onExportCurrentView={onExportCurrentView}
-          showMinimap={showMinimap}
-          onToggleMinimap={onToggleMinimap}
-          edgeKinds={ALL_EDGE_KINDS}
-          hiddenEdgeKinds={hiddenEdgeKinds}
-          onToggleEdgeKind={toggleEdgeKind}
-          nodeFilterEntries={nodeFilterEntries}
-          hiddenNodeKinds={hiddenNodeKinds}
-          onToggleNodeKind={toggleNodeKind}
-          searchQuery={searchQuery}
-          searchResults={searchResults}
-          searchFocusedIndex={searchFocusedIndex}
-          onSearchQueryChange={handleSearchQueryChange}
-          onSearchSelectResult={handleSearchSelectResult}
-          onSearchClear={handleSearchClear}
-          depth={depth}
-          depthEnabled={depthEnabled}
-          onDepthChange={handleDepthChange}
-          tracePhase={traceState.phase}
-          onTraceToggle={handleTraceToggle}
-          onTraceExit={handleTraceExit}
-          canExportTrace={
-            traceState.phase === "path-active" &&
-            traceState.startNodeId !== null &&
-            traceState.endNodeId !== null &&
-            traceState.pathNodeIds.length > 0
-          }
-          {...(onExportTraceSequence !== undefined && {
-            onExportTrace: () => {
-              if (
-                traceState.phase !== "path-active" ||
-                traceState.startNodeId === null ||
-                traceState.endNodeId === null ||
-                traceState.pathNodeIds.length === 0
-              ) {
-                return;
-              }
-              onExportTraceSequence({
-                phase: "path-active",
-                startNodeId: traceState.startNodeId,
-                endNodeId: traceState.endNodeId,
-                nodeIds: [...traceState.pathNodeIds],
-                edgeIds: [...traceState.pathEdgeIds],
-              });
-            },
-          })}
-          {...(workspaceName !== undefined && { workspaceName })}
-          {...(workspaceFrameworks !== undefined && { workspaceFrameworks })}
-          {...(onWorkspaceSwitcherClick !== undefined && { onWorkspaceSwitcherClick })}
-          activeLayoutPreset={layoutSelection.activePreset}
-          onSelectLayoutPreset={handleSelectLayoutPreset}
-        />
+        <div className="dxt-legend" data-testid="canvas-legend">
+          <div className="dxt-legend-title">Layers</div>
+          <div className="dxt-legend-row">
+            <span className="dxt-legend-chip" style={{ background: "var(--layer-entry)" }} />
+            Entry
+          </div>
+          <div className="dxt-legend-row">
+            <span className="dxt-legend-chip" style={{ background: "var(--layer-domain)" }} />
+            Domain
+          </div>
+          <div className="dxt-legend-row">
+            <span className="dxt-legend-chip" style={{ background: "var(--layer-io)" }} />
+            I/O
+          </div>
+          <hr className="dxt-legend-sep" />
+          <div className="dxt-legend-row">
+            <span
+              className="dxt-legend-swatch"
+              style={{ background: "var(--vscode-charts-blue)" }}
+            />
+            Defines
+          </div>
+          <div className="dxt-legend-row">
+            <span
+              className="dxt-legend-swatch"
+              style={{ background: "var(--vscode-charts-green)" }}
+            />
+            Imports
+          </div>
+          <div className="dxt-legend-row">
+            <span
+              className="dxt-legend-swatch"
+              style={{ background: "var(--vscode-charts-orange)" }}
+            />
+            Calls
+          </div>
+        </div>
+
+        <div className="dxt-canvas-help" data-testid="canvas-help">
+          <span>
+            <kbd>Click</kbd> isolate
+          </span>
+          <span>
+            <kbd>Dbl-click</kbd> editor
+          </span>
+          <span>
+            <kbd>Scroll</kbd> zoom
+          </span>
+          <span>
+            <kbd>Esc</kbd> clear
+          </span>
+        </div>
+
         {layoutSelection.notice !== null && (
           <div
             className="dxt-layout-notice"
@@ -2387,6 +2736,20 @@ export function GraphView({
               />
               {`Lens: ${LENS_REGISTRY[activeLensId].title}`}
             </span>
+            {activeLensId === "architecture" && (
+              <span className={lensesPanelStyles.lensLegend} data-testid="lens-layer-legend">
+                {CLASSIFIED_LAYERS.map((layer) => (
+                  <span key={layer} className={lensesPanelStyles.lensLegendItem}>
+                    <span
+                      className={lensesPanelStyles.lensLegendSwatch}
+                      style={{ background: layerColor(layer) ?? "transparent" }}
+                      aria-hidden="true"
+                    />
+                    {layer}
+                  </span>
+                ))}
+              </span>
+            )}
           </footer>
         )}
         {traceState.phase !== "idle" && (
@@ -2405,33 +2768,90 @@ export function GraphView({
             onExit={handleTraceExit}
           />
         )}
-      </div>
-      {traceState.phase === "path-active" ? (
-        <TraceInspector
-          tracePath={
-            graphRef.current === null ? null : computeTracePath(graphRef.current, traceState)
-          }
-          noPathFound={traceState.noPathFound}
-          startLabel={
-            traceState.startNodeId === null
-              ? null
-              : (nodes.find((n) => n.id === traceState.startNodeId)?.label ?? null)
-          }
-          endLabel={
-            traceState.endNodeId === null
-              ? null
-              : (nodes.find((n) => n.id === traceState.endNodeId)?.label ?? null)
-          }
-          onStepClick={handleTraceStepClick}
-        />
-      ) : (
-        <InspectorPanel
-          selectedNode={
-            selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
-          }
-          onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
-        />
-      )}
+      </main>
+
+      {/* RIGHT rail: Edge Types + Inspector (or Trace details in trace mode) */}
+      <aside className={shellStyles.right} aria-label="Edge filters and inspector">
+        {traceState.phase === "path-active" ? (
+          <TraceInspector
+            tracePath={
+              graphRef.current === null ? null : computeTracePath(graphRef.current, traceState)
+            }
+            noPathFound={traceState.noPathFound}
+            startLabel={
+              traceState.startNodeId === null
+                ? null
+                : (nodes.find((n) => n.id === traceState.startNodeId)?.label ?? null)
+            }
+            endLabel={
+              traceState.endNodeId === null
+                ? null
+                : (nodes.find((n) => n.id === traceState.endNodeId)?.label ?? null)
+            }
+            onStepClick={handleTraceStepClick}
+          />
+        ) : (
+          <InspectorPanel
+            selectedNode={
+              selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
+            }
+            onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
+            neighbors={inspectorNeighbors}
+            onNeighborClick={(id) => {
+              const target = nodes.find((n) => n.id === id);
+              if (target !== undefined) {
+                onNavigate(target.filePath, target.startLine);
+              }
+            }}
+          />
+        )}
+      </aside>
+
+      {/* STATUS bar */}
+      <footer className={shellStyles.status} data-testid="graph-status-bar">
+        <span className={shellStyles.statusItem}>
+          <span className={shellStyles.statusPill}>{fileCount} files</span>
+        </span>
+        <span className={shellStyles.statusItem}>
+          <span className={shellStyles.statusPill}>{symbolCount} symbols</span>
+        </span>
+        <span className={shellStyles.statusItem}>
+          <span className={shellStyles.statusPill}>{edges.length} edges</span>
+        </span>
+        {workspaceFrameworks !== undefined && workspaceFrameworks.length > 0 && (
+          <span className={shellStyles.statusItem}>
+            {workspaceFrameworks.map((fw) => (
+              <span
+                key={fw}
+                className={`${shellStyles.statusPill} ${shellStyles.statusPillFramework}`}
+                data-framework={fw}
+              >
+                {fw}
+              </span>
+            ))}
+          </span>
+        )}
+        {activeLensId !== null && (
+          <span className={shellStyles.statusItem}>
+            <span className={`${shellStyles.statusPill} ${shellStyles.statusPillLens}`}>
+              <span
+                className={`codicon codicon-${LENS_REGISTRY[activeLensId].iconKey}`}
+                aria-hidden="true"
+              />
+              {LENS_REGISTRY[activeLensId].title}
+            </span>
+          </span>
+        )}
+        <span className={shellStyles.statusSpacer} />
+        <span className={shellStyles.statusItem}>
+          <span className="codicon codicon-list-tree" aria-hidden="true" />
+          Depth {depth}
+        </span>
+        <span className={shellStyles.statusItem}>
+          <span className="codicon codicon-graph" aria-hidden="true" />
+          {activeLayoutLabel}
+        </span>
+      </footer>
     </div>
   );
 }

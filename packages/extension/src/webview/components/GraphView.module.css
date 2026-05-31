@@ -1,0 +1,184 @@
+/*
+ * GraphView shell grid (slice 033 Phase 3).
+ *
+ * Translates the 3-column shell from scratch/graphview-mockup-final.html into
+ * scoped CSS Module classes so the rails, toolbar, and status bar are first
+ * class grid areas instead of children of the canvas surface. Grid template
+ * mirrors App.module.css .graphShell and components/shellLayout.ts — keep the
+ * column/row values in sync. VS Code theme tokens only (FR-026).
+ */
+
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr 320px;
+  grid-template-rows: 44px 1fr 28px;
+  grid-template-areas:
+    "toolbar toolbar toolbar"
+    "left    canvas  right"
+    "status  status  status";
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  background: var(--vscode-editor-background);
+}
+
+.toolbarArea {
+  grid-area: toolbar;
+  min-width: 0;
+}
+
+.left {
+  grid-area: left;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--vscode-panel-background);
+  border-right: 1px solid var(--vscode-panel-border);
+}
+
+.canvas {
+  grid-area: canvas;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.03) 0%, transparent 65%),
+    var(--vscode-editor-background);
+}
+
+.right {
+  grid-area: right;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--vscode-panel-background);
+  border-left: 1px solid var(--vscode-panel-border);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Trace path (left rail in trace mode) ------------------------------ */
+
+.traceSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+}
+
+.traceHeader {
+  padding: 2px 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.traceHint {
+  margin: 2px 4px 6px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.traceGroupTitle {
+  padding: 6px 4px 2px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.traceRow {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.traceRow:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.traceRowLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traceRowPath {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ---- Status bar -------------------------------------------------------- */
+
+.status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  min-width: 0;
+  background: var(--vscode-editorWidget-background);
+  border-top: 1px solid var(--vscode-editorWidget-border);
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+}
+
+.statusItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.statusSpacer {
+  flex: 1;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: 10px;
+}
+
+.statusPillLens {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.statusPillFramework {
+  /* --fw-color is set by the global [data-framework] selectors in html.ts, so
+     each framework pill carries its brand tint (react=cyan, vscode=blue, …).
+     Falls back to the neutral badge color for unknown frameworks. */
+  background: color-mix(in srgb, var(--fw-color, var(--vscode-badge-background)) 22%, transparent);
+  color: var(--fw-color, var(--vscode-badge-foreground));
+  border: 1px solid var(--fw-color, transparent);
+}
+
+/*
+ * Below ~800px the fixed rails would crowd the canvas off-screen. Hold a
+ * readable minimum and let the canvas absorb the squeeze (mirrors
+ * App.module.css and the spec edge case on minimum rail widths).
+ */
+@media (max-width: 800px) {
+  .shell {
+    grid-template-columns: 200px 1fr 240px;
+  }
+}

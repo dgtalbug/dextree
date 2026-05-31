@@ -44,10 +44,48 @@
   outline-offset: 1px;
 }
 
+.headerActions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.headerButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.headerButton:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.headerButton:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.headerButtonAccent {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: transparent;
+}
+
+.headerButtonAccent:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
 }
 
 .loading,

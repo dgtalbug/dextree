@@ -7,9 +7,19 @@ export interface WorkspacesPageProps {
   workspaces: IndexedWorkspaceRecord[] | null;
   onBack: () => void;
   onSwitch: (workspaceRoot: string) => void;
+  /** Re-index every known workspace (slice 033 T035). Optional — omitting it hides the action. */
+  onRescanAll?: () => void;
+  /** Pick another folder to index (slice 033 T035). Optional — omitting it hides the action. */
+  onOpenAnother?: () => void;
 }
 
-export function WorkspacesPage({ workspaces, onBack, onSwitch }: WorkspacesPageProps) {
+export function WorkspacesPage({
+  workspaces,
+  onBack,
+  onSwitch,
+  onRescanAll,
+  onOpenAnother,
+}: WorkspacesPageProps) {
   return (
     <div className={styles.page} data-testid="workspaces-page">
       <header className={styles.header}>
@@ -22,7 +32,31 @@ export function WorkspacesPage({ workspaces, onBack, onSwitch }: WorkspacesPageP
           <span className="codicon codicon-arrow-left" aria-hidden="true" />
           <span>Back to graph</span>
         </button>
-        <h2 className={styles.title}>Workspaces</h2>
+        <h2 className={styles.title}>Indexed workspaces</h2>
+        <div className={styles.headerActions}>
+          {onRescanAll !== undefined && (
+            <button
+              type="button"
+              className={styles.headerButton}
+              onClick={onRescanAll}
+              title="Re-index every known workspace"
+            >
+              <span className="codicon codicon-refresh" aria-hidden="true" />
+              Re-scan all
+            </button>
+          )}
+          {onOpenAnother !== undefined && (
+            <button
+              type="button"
+              className={`${styles.headerButton} ${styles.headerButtonAccent}`}
+              onClick={onOpenAnother}
+              title="Open another workspace to index"
+            >
+              <span className="codicon codicon-database" aria-hidden="true" />
+              Open another workspace…
+            </button>
+          )}
+        </div>
       </header>
 
       {workspaces === null ? (

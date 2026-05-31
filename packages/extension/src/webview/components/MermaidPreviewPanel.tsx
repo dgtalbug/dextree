@@ -35,6 +35,12 @@ export interface MermaidPreviewPanelProps {
    */
   onOptionsChange?: (options: MermaidPreviewOptions) => void;
   /**
+   * Returns to the GraphView scene. Wired by App.tsx (slice 033 Phase 4); the
+   * "Back to graph" action now lives in the panel toolbar instead of a separate
+   * App-level topbar. Optional so existing tests render without it.
+   */
+  onBackToGraph?: () => void;
+  /**
    * Called when the user requests a file-backed save (slice 029 US3 / PR-C).
    * The host handles the actual file write after presenting a save dialog.
    */
@@ -112,6 +118,7 @@ function sanitizeSvgForRender(svg: string): string {
 export function MermaidPreviewPanel({
   preview,
   onOptionsChange,
+  onBackToGraph,
   onSaveRequest,
   renderSource = renderMermaidSource,
   rasterizeSvg,
@@ -219,6 +226,27 @@ export function MermaidPreviewPanel({
     }
   }
 
+  async function handleCopyMmd(): Promise<void> {
+    if (okPreview === null) return;
+    setExportStatus({ type: "working", message: "Copying .mmd…" });
+    try {
+      const content = buildMmdContent(okPreview.source);
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+        setExportStatus({
+          type: "success",
+          message: "Mermaid source copied.",
+          timestamp: Date.now(),
+        });
+      } else {
+        throw new Error("Clipboard text API unavailable");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setExportStatus({ type: "error", message: `Copy failed: ${message}`, timestamp: Date.now() });
+    }
+  }
+
   async function handleCopyMarkdown(): Promise<void> {
     if (okPreview === null) return;
     setExportStatus({ type: "working", message: "Copying snippet…" });
@@ -249,108 +277,79 @@ export function MermaidPreviewPanel({
   }
 
   const canExport = okPreview !== null && renderedSvg !== null;
+  const exportDisabled = !canExport || exportStatus.type === "working";
+  const themeLabel = preview.options.theme === "dark" ? "Dark" : "Light";
 
   return (
-    <div className={styles.panel}>
-      <header className={styles.header}>
-        <h2 className={styles.title}>
-          {preview.status === "ok" ? preview.title : "Mermaid preview"}
-        </h2>
-      </header>
-      <ControlBar options={preview.options} onOptionsChange={onOptionsChange} />
-      {canExport && (
-        <div className={styles.exportBar} role="group" aria-label="Export actions">
-          <button
-            type="button"
-            className={styles.exportButton}
-            onClick={() => void handleSave("mmd")}
-            disabled={exportStatus.type === "working"}
-            title="Save as Mermaid source (.mmd)"
-          >
-            <span className="codicon codicon-file-code" aria-hidden="true" />
-            Save .mmd
-          </button>
-          <button
-            type="button"
-            className={styles.exportButton}
-            onClick={() => void handleSave("svg")}
-            disabled={exportStatus.type === "working"}
-            title="Save as SVG"
-          >
-            <span className="codicon codicon-file-media" aria-hidden="true" />
-            Save .svg
-          </button>
-          <button
-            type="button"
-            className={styles.exportButton}
-            onClick={() => void handleSave("png")}
-            disabled={exportStatus.type === "working"}
-            title="Save as PNG"
-          >
-            <span className="codicon codicon-file-media" aria-hidden="true" />
-            Save .png
-          </button>
-          <button
-            type="button"
-            className={styles.exportButton}
-            onClick={() => void handleCopyImage()}
-            disabled={exportStatus.type === "working"}
-            title="Copy rendered image to clipboard"
-          >
-            <span className="codicon codicon-clippy" aria-hidden="true" />
-            Copy image
-          </button>
-          <button
-            type="button"
-            className={styles.exportButton}
-            onClick={() => void handleCopyMarkdown()}
-            disabled={exportStatus.type === "working"}
-            title="Copy Markdown snippet to clipboard"
-          >
-            <span className="codicon codicon-markdown" aria-hidden="true" />
-            Copy snippet
-          </button>
-        </div>
-      )}
-      {exportStatus.type !== "idle" && (
-        <div
-          className={
-            exportStatus.type === "error"
-              ? styles.exportError
-              : exportStatus.type === "success"
-                ? styles.exportSuccess
-                : styles.exportWorking
-          }
-          role={exportStatus.type === "error" ? "alert" : "status"}
-          aria-live={exportStatus.type === "error" ? undefined : "polite"}
+    <div className={styles.shell}>
+      {/* Row 1 — control toolbar (Scope → Granularity → Diagram → Direction → Re-render → Back) */}
+      <div className={styles.toolbar} data-testid="mermaid-toolbar">
+        <ControlBar options={preview.options} onOptionsChange={onOptionsChange} />
+        <div className={styles.toolbarSpacer} />
+        <button
+          type="button"
+          className={styles.toolbarButton}
+          onClick={() => onOptionsChange?.(preview.options)}
+          disabled={onOptionsChange === undefined}
+          title="Re-render the diagram"
         >
-          <span>{exportStatus.message}</span>
-          {exportStatus.type !== "working" && (
-            <button
-              type="button"
-              onClick={() => setExportStatus({ type: "idle" })}
-              aria-label="Close export status message"
-              className={styles.statusCloseButton}
-            >
-              <span className="codicon codicon-close" aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      )}
+          <span className="codicon codicon-refresh" aria-hidden="true" />
+          Re-render
+        </button>
+        <button
+          type="button"
+          className={styles.toolbarButton}
+          onClick={() => onBackToGraph?.()}
+          disabled={onBackToGraph === undefined}
+          title="Back to the graph view"
+        >
+          <span className="codicon codicon-close" aria-hidden="true" />
+          Back to graph
+        </button>
+      </div>
+
+      {/* Row 2 — status row (theme + click-links; counts/cap absent from payload, CC-003) */}
+      <div className={styles.statusRow} data-testid="mermaid-status-row">
+        <span className={styles.statusItem}>
+          <span className="codicon codicon-info" aria-hidden="true" />
+          Theme: {themeLabel}
+        </span>
+        <span className={styles.statusSpacer} />
+        {exportStatus.type !== "idle" && (
+          <span
+            className={
+              exportStatus.type === "error"
+                ? styles.statusMessageError
+                : exportStatus.type === "success"
+                  ? styles.statusMessageSuccess
+                  : styles.statusMessageWorking
+            }
+            role={exportStatus.type === "error" ? "alert" : "status"}
+            aria-live={exportStatus.type === "error" ? undefined : "polite"}
+          >
+            {exportStatus.message}
+            {exportStatus.type !== "working" && (
+              <button
+                type="button"
+                onClick={() => setExportStatus({ type: "idle" })}
+                aria-label="Close export status message"
+                className={styles.statusCloseButton}
+              >
+                <span className="codicon codicon-close" aria-hidden="true" />
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+
+      {/* Row 3 — body: rendered preview (left, 2fr) + source (right, 1fr) */}
       {preview.status !== "ok" ? (
         <div className={styles.failClosed} role="alert">
           <h3 className={styles.failTitle}>Preview unavailable</h3>
           <p className={styles.failReason}>{preview.reason}</p>
         </div>
       ) : (
-        <div className={styles.panes}>
-          <section
-            className={styles.sourcePane}
-            aria-label="Mermaid source"
-            data-testid="mermaid-source-pane"
-          >
-            <pre className={styles.sourceText}>{preview.source}</pre>
-          </section>
+        <div className={styles.body} data-testid="mermaid-body">
           <section
             className={styles.renderPane}
             aria-label="Rendered Mermaid preview"
@@ -378,8 +377,88 @@ export function MermaidPreviewPanel({
               </div>
             )}
           </section>
+          <section
+            className={styles.sourcePane}
+            aria-label="Mermaid source"
+            data-testid="mermaid-source-pane"
+          >
+            <pre className={styles.sourceText}>{preview.source}</pre>
+          </section>
         </div>
       )}
+
+      {/* Row 4 — export bar (Copy .mmd → Save .mmd → Save PNG → Save SVG → Copy image → Markdown snippet → hint) */}
+      <div
+        className={styles.exportBar}
+        role="group"
+        aria-label="Export actions"
+        data-testid="mermaid-export-bar"
+      >
+        <button
+          type="button"
+          className={styles.exportButton}
+          onClick={() => void handleCopyMmd()}
+          disabled={exportDisabled}
+          title="Copy Mermaid source (.mmd) to clipboard"
+        >
+          <span className="codicon codicon-copy" aria-hidden="true" />
+          Copy .mmd
+        </button>
+        <button
+          type="button"
+          className={styles.exportButton}
+          onClick={() => void handleSave("mmd")}
+          disabled={exportDisabled}
+          title="Save as Mermaid source (.mmd)"
+        >
+          <span className="codicon codicon-save" aria-hidden="true" />
+          Save .mmd
+        </button>
+        <button
+          type="button"
+          className={styles.exportButton}
+          onClick={() => void handleSave("png")}
+          disabled={exportDisabled}
+          title="Save as PNG"
+        >
+          <span className="codicon codicon-file-media" aria-hidden="true" />
+          Save .png
+        </button>
+        <button
+          type="button"
+          className={styles.exportButton}
+          onClick={() => void handleSave("svg")}
+          disabled={exportDisabled}
+          title="Save as SVG"
+        >
+          <span className="codicon codicon-file-media" aria-hidden="true" />
+          Save .svg
+        </button>
+        <button
+          type="button"
+          className={styles.exportButton}
+          onClick={() => void handleCopyImage()}
+          disabled={exportDisabled}
+          title="Copy rendered image to clipboard"
+        >
+          <span className="codicon codicon-clippy" aria-hidden="true" />
+          Copy image
+        </button>
+        <button
+          type="button"
+          className={styles.exportButton}
+          onClick={() => void handleCopyMarkdown()}
+          disabled={exportDisabled}
+          title="Copy Markdown snippet to clipboard"
+        >
+          <span className="codicon codicon-markdown" aria-hidden="true" />
+          Copy snippet
+        </button>
+        <span className={styles.exportSpacer} />
+        <span className={styles.exportHint}>
+          Sequence diagram available after you set a trace route in GraphView
+        </span>
+      </div>
     </div>
   );
 }
@@ -439,21 +518,6 @@ function ControlBar({ options, onOptionsChange }: ControlBarProps) {
 
   return (
     <div className={styles.controls} role="group" aria-label="Mermaid preview controls">
-      <label className={styles.controlLabel} htmlFor={diagramId}>
-        Diagram
-        <select
-          id={diagramId}
-          className={styles.controlSelect}
-          value={options.diagram}
-          onChange={handleDiagramChange}
-        >
-          {DIAGRAM_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </label>
       <label className={styles.controlLabel} htmlFor={scopeId}>
         Scope
         <select
@@ -485,6 +549,21 @@ function ControlBar({ options, onOptionsChange }: ControlBarProps) {
           }
         >
           {GRANULARITY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={styles.controlLabel} htmlFor={diagramId}>
+        Diagram
+        <select
+          id={diagramId}
+          className={styles.controlSelect}
+          value={options.diagram}
+          onChange={handleDiagramChange}
+        >
+          {DIAGRAM_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

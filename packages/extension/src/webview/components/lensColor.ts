@@ -36,3 +36,30 @@ export function dimColor(color: string): string {
   }
   return color;
 }
+
+/**
+ * Per-layer node colours for the architecture lens. VS Code chart tokens only
+ * (theme-aware; CLAUDE.md bans hardcoded hex in webview styles). The fallback
+ * hex inside each `var()` is the last-resort default if the token is undefined,
+ * mirroring the edge-palette pattern in `EdgeTypesPanel`.
+ */
+export const LAYER_COLORS: Readonly<Record<string, string>> = {
+  presentation: "var(--vscode-charts-blue, #3794ff)",
+  application: "var(--vscode-charts-purple, #c586c0)",
+  domain: "var(--vscode-charts-green, #4ec9b0)",
+  infrastructure: "var(--vscode-charts-orange, #ce9178)",
+  test: "var(--vscode-charts-yellow, #dcdcaa)",
+};
+
+/**
+ * Resolve a node's architecture-lens colour from its `archLayer`. Returns
+ * `null` for `unknown` / unclassified / absent layers so the caller keeps the
+ * node's base colour — honest about "we don't know this node's layer" rather
+ * than inventing a colour for it.
+ */
+export function layerColor(archLayer: string | undefined): string | null {
+  if (archLayer === undefined) {
+    return null;
+  }
+  return LAYER_COLORS[archLayer] ?? null;
+}

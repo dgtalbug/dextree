@@ -51,13 +51,16 @@
 }
 
 .activePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: 10px;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  /* Green "Active" treatment to match the mockup (layer-domain accent). */
+  background: color-mix(in srgb, var(--layer-domain, #2ecc71) 18%, transparent);
+  color: var(--layer-domain, #2ecc71);
+  border: 1px solid var(--layer-domain, #2ecc71);
 }
 
 .path {
@@ -85,6 +88,33 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.arch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.archTitle {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.archStrip {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--vscode-input-background);
+}
+
+.archPlaceholder {
+  display: block;
+  flex: 1;
+  /* Neutral gray until per-layer data is available (T038). */
+  background: var(--layer-util, #9b9b9b);
+  opacity: 0.5;
 }
 
 .timestamp {

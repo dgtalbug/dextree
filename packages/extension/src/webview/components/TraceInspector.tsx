@@ -54,7 +54,7 @@ export function TraceInspector({
 
           {tracePath.crossesFrameworkBoundary && (
             <div className={styles.boundaryBadge} role="status">
-              <span className="codicon codicon-cross-reference" aria-hidden="true" />
+              <span className="codicon codicon-references" aria-hidden="true" />
               Crosses framework boundary
             </div>
           )}

@@ -48,9 +48,17 @@ export function WorkspaceCard({ workspace, onSwitch }: WorkspaceCardProps) {
       data-workspace-root={workspace.workspaceRoot}
     >
       <div className={styles.header}>
-        <span className={`codicon codicon-folder-active ${styles.icon}`} aria-hidden="true" />
+        <span
+          className={`codicon codicon-${isActive ? "folder-active" : "folder"} ${styles.icon}`}
+          aria-hidden="true"
+        />
         <span className={styles.name}>{name}</span>
-        {isActive && <span className={styles.activePill}>Active</span>}
+        {isActive && (
+          <span className={styles.activePill}>
+            <span className="codicon codicon-pulse" aria-hidden="true" />
+            Active
+          </span>
+        )}
       </div>
       <div className={styles.path} title={path}>
         {path}
@@ -75,6 +83,22 @@ export function WorkspaceCard({ workspace, onSwitch }: WorkspaceCardProps) {
           ))}
         </div>
       )}
+      <div className={styles.arch}>
+        <div className={styles.archTitle}>Architecture</div>
+        {/*
+         * IndexedWorkspaceRecord carries no per-layer breakdown yet, so the
+         * strip is a single gray placeholder (T038). Once the record gains a
+         * layer histogram this becomes proportional --layer-* segments.
+         */}
+        <div
+          className={styles.archStrip}
+          data-testid="workspace-arch-strip"
+          title="Re-index with classification to see architecture distribution."
+          aria-label="Architecture distribution unavailable"
+        >
+          <span className={styles.archPlaceholder} />
+        </div>
+      </div>
       <div className={styles.timestamp}>
         Last indexed: {formatTimestamp(workspace.lastIndexedAt)}
       </div>

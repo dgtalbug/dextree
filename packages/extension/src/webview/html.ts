@@ -24,12 +24,23 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
   const codiconCssUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, "dist", "codicons", "codicon.css"),
   );
+  // Vite (IIFE/lib mode) bundles every CSS-Module into a single emitted
+  // stylesheet. It cannot self-inject under our nonce CSP, so it MUST be
+  // linked here as a webview resource (covered by `${webview.cspSource}` in
+  // style-src). Without this link every `*.module.css` class resolves to a
+  // hashed name with no rules — the shell grid, rails, toolbar, and status
+  // bar all collapse to default inline/block flow (no sidebar). See the
+  // header note on Research Decision #1.
+  const webviewCssUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "dist", "webview", "dextree.css"),
+  );
 
   const csp = [
     `default-src 'none'`,
     `script-src 'nonce-${nonce}'`,
     `style-src 'nonce-${nonce}' ${webview.cspSource}`,
     `font-src ${webview.cspSource}`,
+    `img-src blob: data:`,
   ].join("; ");
 
   return `<!DOCTYPE html>
@@ -40,6 +51,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dextree Graph View</title>
   <link rel="stylesheet" href="${codiconCssUri}" />
+  <link rel="stylesheet" href="${webviewCssUri}" />
   <style nonce="${nonce}">
     *,
     *::before,
@@ -58,10 +70,198 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       background-color: var(--vscode-editor-background);
     }
 
+    /* Dextree design tokens (slice 033). These must live in this nonce-guarded
+       inline block — not a CSS Module — because custom properties declared in a
+       module :root get scoped/hashed and would not cascade to every component.
+       Hex values match scratch/graphview-mockup-final.html: there is no
+       --vscode-* token covering architectural layers or framework identity, so
+       these are the one allowed exception to the "tokens only" rule (FR-026). */
+    :root {
+      /* Architectural-layer palette (classifier output, slice 026) */
+      --layer-entry: #f1c40f;
+      --layer-orchestration: #3794ff;
+      --layer-domain: #2ecc71;
+      --layer-io: #e67e22;
+      --layer-util: #9b9b9b;
+      --layer-dead: #6b3535;
+
+      /* Framework chip palette */
+      --fw-vscode: #007acc;
+      --fw-react: #61dafb;
+      --fw-vitest: #6e9f18;
+      --fw-node: #68a063;
+
+      /* Edge-kind dot colors (Edge Types rail, slice 033). Unlike the layer/fw
+         palettes these track the active theme via --vscode-charts-*, so a custom
+         VS Code theme recolors the edge swatches; the hex is only a last-resort
+         fallback for themes that omit the chart tokens. */
+      --edge-color-contains: var(--vscode-symbolIcon-folderForeground, #c5c5c5);
+      --edge-color-defines: var(--vscode-charts-blue, #3794ff);
+      --edge-color-imports: var(--vscode-charts-green, #4ec9b0);
+      --edge-color-calls: var(--vscode-charts-orange, #ce9178);
+      --edge-color-extends: var(--vscode-charts-purple, #c586c0);
+      --edge-color-inherits: var(--vscode-charts-purple, #c586c0);
+      --edge-color-implements: var(--vscode-charts-yellow, #dcdcaa);
+      --edge-color-instantiates: var(--vscode-charts-red, #f44747);
+    }
+
+    /* Framework badge (global dxt-badge classes; used by WorkspaceCard chips).
+       The per-framework brand color is selected by the data-framework attribute
+       and surfaced through --fw-color, matching the mockup. Unknown frameworks
+       fall back to the neutral VS Code badge color. */
+    .dxt-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      white-space: nowrap;
+    }
+
+    .dxt-badge--framework {
+      background: color-mix(in srgb, var(--fw-color, var(--vscode-badge-background)) 18%, transparent);
+      color: var(--fw-color, var(--vscode-foreground));
+      border: 1px solid var(--fw-color, var(--vscode-badge-background));
+    }
+
+    [data-framework="vscode"],
+    [data-framework="vscode-ext"] { --fw-color: var(--fw-vscode); }
+    [data-framework="react"]      { --fw-color: var(--fw-react); }
+    [data-framework="vitest"]     { --fw-color: var(--fw-vitest); }
+    [data-framework="node"],
+    [data-framework="nodejs"]     { --fw-color: var(--fw-node); }
+
+    /* ============================================================
+       GraphView canvas overlays (slice 033 US4). These use global dxt-*
+       class names from GraphView's JSX, so the rules live here rather than a
+       CSS Module. Translucent backdrops use rgba() by design (no --vscode-*
+       token provides a blurred overlay fill — allowed per the layout contract).
+       Ported from scratch/graphview-mockup-final.html.
+       ============================================================ */
+    .dxt-floating {
+      position: absolute;
+      background: rgba(30, 30, 30, 0.78);
+      backdrop-filter: blur(6px);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 6px;
+      padding: 4px;
+      z-index: 4;
+    }
+    .dxt-zoom-controls {
+      top: 12px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* Icon button used by the canvas overlays (mirrors GraphToolbar's .iconBtn,
+       but global so the overlay buttons in GraphView's JSX are styled). */
+    .dxt-icon-btn {
+      height: 28px;
+      min-width: 28px;
+      padding: 0 6px;
+      background: transparent;
+      color: var(--vscode-foreground);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font: inherit;
+      font-size: 12px;
+    }
+    .dxt-icon-btn:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    .dxt-canvas-help {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      background: rgba(30, 30, 30, 0.65);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 12px;
+      padding: 3px 12px;
+      display: inline-flex;
+      gap: 12px;
+      z-index: 4;
+    }
+    .dxt-canvas-help kbd {
+      font: inherit;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 10px;
+      color: var(--vscode-foreground);
+    }
+
+    .dxt-legend {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      background: rgba(30, 30, 30, 0.78);
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 6px;
+      z-index: 4;
+    }
+    .dxt-legend-title {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--vscode-foreground);
+    }
+    .dxt-legend-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 1px 0;
+    }
+    .dxt-legend-sep {
+      border: 0;
+      border-top: 1px solid var(--vscode-editorWidget-border);
+      margin: 6px 0;
+    }
+    .dxt-legend-chip {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+    .dxt-legend-swatch {
+      width: 18px;
+      height: 2px;
+      border-radius: 2px;
+    }
+
+    .dxt-error-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
      #root {
        height: 100%;
        overflow: hidden;
-       padding: 8px;
+       /* Edge-to-edge: the GraphView shell owns its own gutters (toolbar/rail
+          padding), matching the mockup's full-bleed 100vw/100vh window. A root
+          inset would float the shell and stop the toolbar/status bars from
+          reaching the panel edges. */
+       padding: 0;
      }
 
      .dxt-app-shell {
@@ -123,6 +323,19 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        height: 100%;
        min-height: 240px;
        border-radius: 8px;
+     }
+
+     /* Empty/Loading overlay — covers the GraphView shell without replacing it
+        (slice 033 T020). The shell rails stay mounted underneath. */
+     .dxt-graph-overlay {
+       position: absolute;
+       inset: 0;
+       display: flex;
+       align-items: center;
+       justify-content: center;
+       padding: 16px;
+       background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
+       z-index: 5;
      }
 
      .dxt-loading,

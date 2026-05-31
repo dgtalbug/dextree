@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LENS_DIM_ALPHA, dimColor } from "./lensColor.js";
+import { LAYER_COLORS, LENS_DIM_ALPHA, dimColor, layerColor } from "./lensColor.js";
 
 describe("dimColor", () => {
   it("converts 6-char hex to rgba with reduced alpha", () => {
@@ -23,5 +23,30 @@ describe("dimColor", () => {
   it("passes through unknown formats unchanged", () => {
     expect(dimColor("var(--vscode-foreground)")).toBe("var(--vscode-foreground)");
     expect(dimColor("hsl(120, 50%, 50%)")).toBe("hsl(120, 50%, 50%)");
+  });
+});
+
+describe("layerColor", () => {
+  it("returns a VS Code chart token for each of the five real layers", () => {
+    for (const layer of ["presentation", "application", "domain", "infrastructure", "test"]) {
+      const color = layerColor(layer);
+      expect(color).not.toBeNull();
+      expect(color).toBe(LAYER_COLORS[layer]);
+      expect(color).toContain("var(--vscode-charts-");
+    }
+  });
+
+  it("returns null for the unknown layer so the node keeps its base colour", () => {
+    expect(layerColor("unknown")).toBeNull();
+  });
+
+  it("returns null for an absent layer", () => {
+    expect(layerColor(undefined)).toBeNull();
+  });
+
+  it("uses no hardcoded hex as the primary value (chart token first)", () => {
+    for (const color of Object.values(LAYER_COLORS)) {
+      expect(color.startsWith("var(--vscode-charts-")).toBe(true);
+    }
   });
 });

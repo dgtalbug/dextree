@@ -87,6 +87,10 @@ export interface ThemeColors {
   tracePathEdgeColor: string;
   /** Gold-ish border applied to classified entry symbols (slice 026). */
   entryBorderColor: string;
+  /** Inbound CALLS (callers) of the selected node — direction-aware emphasis. */
+  callerEdgeColor: string;
+  /** Outbound CALLS (callees) of the selected node — direction-aware emphasis. */
+  calleeEdgeColor: string;
 }
 
 export interface GraphViewProps {
@@ -108,6 +112,18 @@ export interface GraphViewProps {
   workspaceFrameworks?: readonly string[];
   /** Click handler for the toolbar workspace switcher button (slice 024). */
   onWorkspaceSwitcherClick?: () => void;
+  /** Slice 033 US6 — signals App when trace mode is active so the trace tab can be enabled. */
+  onTraceActiveChange?: (active: boolean) => void;
+  /**
+   * Workspace actions relocated into the toolbar from the legacy right panel
+   * (slice 033). All optional — when omitted the toolbar omits the group.
+   */
+  onReindex?: () => void;
+  onClearWorkspace?: () => void;
+  onClearAll?: () => void;
+  onToggleSourceOnly?: () => void;
+  sourceOnly?: boolean;
+  isIndexing?: boolean;
 }
 
 /**
