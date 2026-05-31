@@ -11,3 +11,8 @@ test-results.json
 # indigo HTML strategy). Treat as read-only history — tools shouldn't
 # touch them, and reformatting would just churn the archive.
 docs/_archive/
+
+# Owned by the release-please-prettier workflow, which applies Prettier after
+# release-please commits it. Excluding here prevents a race where static-checks
+# runs before the formatter commit lands and fails on the unformatted file.
+CHANGELOG.md
