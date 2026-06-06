@@ -1,11 +1,11 @@
 name: Setup Dextree workspace
-description: Install pnpm 11.1.2, set up Node 22, install dependencies (frozen lockfile), and configure Turborepo remote cache via GitHub Actions cache. Caller must run actions/checkout first.
+description: Install pnpm 11.1.2, set up Node 22.22.1+, install dependencies (frozen lockfile), and configure Turborepo remote cache via GitHub Actions cache. Caller must run actions/checkout first.
 
 inputs:
   node-version:
     description: Node version to install.
     required: false
-    default: "22"
+    default: "22.22.1"
   turbo-cache:
     description: Set to "false" to skip configuring the Turborepo remote cache (e.g. for jobs that do not invoke turbo).
     required: false
