@@ -45,6 +45,7 @@ import shellStyles from "./GraphView.module.css";
 import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
 import { dimColor, layerColor } from "./lensColor.js";
+import { createGraphViewStore } from "../state/graphViewStore.js";
 import {
   TRACE_STATE_IDLE,
   entryVisualState,
@@ -1190,6 +1191,16 @@ export function GraphView({
   const hoveredNodeIdRef = useRef<string | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const reducedMotion = useReducedMotionPreference();
+  // Single source of truth for the view-membership primitives. The imperative
+  // Sigma reducers read these via `graphViewStoreRef.current.getState()` (they
+  // cannot subscribe to React re-renders); the React state below remains the
+  // panel-facing copy and is mirrored into this store on change.
+  const graphViewStoreRef = useRef(
+    createGraphViewStore({
+      hiddenNodeKinds: new Set(DEFAULT_HIDDEN_NODE_KINDS),
+      hiddenEdgeKinds: new Set(DEFAULT_HIDDEN_EDGE_KINDS),
+    }),
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -1285,11 +1296,9 @@ export function GraphView({
     }, 6000);
     return () => window.clearTimeout(handle);
   }, [layoutSelection.notice]);
-  const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(
     () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
   );
-  const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
   // Slice 031 US3 — set of node IDs that carry the "decorator-backed" flag,
   // so the Sigma node reducer can hide them when the Decorator chip is off.
   const decoratorBackedNodeIdsRef = useRef<Set<string>>(new Set());
@@ -1832,19 +1841,20 @@ export function GraphView({
           entry: NodeEntryProgram,
         },
         nodeReducer: (node, data) => {
+          // View-membership inputs come from the store (single source of truth);
+          // the imperative reducer reads them live via getState() each call.
+          const hiddenNodeKinds = graphViewStoreRef.current.getState().hiddenNodeKinds;
+
           // 1. Node-kind filter (applied first — hides node before hover/focus logic runs)
           const attrs = data as GraphNodeAttributes;
           const kindKey = attrs.nodeKind === "file" ? "file" : (attrs.symbolKind ?? "function");
-          if (hiddenNodeKindsRef.current.has(kindKey)) {
+          if (hiddenNodeKinds.has(kindKey)) {
             return { ...data, hidden: true };
           }
           // Slice 031 US3 — Decorator chip semantics. When the user clicks the
           // Decorator chip off, decorator-backed nodes are hidden the same way
           // any other node-kind filter hides nodes.
-          if (
-            hiddenNodeKindsRef.current.has("decorator") &&
-            decoratorBackedNodeIdsRef.current.has(node)
-          ) {
+          if (hiddenNodeKinds.has("decorator") && decoratorBackedNodeIdsRef.current.has(node)) {
             return { ...data, hidden: true };
           }
 
@@ -1928,8 +1938,9 @@ export function GraphView({
           const selection = selectionRef.current;
           const edgeAttrs = data as GraphEdgeAttributes;
 
-          // Hide edges whose kind is toggled off by the filter bar.
-          if (hiddenEdgeKindsRef.current.has(edgeAttrs.edgeKind)) {
+          // Hide edges whose kind is toggled off by the filter bar. Read from
+          // the store (single source of truth) live on each reducer call.
+          if (graphViewStoreRef.current.getState().hiddenEdgeKinds.has(edgeAttrs.edgeKind)) {
             return { ...data, hidden: true };
           }
 
@@ -2150,19 +2161,21 @@ export function GraphView({
     setOverlaySegments(createOverlaySegments(graph, sigma, selectionRef.current));
   }, [selectedNodeId]);
 
-  // Sync hidden-edge-kinds ref so the edgeReducer (created once in the Sigma effect) can
-  // read the current filter without being recreated.  Then refresh Sigma to re-run reducers.
+  // Mirror hidden-edge-kinds into the store so the edgeReducer (created once in
+  // the Sigma effect) reads the current filter via getState() without being
+  // recreated. Then refresh Sigma to re-run reducers.
   useEffect(() => {
-    hiddenEdgeKindsRef.current = hiddenEdgeKinds;
+    graphViewStoreRef.current.getState().setHiddenEdgeKinds(hiddenEdgeKinds);
     const sigma = sigmaRef.current;
     if (sigma !== null) {
       refreshSigma(sigma);
     }
   }, [hiddenEdgeKinds]);
 
-  // Sync hidden-node-kinds ref so the nodeReducer (created once) can read current filter.
+  // Mirror hidden-node-kinds into the store so the nodeReducer reads the current
+  // filter via getState() without being recreated.
   useEffect(() => {
-    hiddenNodeKindsRef.current = hiddenNodeKinds;
+    graphViewStoreRef.current.getState().setHiddenNodeKinds(hiddenNodeKinds);
     const sigma = sigmaRef.current;
     if (sigma !== null) {
       refreshSigma(sigma);
