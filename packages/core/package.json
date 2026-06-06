@@ -59,6 +59,7 @@
     "graphology-metrics": "^2.4.0",
     "ignore": "^7.0.5",
     "picomatch": "^4.0.4",
+    "tree-sitter-javascript": "0.23.1",
     "tree-sitter-typescript": "^0.23.2",
     "uuid": "^14.0.0",
     "web-tree-sitter": "^0.26.9"

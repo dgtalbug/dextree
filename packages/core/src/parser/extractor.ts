@@ -3,16 +3,9 @@ import { access, readFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
-import type { Node, Tree } from "web-tree-sitter";
+import type { Node } from "web-tree-sitter";
 
-import type {
-  ExtractedImportRef,
-  ExtractedIndexData,
-  StoredSymbol,
-  SymbolKind,
-  SymbolRange,
-} from "../types.js";
-import { parseTypeScriptSource } from "./parser.js";
+import type { ExtractedImportRef, ExtractedIndexData, SymbolRange } from "../types.js";
 
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   ".ts": "typescript",
@@ -28,14 +21,6 @@ const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
 export function detectLanguage(absolutePath: string): string {
   return LANGUAGE_BY_EXTENSION[extname(absolutePath).toLowerCase()] ?? "plaintext";
 }
-
-const DECLARATION_KIND_BY_TYPE: Record<string, SymbolKind> = {
-  function_declaration: "function",
-  class_declaration: "class",
-  interface_declaration: "interface",
-  type_alias_declaration: "type",
-  enum_declaration: "enum",
-};
 
 const IMPORT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"] as const;
 
@@ -201,7 +186,7 @@ async function loadPathAliases(workspaceRoot: string): Promise<Map<string, strin
   return result;
 }
 
-async function extractImportRefs(
+export async function extractImportRefs(
   rootChildren: readonly Node[],
   absolutePath: string,
   workspaceRoot: string,
@@ -240,217 +225,6 @@ async function extractImportRefs(
   return imports;
 }
 
-function unwrapTopLevelDeclaration(node: Node): Node | null {
-  if (node.type !== "export_statement") {
-    return node;
-  }
-
-  return (
-    node.namedChildren.find(
-      (child) =>
-        child.type in DECLARATION_KIND_BY_TYPE ||
-        child.type === "lexical_declaration" ||
-        child.type === "variable_declaration",
-    ) ?? null
-  );
-}
-
-function getNamedChild(node: Node): Node | null {
-  return (
-    node.childForFieldName("name") ??
-    node.namedChildren.find(
-      (child) => child.type === "identifier" || child.type === "type_identifier",
-    ) ??
-    null
-  );
-}
-
-function buildTopLevelSymbol(
-  node: Node,
-  relativePath: string,
-  fileId: string,
-): StoredSymbol | null {
-  const kind = DECLARATION_KIND_BY_TYPE[node.type];
-
-  if (kind === undefined) {
-    return null;
-  }
-
-  const nameNode = getNamedChild(node);
-
-  if (nameNode === null) {
-    return null;
-  }
-
-  return {
-    id: uuidv4(),
-    fqn: `${relativePath}:${nameNode.text}`,
-    name: nameNode.text,
-    kind,
-    fileId,
-    range: toRange(node),
-    language: "typescript",
-  };
-}
-
-/**
- * Extracts method symbols from a class_declaration node's class_body.
- * Each public/protected/private method_definition becomes its own symbol with
- * fqn = `relativePath:ClassName.methodName`.
- */
-function buildMethodSymbols(
-  classNode: Node,
-  className: string,
-  classSymbolId: string,
-  relativePath: string,
-  fileId: string,
-): StoredSymbol[] {
-  const symbols: StoredSymbol[] = [];
-  const classBody = classNode.childForFieldName("body");
-  if (classBody === null) return symbols;
-
-  for (const member of classBody.namedChildren) {
-    if (member.type !== "method_definition") continue;
-    const nameNode =
-      member.childForFieldName("name") ??
-      member.namedChildren.find(
-        (c) => c.type === "property_identifier" || c.type === "identifier",
-      ) ??
-      null;
-    if (nameNode === null) continue;
-    const methodName = nameNode.text;
-    // Skip private fields (#name) — they're not meaningful across files.
-    if (methodName.startsWith("#")) continue;
-    symbols.push({
-      id: uuidv4(),
-      fqn: `${relativePath}:${className}.${methodName}`,
-      name: `${className}.${methodName}`,
-      kind: "method",
-      fileId,
-      range: toRange(member),
-      language: "typescript",
-      enclosingSymbolId: classSymbolId,
-    });
-  }
-
-  return symbols;
-}
-
-function buildVariableSymbols(node: Node, relativePath: string, fileId: string): StoredSymbol[] {
-  const symbols: StoredSymbol[] = [];
-
-  for (const declarator of node.descendantsOfType("variable_declarator")) {
-    const nameNode = getNamedChild(declarator);
-
-    if (nameNode === null) {
-      continue;
-    }
-
-    symbols.push({
-      id: uuidv4(),
-      fqn: `${relativePath}:${nameNode.text}`,
-      name: nameNode.text,
-      kind: "variable",
-      fileId,
-      range: toRange(declarator),
-      language: "typescript",
-    });
-  }
-
-  return symbols;
-}
-
-/**
- * Tree-based variant: walks an already-parsed tree-sitter tree and produces the
- * same ExtractedIndexData shape as `extractTypeScriptSource`, without re-parsing.
- * Callers that share a tree across multiple extractors (slice 010 registry path)
- * use this directly; callers that just want "parse + walk" use
- * `extractTypeScriptSource`, which delegates here after parsing.
- *
- * Tree disposal is the caller's responsibility — this function does NOT call
- * `tree.delete()`, so the same tree can be handed to other extractors.
- *
- * `fileId` is required so multiple extractors operating on the same file agree
- * on which file id to use for foreign-key targets.
- */
-export async function extractTypeScriptFromTree(
-  absolutePath: string,
-  workspaceRoot: string,
-  source: string,
-  tree: Tree,
-  fileId: string,
-): Promise<ExtractedIndexData> {
-  const relativePath = toPosixRelativePath(workspaceRoot, absolutePath);
-  const symbols: StoredSymbol[] = [];
-  const imports = await extractImportRefs(
-    tree.rootNode.namedChildren,
-    absolutePath,
-    workspaceRoot,
-    fileId,
-  );
-
-  for (const child of tree.rootNode.namedChildren) {
-    const declaration = unwrapTopLevelDeclaration(child);
-
-    if (declaration === null) {
-      continue;
-    }
-
-    if (declaration.type === "lexical_declaration" || declaration.type === "variable_declaration") {
-      symbols.push(...buildVariableSymbols(declaration, relativePath, fileId));
-      continue;
-    }
-
-    if (!(declaration.type in DECLARATION_KIND_BY_TYPE)) {
-      continue;
-    }
-
-    const symbol = buildTopLevelSymbol(declaration, relativePath, fileId);
-
-    if (symbol !== null) {
-      symbols.push(symbol);
-      // Also extract methods for class declarations so method-level nodes
-      // appear in the graph (mirrors GitNexus symbol density). Each method
-      // carries the parent class's symbol id via `enclosingSymbolId` so
-      // downstream consumers (e.g. classDiagram serializer) can group
-      // methods under their owning class without name-matching FQNs.
-      if (declaration.type === "class_declaration") {
-        symbols.push(
-          ...buildMethodSymbols(declaration, symbol.name, symbol.id, relativePath, fileId),
-        );
-      }
-    }
-  }
-
-  return {
-    file: {
-      id: fileId,
-      path: absolutePath,
-      relativePath,
-      language: detectLanguage(absolutePath),
-      loc: getLoc(source),
-      hash: hashSource(source),
-    },
-    symbols,
-    imports,
-  };
-}
-
-export async function extractTypeScriptSource(
-  absolutePath: string,
-  workspaceRoot: string,
-  source: string,
-  wasmDir: string,
-): Promise<ExtractedIndexData> {
-  const tree = await parseTypeScriptSource(source, wasmDir);
-  const fileId = uuidv4();
-  try {
-    return await extractTypeScriptFromTree(absolutePath, workspaceRoot, source, tree, fileId);
-  } finally {
-    tree.delete();
-  }
-}
-
 export async function extractPlainFile(
   absolutePath: string,
   workspaceRoot: string,
@@ -470,13 +244,4 @@ export async function extractPlainFile(
     symbols: [],
     imports: [],
   };
-}
-
-export async function extractTypeScriptFile(
-  absolutePath: string,
-  workspaceRoot: string,
-  wasmDir: string,
-): Promise<ExtractedIndexData> {
-  const source = await readFile(absolutePath, "utf8");
-  return extractTypeScriptSource(absolutePath, workspaceRoot, source, wasmDir);
 }

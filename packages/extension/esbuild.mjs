@@ -56,6 +56,21 @@ const assetMatrix = [
       ...pnpmStore("tree-sitter-typescript@", "tree-sitter-typescript/tree-sitter-typescript.wasm"),
     ],
   },
+  {
+    // TSX grammar ships alongside the TypeScript grammar; used for .tsx files.
+    target: "tree-sitter-typescript/tree-sitter-tsx.wasm",
+    candidates: [
+      resolve(repoRoot, "node_modules/tree-sitter-typescript/tree-sitter-tsx.wasm"),
+      ...pnpmStore("tree-sitter-typescript@", "tree-sitter-typescript/tree-sitter-tsx.wasm"),
+    ],
+  },
+  {
+    target: "tree-sitter-javascript/tree-sitter-javascript.wasm",
+    candidates: [
+      resolve(repoRoot, "node_modules/tree-sitter-javascript/tree-sitter-javascript.wasm"),
+      ...pnpmStore("tree-sitter-javascript@", "tree-sitter-javascript/tree-sitter-javascript.wasm"),
+    ],
+  },
   // Copy each platform's DuckDB native binding. Each entry is tagged with its
   // platform so VSCE_TARGET can filter to a single one in matrix release builds.
   ...DUCKDB_PLATFORMS.map((platform) => ({

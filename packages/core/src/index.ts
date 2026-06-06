@@ -11,7 +11,7 @@ import type { DetectedFramework } from "./extractors/frameworks/types.js";
 import { buildBaselineFileRecord, createDefaultExtractorRegistry } from "./extractors/index.js";
 import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
-import { parseTypeScriptSource } from "./parser/parser.js";
+import { parseSource } from "./parser/grammars.js";
 import { getAllFilesQuery } from "./query/files.js";
 import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 import { querySessionSummary } from "./query/sessionSummary.js";
@@ -120,13 +120,6 @@ export class SchemaError extends Error {
   }
 }
 
-const TS_LIKE_LANGUAGES = new Set([
-  "typescript",
-  "javascript",
-  "typescriptreact",
-  "javascriptreact",
-]);
-
 class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;
   private initializationPromise: Promise<void> | null = null;
@@ -141,7 +134,7 @@ class DuckTreeIndexer implements Indexer {
     options?: IndexerFactoryOptions,
   ) {
     this.logger = options?.logger;
-    this.registry = createDefaultExtractorRegistry(this.logger);
+    this.registry = createDefaultExtractorRegistry(this.wasmDir, this.logger);
   }
 
   async initialize(): Promise<void> {
@@ -201,9 +194,9 @@ class DuckTreeIndexer implements Indexer {
     const language = detectLanguage(absolutePath);
     const source = await readFile(absolutePath, "utf8");
     const fileId = uuidv4();
-    const tree = TS_LIKE_LANGUAGES.has(language)
-      ? await parseTypeScriptSource(source, this.wasmDir)
-      : null;
+    // Generic parse: any language with a registered grammar gets a tree; others
+    // (structural/plaintext) get null and fall through to the file-only record.
+    const tree = await parseSource(source, language, this.wasmDir);
 
     try {
       this.logger?.debug("indexFile start", {
