@@ -1315,6 +1315,38 @@ describe("GraphView", () => {
     });
   });
 
+  describe("node focus", () => {
+    it("focuses a selected node and shows the exit chip, then restores on exit", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // Select a node so the Inspector populates with its actions.
+      const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+      clickNodeHandler?.({ node: "symbol-1" });
+      act(() => {
+        vi.runAllTimers();
+      });
+
+      // No focus chip before focusing.
+      expect(screen.queryByTestId("focus-chip")).toBeNull();
+
+      // Enter focus from the Inspector.
+      fireEvent.click(screen.getByTestId("focus-node"));
+      expect(screen.getByTestId("focus-chip")).toBeTruthy();
+
+      // Exit focus restores the non-focused view (chip gone).
+      fireEvent.click(screen.getByTestId("focus-exit"));
+      expect(screen.queryByTestId("focus-chip")).toBeNull();
+    });
+  });
+
   describe("layout presets (slice 025 US1)", () => {
     it("shows ForceAtlas2 as the default active layout when GraphView opens (FR-003)", () => {
       render(

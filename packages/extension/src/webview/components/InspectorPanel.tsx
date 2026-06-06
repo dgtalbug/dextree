@@ -36,6 +36,8 @@ export interface InspectorNeighbors {
 export interface InspectorPanelProps {
   selectedNode: GraphNode | null;
   onTraceFromHere?: ((nodeId: string) => void) | undefined;
+  /** Collapse the view to this node's neighbourhood (focus mode). */
+  onFocusNode?: ((nodeId: string) => void) | undefined;
   neighbors?: InspectorNeighbors;
   onNeighborClick?: (nodeId: string) => void;
 }
@@ -138,11 +140,13 @@ function NeighborSection({
 function PopulatedState({
   node,
   onTraceFromHere,
+  onFocusNode,
   neighbors,
   onNeighborClick,
 }: {
   node: GraphNode;
   onTraceFromHere?: ((nodeId: string) => void) | undefined;
+  onFocusNode?: ((nodeId: string) => void) | undefined;
   neighbors?: InspectorNeighbors;
   onNeighborClick?: (nodeId: string) => void;
 }): React.ReactElement {
@@ -234,6 +238,18 @@ function PopulatedState({
             Trace from here
           </button>
         )}
+        {onFocusNode && (
+          <button
+            type="button"
+            className={styles.actionBtn}
+            data-testid="focus-node"
+            onClick={() => onFocusNode(node.id)}
+            title="Focus this node's neighbourhood"
+          >
+            <span className="codicon codicon-eye" aria-hidden="true" />
+            Focus
+          </button>
+        )}
         <button
           type="button"
           className={styles.actionBtn}
@@ -251,6 +267,7 @@ function PopulatedState({
 export function InspectorPanel({
   selectedNode,
   onTraceFromHere,
+  onFocusNode,
   neighbors,
   onNeighborClick,
 }: InspectorPanelProps): React.ReactElement {
@@ -265,6 +282,7 @@ export function InspectorPanel({
         <PopulatedState
           node={selectedNode}
           {...(onTraceFromHere !== undefined ? { onTraceFromHere } : {})}
+          {...(onFocusNode !== undefined ? { onFocusNode } : {})}
           {...(neighbors !== undefined ? { neighbors } : {})}
           {...(onNeighborClick !== undefined ? { onNeighborClick } : {})}
         />

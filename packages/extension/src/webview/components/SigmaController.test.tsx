@@ -228,6 +228,59 @@ describe("SigmaController — getVisibleView", () => {
   });
 });
 
+describe("SigmaController — focus", () => {
+  it("collapses the view to the focus node's neighbourhood", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setFocus("a", 1); // a → b within depth 1
+    const view = controller.getVisibleView();
+    expect(view.focusNodeId).toBe("a");
+    expect(view.nodeIds.has("a")).toBe(true);
+    expect(view.nodeIds.has("b")).toBe(true);
+    // c is 2 hops from a; outside depth 1.
+    expect(view.nodeIds.has("c")).toBe(false);
+  });
+
+  it("focuses to just the node when it has no neighbours", () => {
+    const graph = new MultiDirectedGraph();
+    graph.addNode("lonely", { nodeKind: "symbol", symbolKind: "function" });
+    const controller = new SigmaController(
+      createGraphViewStore({ hiddenNodeKinds: new Set(), hiddenEdgeKinds: new Set() }),
+      options(),
+    );
+    controller.adopt(stubSigma().sigma, graph, stubContainer());
+    controller.setFocus("lonely", 3);
+    const view = controller.getVisibleView();
+    expect([...view.nodeIds]).toEqual(["lonely"]);
+  });
+
+  it("clearing focus restores the full view", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setFocus("a", 1);
+    controller.setFocus(null, 1);
+    expect(controller.focusedNode).toBeNull();
+    expect(controller.getVisibleView().nodeIds.size).toBe(3);
+  });
+
+  it("focusing a missing node is a safe no-op (no throw, no focus)", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    expect(() => controller.setFocus("ghost", 2)).not.toThrow();
+    expect(controller.focusedNode).toBeNull();
+    expect(controller.getVisibleView().nodeIds.size).toBe(3);
+  });
+
+  it("dispose clears focus", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setFocus("a", 1);
+    controller.dispose();
+    expect(controller.focusedNode).toBeNull();
+    expect(controller.focusVisibleSet).toBeNull();
+  });
+});
+
 describe("SigmaController — camera operations", () => {
   it("zoomIn multiplies the ratio by 0.7 at the current centre", () => {
     const controller = new SigmaController(freshStore(), options());

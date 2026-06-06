@@ -481,6 +481,9 @@ export function GraphView({
   const [searchFocusedIndex, setSearchFocusedIndex] = useState<number>(0);
   // Depth slider state (slice 022). Default 3 per spec FR-005.
   const [depth, setDepth] = useState<number>(3);
+  // Node focus: the focused node id, or null when not focused. React tracks it
+  // for the exit affordance; the controller owns the focus membership.
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   // Trace state (slice 023). React owns the trace state machine for the banner /
   // rails / inspector; the controller holds the phase + path id sets the Sigma
   // reducers read, kept in sync via setTracePhase (eager) + setTracePath.
@@ -822,6 +825,27 @@ export function GraphView({
     });
   }, []);
 
+  // Node focus (new capability): collapse the view to a node's neighbourhood at
+  // the current depth. Focus is additive — it narrows membership without
+  // touching lens/filters/depth — so exiting simply clears it and the prior view
+  // is intact. React tracks the focused id for the exit affordance; the
+  // controller owns the focus membership the reducer + export read.
+  const handleFocusNode = useCallback(
+    (nodeId: string): void => {
+      controllerRef.current?.setFocus(nodeId, depth);
+      setFocusNodeId(nodeId);
+      // Re-frame the camera onto the focused neighbourhood for readability.
+      controllerRef.current?.zoomFit();
+    },
+    [depth],
+  );
+
+  const handleExitFocus = useCallback((): void => {
+    controllerRef.current?.setFocus(null, depth);
+    setFocusNodeId(null);
+    controllerRef.current?.zoomFit();
+  }, [depth]);
+
   /** Animate the Sigma camera to the given node (slice 023 trace-step click). */
   const handleTraceStepClick = useCallback((nodeId: string): void => {
     const sigma = sigmaRef.current;
@@ -850,6 +874,9 @@ export function GraphView({
     // no-op before mount (no graph yet) and clears hover after.
     controllerRef.current?.setSelection(null);
     controllerRef.current?.setHover(null);
+    // setFocus(null) clears focus; the depth arg is unused when exiting.
+    controllerRef.current?.setFocus(null, 0);
+    setFocusNodeId(null);
     setOverlaySegments([]);
   }, [edges, nodes]);
 
@@ -1059,6 +1086,15 @@ export function GraphView({
     }
     controllerRef.current?.setDepthVisibleNodeIds(visible);
   }, [depthEnabled, matchedNodeIds, selectedNodeId, depth]);
+
+  // Keep the focus neighbourhood tracking the current depth: when focused and
+  // depth changes, recompute the focus set so the collapsed view expands or
+  // contracts with the slider. No-op when not focused.
+  useEffect(() => {
+    if (focusNodeId !== null) {
+      controllerRef.current?.setFocus(focusNodeId, depth);
+    }
+  }, [focusNodeId, depth]);
 
   // Sync the trace render mirror onto the controller so the node/edge reducers
   // apply the path-active dimming/highlight. React owns traceState (banner /
@@ -1510,6 +1546,25 @@ export function GraphView({
           </div>
         </div>
 
+        {focusNodeId !== null && (
+          <div className="dxt-floating dxt-focus-chip" role="status" data-testid="focus-chip">
+            <span className="codicon codicon-eye" aria-hidden="true" />
+            <span className="dxt-focus-chip__label">
+              Focused: {nodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId}
+            </span>
+            <button
+              type="button"
+              className="dxt-icon-btn"
+              onClick={handleExitFocus}
+              title="Exit focus"
+              aria-label="Exit focus"
+              data-testid="focus-exit"
+            >
+              <span className="codicon codicon-close" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         <div className="dxt-canvas-help" data-testid="canvas-help">
           <span>
             <kbd>Click</kbd> isolate
@@ -1615,6 +1670,7 @@ export function GraphView({
               selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
             }
             onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
+            onFocusNode={traceState.phase === "idle" ? handleFocusNode : undefined}
             neighbors={inspectorNeighbors}
             onNeighborClick={(id) => {
               const target = nodes.find((n) => n.id === id);
