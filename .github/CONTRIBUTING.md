@@ -6,7 +6,7 @@ project follows.
 
 ## Environment
 
-- **Node** ≥ 22.0.0
+- **Node** ≥ 22.22.1
 - **pnpm** exactly `11.1.2` (the lockfile and `engines` field enforce this)
 - **VS Code** ≥ 1.85.0 for running the extension locally
 

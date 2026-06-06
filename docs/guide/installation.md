@@ -25,7 +25,7 @@ If you want Dextree before v0.1 ships, clone and build the extension locally.
 
 ### Prerequisites
 
-- **Node.js** ≥ 22.0.0
+- **Node.js** ≥ 22.22.1
 - **pnpm** exactly `11.1.2` (enforced by the `packageManager` field in `package.json`)
 - **VS Code** ≥ 1.85
 
