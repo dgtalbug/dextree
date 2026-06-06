@@ -131,7 +131,7 @@ describe("createIndexWorkspaceCommand — file discovery + ignore filter", () =>
 
     await command();
 
-    expect(createWorkspaceIgnore).toHaveBeenCalledWith("/workspace");
+    expect(createWorkspaceIgnore).toHaveBeenCalledWith("/workspace", expect.any(Object));
   });
 
   it("does NOT pass ignored files to indexer.indexFile", async () => {

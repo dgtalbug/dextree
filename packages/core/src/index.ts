@@ -82,7 +82,11 @@ export type {
   WorkspaceSubgraph,
 } from "./types.js";
 
-export { createWorkspaceIgnore, type WorkspaceIgnore } from "./ignore/workspaceIgnore.js";
+export {
+  createWorkspaceIgnore,
+  type WorkspaceIgnore,
+  type WorkspaceIgnoreOptions,
+} from "./ignore/workspaceIgnore.js";
 export { recomputeGraphHealth } from "./quality/index.js";
 export { createDefaultExtractorRegistry, createExtractorRegistry } from "./extractors/index.js";
 export type {

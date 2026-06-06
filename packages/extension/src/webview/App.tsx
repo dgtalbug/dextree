@@ -135,10 +135,27 @@ function TabStrip({ tabs, activeKey }: { tabs: TabDescriptor[]; activeKey: TabKe
 interface AppProps {
   vscodeApi: {
     postMessage: (message: unknown) => void;
+    getState?: () => unknown;
+    setState?: (state: unknown) => void;
   };
 }
 
+/** Shape of the persisted webview view-state (VS Code getState/setState). */
+interface PersistedWebviewState {
+  showClusterHulls?: boolean;
+}
+
 export function App({ vscodeApi }: AppProps) {
+  // Restore the persisted cluster-hull preference (VS Code getState/setState,
+  // never localStorage). undefined when never set → GraphView keeps its default.
+  const persisted = (vscodeApi.getState?.() ?? {}) as PersistedWebviewState;
+  const initialShowClusterHulls = persisted.showClusterHulls;
+  const persistShowClusterHulls = (visible: boolean): void => {
+    if (vscodeApi.setState === undefined) return;
+    const prev = (vscodeApi.getState?.() ?? {}) as PersistedWebviewState;
+    vscodeApi.setState({ ...prev, showClusterHulls: visible });
+  };
+
   const [state, dispatch] = useReducer(reducer, {
     hasReceivedGraph: false,
     nodes: [],
@@ -413,6 +430,8 @@ export function App({ vscodeApi }: AppProps) {
             nodes={displayNodes}
             edges={displayEdges}
             onNavigate={handleNavigate}
+            {...(initialShowClusterHulls !== undefined ? { initialShowClusterHulls } : {})}
+            onPersistClusterHulls={persistShowClusterHulls}
             onExportMermaid={() => {
               handleCommand("export-mermaid");
             }}

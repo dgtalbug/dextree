@@ -98,6 +98,10 @@ export interface GraphViewProps {
   edges: GraphEdge[];
   onNavigate: (filePath: string, line: number) => void;
   onExportMermaid: () => void;
+  /** Restored cluster-hull visibility preference; undefined → use the default. */
+  initialShowClusterHulls?: boolean;
+  /** Persist the cluster-hull visibility preference (VS Code state, not localStorage). */
+  onPersistClusterHulls?: (visible: boolean) => void;
   /**
    * Request a Mermaid export of exactly the rendered view. GraphView derives the
    * current `VisibleView` membership and passes the node/edge id arrays so the

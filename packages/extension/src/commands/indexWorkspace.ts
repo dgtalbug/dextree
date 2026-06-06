@@ -1,4 +1,6 @@
 import { createWorkspaceIgnore, type Indexer } from "@dextree/core";
+
+import { readIgnoreOptions } from "./ignoreOptions.js";
 import { basename } from "node:path";
 import * as vscode from "vscode";
 
@@ -76,7 +78,10 @@ export function createIndexWorkspaceCommand(
       }
 
       const discovered = await vscode.workspace.findFiles(SUPPORTED_GLOB, EXCLUDE_GLOB);
-      const workspaceIgnore = await createWorkspaceIgnore(root.uri.fsPath);
+      const workspaceIgnore = await createWorkspaceIgnore(
+        root.uri.fsPath,
+        readIgnoreOptions(root.uri),
+      );
       const files = discovered.filter((file) => !workspaceIgnore.ignores(file.fsPath));
       const skipped = discovered.length - files.length;
 

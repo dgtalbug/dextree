@@ -56,8 +56,6 @@
  */
 import type { FrameworkDefinition, FrameworkRegistry } from "./types.js";
 
-export const REGISTRY_DOC_MARKER = "How to add a new framework";
-
 const REACT: FrameworkDefinition = {
   name: "react",
   description: "React UI framework",

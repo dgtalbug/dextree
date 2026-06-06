@@ -13,11 +13,6 @@ interface EdgeKindMeta {
 }
 
 const EDGE_KIND_META: Readonly<Record<string, EdgeKindMeta>> = {
-  CONTAINS: {
-    label: "Contains",
-    codicon: "symbol-folder",
-    dotColor: "var(--edge-color-contains, var(--vscode-symbolIcon-folderForeground, #c5c5c5))",
-  },
   DEFINES: {
     label: "Defines",
     codicon: "symbol-file",
