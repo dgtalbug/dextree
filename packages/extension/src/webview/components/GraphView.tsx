@@ -6,16 +6,12 @@ import {
   type LensId,
   type RankableLensId,
 } from "@dextree/core/lenses";
-import { createNodeBorderProgram } from "@sigma/node-border";
-import { NodeSquareProgram } from "@sigma/node-square";
 import { MultiDirectedGraph } from "graphology";
-import forceAtlas2 from "graphology-layout-forceatlas2";
 import { edgePathFromNodePath } from "graphology-shortest-path";
 import { bidirectional } from "graphology-shortest-path/unweighted";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Sigma from "sigma";
-import { NodeCircleProgram } from "sigma/rendering";
+import type Sigma from "sigma";
 
 import {
   applyLayoutPreset,
@@ -23,7 +19,6 @@ import {
   restoreNodePositions,
   snapshotNodePositions,
 } from "./graphLayoutPresets.js";
-import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
 import { EdgeTypesPanel, type EdgeTypeEntry } from "./EdgeTypesPanel.js";
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
@@ -43,18 +38,17 @@ import {
 import shellStyles from "./GraphView.module.css";
 import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
-import { dimColor, layerColor } from "./lensColor.js";
+import { layerColor } from "./lensColor.js";
 import { drawClusterHulls, drawMinimap } from "./graphOverlay.js";
 import { computeSelection, computeTracePath } from "./graphTraversal.js";
 import { StaticGraphFallback } from "./StaticGraphFallback.js";
+import { SigmaController } from "./SigmaController.js";
 import {
   buildGraph,
   edgeColor,
   mixWithBackground,
   snapshotGraph,
-  stabilizeFileAnchors,
   symbolColor,
-  toFadedColor,
 } from "./graphBuild.js";
 import { createGraphViewStore } from "../state/graphViewStore.js";
 import {
@@ -70,13 +64,10 @@ import {
   type SelectionTraversal,
   type SigmaNodeDisplayData,
   type ThemeColors,
-  type TracePhase,
   type TraceState,
 } from "./graphViewTypes.js";
 
-const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
-const FLOW_MAX_DEPTH = 4;
 // Target camera ratio when flying to a search result — small enough to read
 // the node clearly. Clamped so we only ever zoom in, never out.
 const SEARCH_FLY_TO_RATIO = 0.5;
@@ -102,23 +93,9 @@ const DEFAULT_HIDDEN_EDGE_KINDS: ReadonlyArray<GraphEdge["kind"]> = [
   "INSTANTIATES",
 ];
 
-// 2px is the smallest border that stays visible at the smallest rendered
-// symbol-node size (5px). Fallback hex is muted gold; the live color comes
-// from the `--vscode-charts-yellow` theme token via `readThemeColors`, so
-// custom VS Code themes drive the entry styling and theme switches refresh
-// it on the next render.
+// Fallback entry-border colour for `readThemeColors` when the
+// `--vscode-charts-yellow` token is absent; muted gold survives all themes.
 const ENTRY_BORDER_COLOR_FALLBACK = "#d4af37";
-const ENTRY_BORDER_PIXELS = 2;
-
-const NodeEntryProgram = createNodeBorderProgram({
-  borders: [
-    {
-      color: { attribute: "entryBorderColor", defaultValue: ENTRY_BORDER_COLOR_FALLBACK },
-      size: { value: ENTRY_BORDER_PIXELS, mode: "pixels" },
-    },
-    { color: { attribute: "color" }, size: { fill: true } },
-  ],
-});
 
 type SigmaWithExtras = Sigma & {
   getNodeDisplayData?: (node: string) => SigmaNodeDisplayData | undefined;
@@ -297,7 +274,11 @@ function formatLensMetric(metric: number): string {
   return Number.isInteger(metric) ? String(metric) : metric.toFixed(3);
 }
 
-function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivElement): void {
+function applyTheme(
+  graph: MultiDirectedGraph,
+  sigma: Sigma,
+  container: HTMLDivElement,
+): ThemeColors {
   const colors = readThemeColors();
 
   container.style.backgroundColor = colors.backgroundColor;
@@ -339,6 +320,7 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
   applySigmaSetting(sigma, "defaultNodeColor", colors.symbolKindColors.default);
   applySigmaSetting(sigma, "defaultEdgeColor", colors.definesEdgeColor);
   refreshSigma(sigma);
+  return colors;
 }
 
 export function GraphView({
@@ -361,15 +343,7 @@ export function GraphView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MultiDirectedGraph | null>(null);
   const sigmaRef = useRef<Sigma | null>(null);
-  const hoverRef = useRef<HoverNeighborhood | null>(null);
-  const hoverSelectionRef = useRef<SelectionTraversal | null>(null);
-  const selectionRef = useRef<SelectionTraversal | null>(null);
-  const clickTimeoutRef = useRef<number | null>(null);
-  // Tracks last single-click for manual double-click detection on nodes.
-  // Sigma 3's "doubleClickNode" can miss if WebGL picking fails on rapid 2nd click.
-  const lastClickRef = useRef<{ node: string; time: number } | null>(null);
   const clusterCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const hoveredNodeIdRef = useRef<string | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const reducedMotion = useReducedMotionPreference();
   // Single source of truth for the view-membership primitives. The imperative
@@ -382,6 +356,26 @@ export function GraphView({
       hiddenEdgeKinds: new Set(DEFAULT_HIDDEN_EDGE_KINDS),
     }),
   );
+  // Owns the imperative Sigma layer. Constructed once and adopted into the mount
+  // effect; the strangler migration moves operations onto it phase by phase so
+  // the ~460-line effect can collapse to construct/adopt/dispose.
+  const controllerRef = useRef<SigmaController | null>(null);
+  if (controllerRef.current === null) {
+    controllerRef.current = new SigmaController(graphViewStoreRef.current, {
+      readThemeColors,
+      // React owns the SVG traveler overlay; the controller hands back the
+      // active selection and we build the segments from the live sigma/graph.
+      onOverlayUpdate: (selection) => {
+        const sigma = sigmaRef.current;
+        const graph = graphRef.current;
+        if (sigma === null || graph === null) {
+          setOverlaySegments([]);
+          return;
+        }
+        setOverlaySegments(createOverlaySegments(graph, sigma, selection));
+      },
+    });
+  }
 
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -480,26 +474,17 @@ export function GraphView({
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(
     () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
   );
-  // Slice 031 US3 — set of node IDs that carry the "decorator-backed" flag,
-  // so the Sigma node reducer can hide them when the Decorator chip is off.
-  const decoratorBackedNodeIdsRef = useRef<Set<string>>(new Set());
   const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
-  const lensMatchSetRef = useRef<ReadonlySet<string> | null>(null);
-  const lensColorOfRef = useRef<((archLayer: string | undefined) => string | null) | null>(null);
   // Search state (slice 022). `searchQuery` is the committed (post-debounce)
   // value; the SearchBar manages its own pending input internally.
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchFocusedIndex, setSearchFocusedIndex] = useState<number>(0);
-  const matchedNodeIdsRef = useRef<Set<string>>(new Set());
   // Depth slider state (slice 022). Default 3 per spec FR-005.
   const [depth, setDepth] = useState<number>(3);
-  // Trace state (slice 023). Tracks the trace state machine and the
-  // resolved path. `tracePhaseRef` mirrors `traceState.phase` so the
-  // Sigma clickNode callback can route clicks without being re-registered.
+  // Trace state (slice 023). React owns the trace state machine for the banner /
+  // rails / inspector; the controller holds the phase + path id sets the Sigma
+  // reducers read, kept in sync via setTracePhase (eager) + setTracePath.
   const [traceState, setTraceState] = useState<TraceState>(TRACE_STATE_IDLE);
-  const tracePhaseRef = useRef<TracePhase>("idle");
-  const pathNodeIdsRef = useRef<Set<string>>(new Set());
-  const pathEdgeIdsRef = useRef<Set<string>>(new Set());
 
   const onToggleMinimap = useCallback(() => {
     setShowMinimap((visible) => !visible);
@@ -631,8 +616,9 @@ export function GraphView({
     const graph = graphRef.current;
     if (graph === null || !graph.hasNode(nodeId)) return;
     setSelectedNodeId(nodeId);
-    selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
-    if (sigma !== null) refreshSigma(sigma);
+    // Historically this path set the selection + refreshed but did not touch the
+    // overlay (unlike a canvas click); preserve that by opting out.
+    controllerRef.current?.setSelection(nodeId, { updateOverlay: false });
 
     // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
     // zoomed-out graph). Clamp so we only ever zoom in, never out.
@@ -674,7 +660,7 @@ export function GraphView({
   const handleTraceToggle = useCallback((): void => {
     setTraceState((current) => {
       if (current.phase !== "idle") {
-        tracePhaseRef.current = "idle";
+        controllerRef.current?.setTracePhase("idle");
         return TRACE_STATE_IDLE;
       }
       // Entering trace mode clears search + depth so the full graph is
@@ -682,47 +668,32 @@ export function GraphView({
       setSearchQuery("");
       setSearchFocusedIndex(0);
       setDepth(3);
-      tracePhaseRef.current = "picking-start";
+      controllerRef.current?.setTracePhase("picking-start");
       return { ...TRACE_STATE_IDLE, phase: "picking-start" };
     });
   }, []);
 
   const handleTraceExit = useCallback((): void => {
-    tracePhaseRef.current = "idle";
+    controllerRef.current?.setTracePhase("idle");
     setTraceState(TRACE_STATE_IDLE);
   }, []);
 
-  // Zoom handlers (slice 033 US3).
+  // Zoom handlers (slice 033 US3). Delegate to the controller, which owns the
+  // Sigma instance + camera math.
   const handleZoomIn = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const camera = (sigma as SigmaWithExtras).getCamera?.();
-    const state = camera?.getState?.();
-    if (camera?.animate !== undefined && state !== undefined) {
-      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 0.7 }, { duration: 200 });
-    }
+    controllerRef.current?.zoomIn();
   }, []);
 
   const handleZoomOut = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const camera = (sigma as SigmaWithExtras).getCamera?.();
-    const state = camera?.getState?.();
-    if (camera?.animate !== undefined && state !== undefined) {
-      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 1.4 }, { duration: 200 });
-    }
+    controllerRef.current?.zoomOut();
   }, []);
 
   const handleZoomFit = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const container = containerRef.current;
-    const g = graphRef.current;
-    if (sigma === null || container === null || g === null) return;
-    fitCameraToNodes(sigma as SigmaWithExtras, container, g as unknown as NodeBoundsGraph);
+    controllerRef.current?.zoomFit();
   }, []);
 
   const handleZoomReset = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const camera = (sigma as SigmaWithExtras).getCamera?.();
-    camera?.animate?.({ x: 0.5, y: 0.5, ratio: 1 }, { duration: 300 });
+    controllerRef.current?.zoomReset();
   }, []);
 
   // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
@@ -761,7 +732,7 @@ export function GraphView({
     }
     const nodePath = bidirectional(graph, startId, endId);
     if (nodePath === null) {
-      tracePhaseRef.current = "path-active";
+      controllerRef.current?.setTracePhase("path-active");
       setTraceState({
         phase: "path-active",
         startNodeId: startId,
@@ -774,7 +745,7 @@ export function GraphView({
       return;
     }
     const edgePath = edgePathFromNodePath(graph, nodePath);
-    tracePhaseRef.current = "path-active";
+    controllerRef.current?.setTracePhase("path-active");
     setTraceState({
       phase: "path-active",
       startNodeId: startId,
@@ -790,7 +761,7 @@ export function GraphView({
     (nodeId: string): void => {
       setTraceState((current) => {
         if (current.phase === "picking-start") {
-          tracePhaseRef.current = "picking-end";
+          controllerRef.current?.setTracePhase("picking-end");
           return {
             ...TRACE_STATE_IDLE,
             phase: "picking-end",
@@ -822,7 +793,7 @@ export function GraphView({
     setSearchQuery("");
     setSearchFocusedIndex(0);
     setDepth(3);
-    tracePhaseRef.current = "picking-end";
+    controllerRef.current?.setTracePhase("picking-end");
     setTraceState({
       ...TRACE_STATE_IDLE,
       phase: "picking-end",
@@ -853,23 +824,24 @@ export function GraphView({
 
   useEffect(() => {
     setSelectedNodeId(null);
-    selectionRef.current = null;
-    hoverRef.current = null;
-    hoverSelectionRef.current = null;
-    lastClickRef.current = null;
+    // Clear the controller's selection/hover render mirror when the graph data
+    // changes. setSelection(null) also clears the overlay; setHover(null) is a
+    // no-op before mount (no graph yet) and clears hover after.
+    controllerRef.current?.setSelection(null);
+    controllerRef.current?.setHover(null);
     setOverlaySegments([]);
   }, [edges, nodes]);
 
   useEffect(() => {
     const container = containerRef.current;
+    const controller = controllerRef.current;
 
-    if (container === null) {
+    if (container === null || controller === null) {
       return;
     }
 
     const colors = readThemeColors();
     const graph = buildGraph(nodes, edges, colors);
-    const canceledRef = { current: false };
 
     // Degree-based size boost: hub nodes (high connectivity) render larger so
     // important call-sites and widely-imported files stand out visually.
@@ -884,462 +856,112 @@ export function GraphView({
 
     graphRef.current = graph;
 
-    const buildFallbackGraph = () => snapshotGraph(graph);
     const updateOverlay = (): void => {
-      const activeGraph = graphRef.current;
       const sigma = sigmaRef.current;
-
-      if (activeGraph === null || sigma === null) {
+      if (sigma === null) {
         setOverlaySegments([]);
         return;
       }
-
-      setOverlaySegments(createOverlaySegments(activeGraph, sigma, selectionRef.current));
+      setOverlaySegments(createOverlaySegments(graph, sigma, controller.currentSelection));
     };
 
-    let sigma: Sigma | null = null;
-    let observer: MutationObserver | null = null;
-    let resizeObserver: ResizeObserver | null = null;
-
-    const enterNodeListener = (event: { node: string }): void => {
-      hoveredNodeIdRef.current = event.node;
-      hoverRef.current = computeHoverNeighborhood(graph, event.node);
-      hoverSelectionRef.current = computeSelection(graph, event.node, FLOW_MAX_DEPTH);
-      if (sigma !== null) {
-        refreshSigma(sigma);
-        // Show animated edge overlay on hover when nothing is selected
-        if (selectionRef.current === null) {
-          setOverlaySegments(
-            createOverlaySegments(graphRef.current ?? graph, sigma, hoverSelectionRef.current),
-          );
+    const drawAfterRender = (): void => {
+      const sigma = sigmaRef.current;
+      if (sigma === null) return;
+      try {
+        const cc = clusterCanvasRef.current;
+        if (cc !== null) {
+          if (!showClusterHullsRef.current) {
+            cc.getContext("2d")?.clearRect(0, 0, cc.width, cc.height);
+          } else {
+            const hoveredNodeId = controller.hoveredNode;
+            const activeSelection = controller.currentSelection;
+            const hoveredFilePath =
+              hoveredNodeId !== null && graph.hasNode(hoveredNodeId)
+                ? String((graph.getNodeAttributes(hoveredNodeId) as GraphNodeAttributes).filePath)
+                : null;
+            const selectedFilePath =
+              activeSelection !== null && graph.hasNode(activeSelection.selectedNodeId)
+                ? String(
+                    (graph.getNodeAttributes(activeSelection.selectedNodeId) as GraphNodeAttributes)
+                      .filePath,
+                  )
+                : null;
+            drawClusterHulls(graph, sigma, cc, hoveredFilePath, selectedFilePath);
+          }
         }
-      }
-    };
-
-    const leaveNodeListener = (): void => {
-      hoveredNodeIdRef.current = null;
-      hoverRef.current = null;
-      hoverSelectionRef.current = null;
-      if (sigma !== null) {
-        refreshSigma(sigma);
-        // Restore selection overlay or clear
-        if (selectionRef.current === null) {
-          setOverlaySegments([]);
-        } else {
-          setOverlaySegments(
-            createOverlaySegments(graphRef.current ?? graph, sigma, selectionRef.current),
-          );
+        if (minimapCanvasRef.current !== null && controller.shouldDrawMinimap()) {
+          drawMinimap(graph, sigma, minimapCanvasRef.current, container);
         }
-      }
-    };
-
-    const navigateToNode = (nodeId: string): void => {
-      const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
-      onNavigate(attributes.filePath, attributes.startLine);
-    };
-
-    const selectNode = (nodeId: string): void => {
-      setSelectedNodeId(nodeId);
-      selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
-
-      // Selecting highlights the node + its neighborhood and opens the inspector,
-      // but deliberately does NOT recenter the camera — an auto-pan on every
-      // click makes the graph jump under the cursor. The viewport only moves on
-      // explicit Fit / search-result navigation.
-      if (sigma !== null) {
-        refreshSigma(sigma);
-        updateOverlay();
-      }
-    };
-
-    const clearSelection = (): void => {
-      if (clickTimeoutRef.current !== null) {
-        window.clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
-
-      setSelectedNodeId(null);
-      selectionRef.current = null;
-      setOverlaySegments([]);
-
-      if (sigma !== null) {
-        refreshSigma(sigma);
+      } catch (err) {
+        console.error("Dextree cluster/minimap draw failed", err);
       }
     };
 
     if (!canUseWebGL()) {
       sigmaRef.current = null;
-      if (canceledRef.current) return;
-      if (canceledRef.current) return;
       setError(null);
-      setFallbackGraph(buildFallbackGraph());
+      setFallbackGraph(snapshotGraph(graph));
       return () => {
         graphRef.current = null;
       };
     }
 
     try {
-      if (graph.order > 0) {
-        try {
-          forceAtlas2.assign(graph, {
-            iterations: 200,
-            settings: {
-              gravity: 1.8,
-              scalingRatio: 6,
-              slowDown: 3,
-              barnesHutOptimize: true,
-              barnesHutTheta: 0.5,
-              linLogMode: true,
-            },
-          });
-          stabilizeFileAnchors(graph);
-        } catch (layoutError) {
-          console.error("Dextree graph layout failed", layoutError);
-        }
-      }
-
-      sigma = new Sigma(graph, container, {
-        allowInvalidContainer: true,
-        renderLabels: true,
-        renderEdgeLabels: false,
-        // Labels are hidden for tiny/distant nodes and revealed as the user zooms in.
-        // File nodes (size 14-32) remain labelled at all zoom levels; small symbol
-        // nodes (size 5-15) only show labels once they appear ≥ 4 screen-pixels wide.
-        labelRenderedSizeThreshold: 4,
-        defaultNodeType: "circle",
-        defaultEdgeType: "line",
-        defaultEdgeColor: colors.definesEdgeColor,
-        enableEdgeEvents: true,
-        // Prevent built-in double-click zoom — navigation is handled manually via clickNode.
-        doubleClickZoomingRatio: 1,
-        // Explicitly include circle (replacing nodeProgramClasses overrides the
-        // default mapping in Sigma 3). Square is registered for upcoming
-        // architectural-layer differentiation in later slices; entry is the
-        // gold-bordered classification treatment from slice 026.
-        nodeProgramClasses: {
-          circle: NodeCircleProgram,
-          square: NodeSquareProgram,
-          entry: NodeEntryProgram,
+      const sigma = controller.mount(container, graph, {
+        onNavigate,
+        onSelect: (nodeId) => {
+          // React stays authoritative for the Inspector; the controller owns the
+          // selection traversal + overlay. Selecting does NOT recenter the camera.
+          setSelectedNodeId(nodeId);
+          controller.setSelection(nodeId);
         },
-        nodeReducer: (node, data) => {
-          // View-membership inputs come from the store (single source of truth);
-          // the imperative reducer reads them live via getState() each call.
-          const hiddenNodeKinds = graphViewStoreRef.current.getState().hiddenNodeKinds;
-
-          // 1. Node-kind filter (applied first — hides node before hover/focus logic runs)
-          const attrs = data as GraphNodeAttributes;
-          const kindKey = attrs.nodeKind === "file" ? "file" : (attrs.symbolKind ?? "function");
-          if (hiddenNodeKinds.has(kindKey)) {
-            return { ...data, hidden: true };
-          }
-          // Slice 031 US3 — Decorator chip semantics. When the user clicks the
-          // Decorator chip off, decorator-backed nodes are hidden the same way
-          // any other node-kind filter hides nodes.
-          if (hiddenNodeKinds.has("decorator") && decoratorBackedNodeIdsRef.current.has(node)) {
-            return { ...data, hidden: true };
-          }
-
-          // 2. Depth filter (slice 022) — hide nodes outside the depth-N
-          // neighbourhood of the selected/matched anchor(s).
-          const depthVisible = depthVisibleNodeIdsRef.current;
-          if (depthVisible !== null && !depthVisible.has(node)) {
-            return { ...data, hidden: true };
-          }
-
-          // 3. Trace dimming (slice 023) — when a trace path is active,
-          // off-path nodes are dimmed. Trace dimming wins over search/lens.
-          if (tracePhaseRef.current === "path-active" && pathNodeIdsRef.current.size > 0) {
-            if (!pathNodeIdsRef.current.has(node)) {
-              return {
-                ...data,
-                color: dimColor(String(data.color)),
-                label: "",
-              };
-            }
-            return data;
-          }
-
-          const hover = hoverRef.current;
-          const selection = selectionRef.current;
-          const activeFocus = hover ?? selection;
-
-          if (activeFocus === null || activeFocus.nodeIds.has(node)) {
-            if (selection !== null && hover === null && selection.selectedNodeId === node) {
-              return {
-                ...data,
-                size: Number(data.baseSize ?? data.size) * 1.28,
-                zIndex: 2,
-              };
-            }
-
-            // No hover/selection focus — apply search dimming first
-            // (slice 022), then lens dimming (slice 021).  User focus always
-            // wins over both.
-            if (activeFocus === null) {
-              const matched = matchedNodeIdsRef.current;
-              if (matched.size > 0 && !matched.has(node)) {
-                return {
-                  ...data,
-                  color: dimColor(String(data.color)),
-                  label: "",
-                };
-              }
-              const lensMatchSet = lensMatchSetRef.current;
-              if (lensMatchSet !== null && !lensMatchSet.has(node)) {
-                return {
-                  ...data,
-                  color: dimColor(String(data.color)),
-                };
-              }
-              // Architecture (recolour) lens — recolour by layer instead of
-              // dimming. A null result means "keep base colour" (unknown layer).
-              const colorOf = lensColorOfRef.current;
-              if (colorOf !== null) {
-                const layerColorValue = colorOf(data.archLayer as string | undefined);
-                if (layerColorValue !== null) {
-                  return {
-                    ...data,
-                    color: layerColorValue,
-                  };
-                }
-              }
-            }
-
-            return data;
-          }
-
-          return {
-            ...data,
-            color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
-            label: "",
-          };
+        onClear: () => {
+          setSelectedNodeId(null);
+          controller.setSelection(null);
         },
-        edgeReducer: (edge, data) => {
-          const hover = hoverRef.current;
-          const selection = selectionRef.current;
-          const edgeAttrs = data as GraphEdgeAttributes;
-
-          // Hide edges whose kind is toggled off by the filter bar. Read from
-          // the store (single source of truth) live on each reducer call.
-          if (graphViewStoreRef.current.getState().hiddenEdgeKinds.has(edgeAttrs.edgeKind)) {
-            return { ...data, hidden: true };
-          }
-
-          // Trace path styling (slice 023) — on-path edges render as a bold
-          // yellow; off-path edges are dimmed. Wins over hover/selection.
-          // Distinction is carried by colour + size, not an edge `type`: only
-          // the "line" program is registered, and Sigma throws on an unknown
-          // edge type (e.g. "dashed") the moment it has to render one.
-          if (tracePhaseRef.current === "path-active" && pathEdgeIdsRef.current.size > 0) {
-            if (pathEdgeIdsRef.current.has(edge)) {
-              return {
-                ...data,
-                color: colors.tracePathEdgeColor,
-                size: Number(data.baseSize ?? data.size) * 1.6,
-                zIndex: 1,
-              };
-            }
-            return {
-              ...data,
-              color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
-              size: Math.max(Number(data.baseSize ?? data.size) * 0.6, 1),
-            };
-          }
-
-          const activeFocus = hover ?? selection;
-
-          if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
-            if (selection !== null && hover === null && selection.edgeIds.has(edge)) {
-              const emphasised = {
-                ...data,
-                size: Number(data.baseSize ?? data.size) * 1.34,
-                zIndex: 1,
-              };
-              // Direction-aware CALLS emphasis: colour a selected node's inbound
-              // calls (callers) distinctly from its outbound calls (callees).
-              // Only `color`/`size` are touched — the edge keeps the registered
-              // "line" program (Sigma throws on an unregistered edge `type`).
-              if (edgeAttrs.edgeKind === "CALLS") {
-                const selectedId = selection.selectedNodeId;
-                if (graph.target(edge) === selectedId) {
-                  return { ...emphasised, color: colors.callerEdgeColor };
-                }
-                if (graph.source(edge) === selectedId) {
-                  return { ...emphasised, color: colors.calleeEdgeColor };
-                }
-              }
-              return emphasised;
-            }
-
-            return data;
-          }
-
-          return {
-            ...data,
-            color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
-            size: Math.max(Number(data.baseSize ?? data.size) * 0.72, 1),
-          };
+        onTracePick: (nodeId) => handleTraceNodeClick(nodeId),
+        // mount() sets the controller's instance before invoking this, so read
+        // it from the controller rather than the not-yet-assigned `sigma` const.
+        applyTheme: () => {
+          const instance = controller.instance;
+          return instance === null ? readThemeColors() : applyTheme(graph, instance, container);
         },
-      });
-
-      sigmaRef.current = sigma;
-      applyTheme(graph, sigma, container);
-      if (canceledRef.current) {
-        sigma.kill();
-        sigmaRef.current = null;
-        return;
-      }
-      setFallbackGraph(null);
-      setOverlaySegments([]);
-
-      resizeObserver = new ResizeObserver(() => {
-        const w = container.clientWidth;
-        const h = container.clientHeight;
-        const cc = clusterCanvasRef.current;
-        if (cc !== null) {
-          cc.width = w;
-          cc.height = h;
-        }
-        if (sigma !== null) {
-          refreshSigma(sigma);
-          updateOverlay();
-        }
-      });
-      resizeObserver.observe(container);
-
-      sigma.on("clickNode", (event) => {
-        // Trace mode takes priority over normal selection (slice 023). When a
-        // trace phase is waiting for a node pick, route the click to the
-        // trace state machine and short-circuit normal selection.
-        if (tracePhaseRef.current === "picking-start" || tracePhaseRef.current === "picking-end") {
-          handleTraceNodeClick(event.node);
-          return;
-        }
-        // Queue single-click selection; doubleClickNode cancels this if a double-click fires.
-        if (clickTimeoutRef.current !== null) {
-          window.clearTimeout(clickTimeoutRef.current);
-        }
-        lastClickRef.current = { node: event.node, time: Date.now() };
-        clickTimeoutRef.current = window.setTimeout(() => {
-          clickTimeoutRef.current = null;
-          lastClickRef.current = null;
-          selectNode(event.node);
-        }, SINGLE_CLICK_DELAY_MS);
-      });
-
-      // doubleClickNode is the reliable Sigma 3 event for actual double-clicks.
-      // We prevent the built-in zoom and navigate to the node instead.
-      sigma.on("doubleClickNode", (event) => {
-        // Cancel the pending single-click selection
-        if (clickTimeoutRef.current !== null) {
-          window.clearTimeout(clickTimeoutRef.current);
-          clickTimeoutRef.current = null;
-        }
-        lastClickRef.current = null;
-
-        // Prevent Sigma's built-in double-click zoom
-        const preventable = event as unknown as { preventSigmaDefault?: () => void };
-        preventable.preventSigmaDefault?.();
-
-        navigateToNode(event.node);
-      });
-
-      sigma.on("clickStage", () => {
-        clearSelection();
-      });
-
-      sigma.on("enterNode", enterNodeListener);
-      sigma.on("leaveNode", leaveNodeListener);
-
-      sigma.on("afterRender", () => {
-        try {
+        updateOverlay,
+        onResize: () => {
           const cc = clusterCanvasRef.current;
           if (cc !== null) {
-            if (!showClusterHullsRef.current) {
-              cc.getContext("2d")?.clearRect(0, 0, cc.width, cc.height);
-            } else {
-              const hoveredFilePath =
-                hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
-                  ? String(
-                      (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
-                        .filePath,
-                    )
-                  : null;
-              const selectedFilePath =
-                selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
-                  ? String(
-                      (
-                        graph.getNodeAttributes(
-                          selectionRef.current.selectedNodeId,
-                        ) as GraphNodeAttributes
-                      ).filePath,
-                    )
-                  : null;
-              drawClusterHulls(graph, sigma!, cc, hoveredFilePath, selectedFilePath);
-            }
+            cc.width = container.clientWidth;
+            cc.height = container.clientHeight;
           }
-          if (minimapCanvasRef.current !== null && graph.order > 20) {
-            drawMinimap(graph, sigma!, minimapCanvasRef.current, container);
-          }
-        } catch (err) {
-          console.error("Dextree cluster/minimap draw failed", err);
-        }
+        },
+        onAfterRender: drawAfterRender,
       });
-
-      observer = new MutationObserver(() => {
-        if (sigma !== null) {
-          applyTheme(graph, sigma, container);
-          updateOverlay();
-        }
-      });
-      observer.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["class"],
-      });
-
+      sigmaRef.current = sigma;
+      setFallbackGraph(null);
+      setOverlaySegments([]);
       setError(null);
     } catch (err) {
       console.error("Dextree graph renderer failed", err);
+      controller.dispose();
       sigmaRef.current = null;
-      if (canceledRef.current) return;
       setError(err instanceof Error ? err.message : "Could not initialize graph renderer.");
-      setFallbackGraph(buildFallbackGraph());
+      setFallbackGraph(snapshotGraph(graph));
     }
 
     return () => {
-      canceledRef.current = true;
-      if (clickTimeoutRef.current !== null) {
-        window.clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
-
-      observer?.disconnect();
-      resizeObserver?.disconnect();
-      hoverRef.current = null;
-      selectionRef.current = null;
-      sigmaRef.current?.kill();
+      controller.dispose();
       sigmaRef.current = null;
       graphRef.current = null;
     };
   }, [edges, nodes, onNavigate, reducedMotion, retryCount]);
 
+  // Keep the controller's selection render mirror in sync whenever the React
+  // selectedNodeId changes (canvas click, search/lens row, clear). The
+  // controller recomputes the traversal, refreshes Sigma, and pushes the
+  // overlay; this is the single sync point so all selection sources converge.
   useEffect(() => {
-    const graph = graphRef.current;
-    const sigma = sigmaRef.current;
-
-    selectionRef.current = computeSelection(
-      graph ?? new MultiDirectedGraph(),
-      selectedNodeId,
-      FLOW_MAX_DEPTH,
-    );
-
-    if (graph === null || sigma === null) {
-      setOverlaySegments([]);
-      return;
-    }
-
-    refreshSigma(sigma);
-    setOverlaySegments(createOverlaySegments(graph, sigma, selectionRef.current));
+    controllerRef.current?.setSelection(selectedNodeId);
   }, [selectedNodeId]);
 
   // Mirror hidden-edge-kinds into the store so the edgeReducer (created once in
@@ -1363,8 +985,8 @@ export function GraphView({
     }
   }, [hiddenNodeKinds]);
 
-  // Slice 031 US3 — keep the decorator-backed id set in sync with `nodes`
-  // so the Sigma reducer can honor the Decorator filter chip toggle.
+  // Slice 031 US3 — keep the decorator-backed id set on the controller in sync
+  // with `nodes` so the node reducer can honor the Decorator filter chip toggle.
   useEffect(() => {
     const next = new Set<string>();
     for (const node of nodes) {
@@ -1372,80 +994,56 @@ export function GraphView({
         next.add(node.id);
       }
     }
-    decoratorBackedNodeIdsRef.current = next;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setDecoratorBackedNodeIds(next);
   }, [nodes]);
 
-  // Sync lens-match-set ref so the nodeReducer reads the active lens's matches
-  // without being recreated. Refresh Sigma to re-run reducers.
+  // Sync the active match-lens set onto the controller (non-matches dim).
   useEffect(() => {
-    lensMatchSetRef.current = lensMatchSet;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setLensMatchSet(lensMatchSet);
   }, [lensMatchSet]);
 
-  // Sync the recolour-lens colour fn ref so the nodeReducer can recolour by
-  // layer without being recreated. Null when no recolour lens is active.
+  // Sync the recolour-lens colour fn onto the controller (null = no recolour).
   useEffect(() => {
-    lensColorOfRef.current = lensColorOf;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setLensColorOf(lensColorOf);
   }, [lensColorOf]);
 
-  // Slice 022 — sync matched-node ids + depth visibility set into refs so the
-  // nodeReducer reads them without being recreated. The depth-visible set is
-  // the union of (selected-node depth neighbourhood) ∪ (each matched-node
-  // depth neighbourhood). null means depth filter is inactive — show all.
-  const depthVisibleNodeIdsRef = useRef<Set<string> | null>(null);
-
+  // Slice 022 — sync matched-node ids onto the controller (non-matches dim).
   useEffect(() => {
-    matchedNodeIdsRef.current = matchedNodeIds;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setMatchedNodeIds(matchedNodeIds);
   }, [matchedNodeIds]);
 
+  // Slice 022 — depth-visible set: the union of (selected-node depth
+  // neighbourhood) ∪ (each matched-node depth neighbourhood). null means the
+  // depth filter is inactive (show all). Synced onto the controller.
   useEffect(() => {
     const graph = graphRef.current;
     if (!depthEnabled || graph === null) {
-      depthVisibleNodeIdsRef.current = null;
-    } else {
-      const visible = new Set<string>();
-      const anchors = matchedNodeIds.size > 0 ? Array.from(matchedNodeIds) : [selectedNodeId!];
-      for (const anchor of anchors) {
-        const traversal = computeSelection(graph, anchor, depth);
-        if (traversal !== null) {
-          for (const id of traversal.nodeIds) {
-            visible.add(id);
-          }
+      controllerRef.current?.setDepthVisibleNodeIds(null);
+      return;
+    }
+    const visible = new Set<string>();
+    const anchors = matchedNodeIds.size > 0 ? Array.from(matchedNodeIds) : [selectedNodeId!];
+    for (const anchor of anchors) {
+      const traversal = computeSelection(graph, anchor, depth);
+      if (traversal !== null) {
+        for (const id of traversal.nodeIds) {
+          visible.add(id);
         }
       }
-      depthVisibleNodeIdsRef.current = visible;
     }
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setDepthVisibleNodeIds(visible);
   }, [depthEnabled, matchedNodeIds, selectedNodeId, depth]);
 
-  // Slice 023 — sync trace path ids into refs so the nodeReducer + edgeReducer
-  // can apply the path-active dimming/highlight without being recreated.
+  // Sync the trace render mirror onto the controller so the node/edge reducers
+  // apply the path-active dimming/highlight. React owns traceState (banner /
+  // rails / inspector); the controller holds the phase + path id sets the
+  // reducers read, and refreshes Sigma.
   useEffect(() => {
-    tracePhaseRef.current = traceState.phase;
-    pathNodeIdsRef.current = new Set(traceState.pathNodeIds);
-    pathEdgeIdsRef.current = new Set(traceState.pathEdgeIds);
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setTracePath(
+      traceState.phase,
+      traceState.pathNodeIds,
+      traceState.pathEdgeIds,
+    );
   }, [traceState]);
 
   // Slice 023 — Escape exits trace mode from any phase. Listener attached at
