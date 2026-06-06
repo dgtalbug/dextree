@@ -219,6 +219,49 @@ export class SigmaController {
    * Sigma and pushes the overlay. No-op before mount for the traversal compute,
    * but still clears state so a pre-mount clear is safe.
    */
+  /** The active trace phase. Read by the reducers + the clickNode routing. */
+  get tracePhaseState(): TracePhase {
+    return this.tracePhase;
+  }
+
+  /** On-path node ids for the active trace. Read by the node reducer. */
+  get tracePathNodeIds(): ReadonlySet<string> {
+    return this.pathNodeIds;
+  }
+
+  /** On-path edge ids for the active trace. Read by the edge reducer. */
+  get tracePathEdgeIds(): ReadonlySet<string> {
+    return this.pathEdgeIds;
+  }
+
+  /**
+   * Eagerly set just the trace phase. The handlers update the phase *before*
+   * React commits so the synchronous Sigma clickNode routing reads the new
+   * phase immediately (the inline code wrote `tracePhaseRef.current` for this).
+   * Does not refresh — the subsequent setTracePath (via the React sync effect)
+   * does, matching the inline behavior.
+   */
+  setTracePhase(phase: TracePhase): void {
+    this.tracePhase = phase;
+  }
+
+  /**
+   * Mirror the full trace state the reducers read: phase + on-path node/edge id
+   * sets. Called from the React sync effect after `traceState` commits, then
+   * refreshes Sigma so the path dimming/highlight applies. React stays the
+   * source for the banner/rails/inspector.
+   */
+  setTracePath(
+    phase: TracePhase,
+    pathNodeIds: Iterable<string>,
+    pathEdgeIds: Iterable<string>,
+  ): void {
+    this.tracePhase = phase;
+    this.pathNodeIds = new Set(pathNodeIds);
+    this.pathEdgeIds = new Set(pathEdgeIds);
+    this.refresh();
+  }
+
   setSelection(nodeId: string | null, opts: { updateOverlay?: boolean } = {}): void {
     const graph = this.graph;
     this.selection =

@@ -70,7 +70,6 @@ import {
   type SelectionTraversal,
   type SigmaNodeDisplayData,
   type ThemeColors,
-  type TracePhase,
   type TraceState,
 } from "./graphViewTypes.js";
 
@@ -508,13 +507,10 @@ export function GraphView({
   const matchedNodeIdsRef = useRef<Set<string>>(new Set());
   // Depth slider state (slice 022). Default 3 per spec FR-005.
   const [depth, setDepth] = useState<number>(3);
-  // Trace state (slice 023). Tracks the trace state machine and the
-  // resolved path. `tracePhaseRef` mirrors `traceState.phase` so the
-  // Sigma clickNode callback can route clicks without being re-registered.
+  // Trace state (slice 023). React owns the trace state machine for the banner /
+  // rails / inspector; the controller holds the phase + path id sets the Sigma
+  // reducers read, kept in sync via setTracePhase (eager) + setTracePath.
   const [traceState, setTraceState] = useState<TraceState>(TRACE_STATE_IDLE);
-  const tracePhaseRef = useRef<TracePhase>("idle");
-  const pathNodeIdsRef = useRef<Set<string>>(new Set());
-  const pathEdgeIdsRef = useRef<Set<string>>(new Set());
 
   const onToggleMinimap = useCallback(() => {
     setShowMinimap((visible) => !visible);
@@ -690,7 +686,7 @@ export function GraphView({
   const handleTraceToggle = useCallback((): void => {
     setTraceState((current) => {
       if (current.phase !== "idle") {
-        tracePhaseRef.current = "idle";
+        controllerRef.current?.setTracePhase("idle");
         return TRACE_STATE_IDLE;
       }
       // Entering trace mode clears search + depth so the full graph is
@@ -698,13 +694,13 @@ export function GraphView({
       setSearchQuery("");
       setSearchFocusedIndex(0);
       setDepth(3);
-      tracePhaseRef.current = "picking-start";
+      controllerRef.current?.setTracePhase("picking-start");
       return { ...TRACE_STATE_IDLE, phase: "picking-start" };
     });
   }, []);
 
   const handleTraceExit = useCallback((): void => {
-    tracePhaseRef.current = "idle";
+    controllerRef.current?.setTracePhase("idle");
     setTraceState(TRACE_STATE_IDLE);
   }, []);
 
@@ -762,7 +758,7 @@ export function GraphView({
     }
     const nodePath = bidirectional(graph, startId, endId);
     if (nodePath === null) {
-      tracePhaseRef.current = "path-active";
+      controllerRef.current?.setTracePhase("path-active");
       setTraceState({
         phase: "path-active",
         startNodeId: startId,
@@ -775,7 +771,7 @@ export function GraphView({
       return;
     }
     const edgePath = edgePathFromNodePath(graph, nodePath);
-    tracePhaseRef.current = "path-active";
+    controllerRef.current?.setTracePhase("path-active");
     setTraceState({
       phase: "path-active",
       startNodeId: startId,
@@ -791,7 +787,7 @@ export function GraphView({
     (nodeId: string): void => {
       setTraceState((current) => {
         if (current.phase === "picking-start") {
-          tracePhaseRef.current = "picking-end";
+          controllerRef.current?.setTracePhase("picking-end");
           return {
             ...TRACE_STATE_IDLE,
             phase: "picking-end",
@@ -823,7 +819,7 @@ export function GraphView({
     setSearchQuery("");
     setSearchFocusedIndex(0);
     setDepth(3);
-    tracePhaseRef.current = "picking-end";
+    controllerRef.current?.setTracePhase("picking-end");
     setTraceState({
       ...TRACE_STATE_IDLE,
       phase: "picking-end",
@@ -1018,8 +1014,12 @@ export function GraphView({
 
           // 3. Trace dimming (slice 023) — when a trace path is active,
           // off-path nodes are dimmed. Trace dimming wins over search/lens.
-          if (tracePhaseRef.current === "path-active" && pathNodeIdsRef.current.size > 0) {
-            if (!pathNodeIdsRef.current.has(node)) {
+          const controller = controllerRef.current;
+          if (
+            controller?.tracePhaseState === "path-active" &&
+            controller.tracePathNodeIds.size > 0
+          ) {
+            if (!controller.tracePathNodeIds.has(node)) {
               return {
                 ...data,
                 color: dimColor(String(data.color)),
@@ -1100,8 +1100,12 @@ export function GraphView({
           // Distinction is carried by colour + size, not an edge `type`: only
           // the "line" program is registered, and Sigma throws on an unknown
           // edge type (e.g. "dashed") the moment it has to render one.
-          if (tracePhaseRef.current === "path-active" && pathEdgeIdsRef.current.size > 0) {
-            if (pathEdgeIdsRef.current.has(edge)) {
+          const traceController = controllerRef.current;
+          if (
+            traceController?.tracePhaseState === "path-active" &&
+            traceController.tracePathEdgeIds.size > 0
+          ) {
+            if (traceController.tracePathEdgeIds.has(edge)) {
               return {
                 ...data,
                 color: colors.tracePathEdgeColor,
@@ -1183,7 +1187,8 @@ export function GraphView({
         // Trace mode takes priority over normal selection (slice 023). When a
         // trace phase is waiting for a node pick, route the click to the
         // trace state machine and short-circuit normal selection.
-        if (tracePhaseRef.current === "picking-start" || tracePhaseRef.current === "picking-end") {
+        const tracePhase = controllerRef.current?.tracePhaseState;
+        if (tracePhase === "picking-start" || tracePhase === "picking-end") {
           handleTraceNodeClick(event.node);
           return;
         }
@@ -1397,16 +1402,16 @@ export function GraphView({
     }
   }, [depthEnabled, matchedNodeIds, selectedNodeId, depth]);
 
-  // Slice 023 — sync trace path ids into refs so the nodeReducer + edgeReducer
-  // can apply the path-active dimming/highlight without being recreated.
+  // Sync the trace render mirror onto the controller so the node/edge reducers
+  // apply the path-active dimming/highlight. React owns traceState (banner /
+  // rails / inspector); the controller holds the phase + path id sets the
+  // reducers read, and refreshes Sigma.
   useEffect(() => {
-    tracePhaseRef.current = traceState.phase;
-    pathNodeIdsRef.current = new Set(traceState.pathNodeIds);
-    pathEdgeIdsRef.current = new Set(traceState.pathEdgeIds);
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setTracePath(
+      traceState.phase,
+      traceState.pathNodeIds,
+      traceState.pathEdgeIds,
+    );
   }, [traceState]);
 
   // Slice 023 — Escape exits trace mode from any phase. Listener attached at

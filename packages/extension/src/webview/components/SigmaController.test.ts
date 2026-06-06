@@ -262,3 +262,59 @@ describe("SigmaController — selection", () => {
     expect(controller.hoveredNode).toBeNull();
   });
 });
+
+describe("SigmaController — trace", () => {
+  it("starts idle with empty path sets", () => {
+    const controller = new SigmaController(freshStore(), options());
+    expect(controller.tracePhaseState).toBe("idle");
+    expect(controller.tracePathNodeIds.size).toBe(0);
+    expect(controller.tracePathEdgeIds.size).toBe(0);
+  });
+
+  it("setTracePhase updates the phase eagerly without refreshing", () => {
+    const controller = new SigmaController(freshStore(), options());
+    const { sigma, refresh } = stubSigma();
+    controller.adopt(sigma, triadGraph(), stubContainer());
+
+    controller.setTracePhase("picking-start");
+
+    expect(controller.tracePhaseState).toBe("picking-start");
+    // Eager phase set mirrors the inline `tracePhaseRef.current = ...` write,
+    // which did not refresh — the subsequent setTracePath does.
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("setTracePath mirrors phase + path sets and refreshes", () => {
+    const controller = new SigmaController(freshStore(), options());
+    const { sigma, refresh } = stubSigma();
+    controller.adopt(sigma, triadGraph(), stubContainer());
+
+    controller.setTracePath("path-active", ["a", "b", "c"], ["a->b", "b->c"]);
+
+    expect(controller.tracePhaseState).toBe("path-active");
+    expect([...controller.tracePathNodeIds]).toEqual(["a", "b", "c"]);
+    expect([...controller.tracePathEdgeIds]).toEqual(["a->b", "b->c"]);
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("setTracePath copies the iterables (later mutation does not leak in)", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    const nodes = new Set(["a"]);
+    controller.setTracePath("path-active", nodes, []);
+    nodes.add("b");
+    expect(controller.tracePathNodeIds.has("b")).toBe(false);
+  });
+
+  it("dispose resets trace state to idle + empty", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setTracePath("path-active", ["a"], ["a->b"]);
+
+    controller.dispose();
+
+    expect(controller.tracePhaseState).toBe("idle");
+    expect(controller.tracePathNodeIds.size).toBe(0);
+    expect(controller.tracePathEdgeIds.size).toBe(0);
+  });
+});
