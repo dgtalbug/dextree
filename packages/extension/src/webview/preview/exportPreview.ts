@@ -127,7 +127,6 @@ const defaultSvgRasterizer: SvgRasterizer = async (svg) => {
   const url = URL.createObjectURL(blob);
   try {
     const img = await loadImage(url);
-    // eslint-disable-next-line no-undef
     const canvas = document.createElement("canvas");
     canvas.width = img.naturalWidth || img.width || 800;
     canvas.height = img.naturalHeight || img.height || 600;
@@ -142,11 +141,8 @@ const defaultSvgRasterizer: SvgRasterizer = async (svg) => {
   }
 };
 
-// eslint-disable-next-line no-undef
 function loadImage(src: string): Promise<HTMLImageElement> {
-  // eslint-disable-next-line no-undef
   return new Promise<HTMLImageElement>((resolve, reject) => {
-    // eslint-disable-next-line no-undef
     const img = new Image();
     img.onload = () => {
       resolve(img);
@@ -171,6 +167,5 @@ const defaultClipboardImageWriter: ClipboardImageWriter = async (svg) => {
     throw new Error("Clipboard image copy is not supported in this webview.");
   }
   const blob = new Blob([svg], { type: "image/svg+xml" });
-  // eslint-disable-next-line no-undef
   await navigator.clipboard.write([new ClipboardItem({ "image/svg+xml": blob })]);
 };
