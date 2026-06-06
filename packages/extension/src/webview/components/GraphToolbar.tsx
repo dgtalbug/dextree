@@ -6,6 +6,8 @@ import styles from "./GraphToolbar.module.css";
 
 export interface GraphToolbarProps {
   onExportMermaid: () => void;
+  /** Export exactly the rendered view (the `visible` scope). */
+  onExportCurrentView: () => void;
   showMinimap: boolean;
   onToggleMinimap: () => void;
   showClusterHulls: boolean;
@@ -48,6 +50,7 @@ export interface GraphToolbarProps {
 
 export function GraphToolbar({
   onExportMermaid,
+  onExportCurrentView,
   showMinimap,
   onToggleMinimap,
   showClusterHulls,
@@ -326,6 +329,16 @@ export function GraphToolbar({
         >
           <span className="codicon codicon-export" aria-hidden="true" />
           Export
+        </button>
+        <button
+          type="button"
+          className={styles.iconBtn}
+          onClick={onExportCurrentView}
+          title="Export current view (only what is shown)"
+          aria-label="Export current view as Mermaid"
+          data-testid="export-current-view"
+        >
+          <span className="codicon codicon-eye" aria-hidden="true" />
         </button>
       </div>
     </header>

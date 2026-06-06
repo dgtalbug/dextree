@@ -13,6 +13,7 @@ import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.j
 import { computeSelection } from "./graphTraversal.js";
 import { dimColor } from "./lensColor.js";
 import type { GraphViewStore } from "../state/graphViewStore.js";
+import type { VisibleView } from "../state/visibleView.js";
 import type {
   GraphEdgeAttributes,
   GraphNodeAttributes,
@@ -656,6 +657,63 @@ export class SigmaController {
   /** Whether the minimap should draw given the current graph order. */
   shouldDrawMinimap(): boolean {
     return this.graph !== null && this.graph.order > MINIMAP_MIN_NODES;
+  }
+
+  /**
+   * Derive the rendered `VisibleView` membership — the node/edge id sets the
+   * node/edge reducers would NOT hide, using the controller's own state (the
+   * store's hidden-kind sets, the decorator-backed set, the depth-visible set).
+   * This is the single source the current-view export reads, so an export always
+   * matches exactly what is on screen. Empty graph → empty view.
+   *
+   * Mirrors the reducer hide order: node-kind filter, Decorator chip, depth
+   * window. An edge is a member iff its kind is not hidden and both endpoints are
+   * members. Transient emphasis (hover/selection/trace) is appearance, not
+   * membership, so it is intentionally excluded.
+   */
+  getVisibleView(): VisibleView {
+    const state = this.store.getState();
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    const graph = this.graph;
+
+    if (graph !== null) {
+      graph.forEachNode((nodeId, attributes) => {
+        const attrs = attributes as GraphNodeAttributes;
+        const kindKey = attrs.nodeKind === "file" ? "file" : (attrs.symbolKind ?? "function");
+        if (state.hiddenNodeKinds.has(kindKey)) {
+          return;
+        }
+        if (state.hiddenNodeKinds.has("decorator") && this.decoratorBackedNodeIds.has(nodeId)) {
+          return;
+        }
+        if (this.depthVisibleNodeIds !== null && !this.depthVisibleNodeIds.has(nodeId)) {
+          return;
+        }
+        nodeIds.add(nodeId);
+      });
+
+      graph.forEachEdge((edgeId, attributes, source, target) => {
+        const edgeAttrs = attributes as GraphEdgeAttributes;
+        if (state.hiddenEdgeKinds.has(edgeAttrs.edgeKind)) {
+          return;
+        }
+        if (!nodeIds.has(source) || !nodeIds.has(target)) {
+          return;
+        }
+        edgeIds.add(edgeId);
+      });
+    }
+
+    return {
+      nodeIds,
+      edgeIds,
+      activeLensId: state.activeLensId,
+      hiddenNodeKinds: state.hiddenNodeKinds,
+      hiddenEdgeKinds: state.hiddenEdgeKinds,
+      depth: state.depth,
+      focusNodeId: null,
+    };
   }
 
   /**

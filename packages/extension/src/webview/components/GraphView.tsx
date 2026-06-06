@@ -328,7 +328,7 @@ export function GraphView({
   edges,
   onNavigate,
   onExportMermaid,
-  onExportCurrentView: _onExportCurrentView,
+  onExportCurrentView,
   onExportTraceSequence,
   workspaceName,
   workspaceFrameworks,
@@ -695,6 +695,16 @@ export function GraphView({
   const handleZoomReset = useCallback((): void => {
     controllerRef.current?.zoomReset();
   }, []);
+
+  // Export exactly the rendered view: derive the current VisibleView membership
+  // from the controller (same hide logic as the reducers) and hand the id arrays
+  // up so the host exports the `visible` scope. No-op before the controller is
+  // mounted (nothing rendered yet to export).
+  const handleExportCurrentView = useCallback((): void => {
+    const view = controllerRef.current?.getVisibleView();
+    if (view === undefined) return;
+    onExportCurrentView([...view.nodeIds], [...view.edgeIds]);
+  }, [onExportCurrentView]);
 
   // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
   // Sigma node/edge reducers via their refs; these handlers expose the toggle
@@ -1222,6 +1232,7 @@ export function GraphView({
       <div className={shellStyles.toolbarArea}>
         <GraphToolbar
           onExportMermaid={onExportMermaid}
+          onExportCurrentView={handleExportCurrentView}
           showMinimap={showMinimap}
           onToggleMinimap={onToggleMinimap}
           showClusterHulls={showClusterHulls}

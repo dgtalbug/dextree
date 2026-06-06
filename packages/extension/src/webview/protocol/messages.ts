@@ -164,11 +164,16 @@ export interface SaveMermaidPreviewMessage {
 
 /**
  * Sent by the graph toolbar when the user requests a Mermaid export of the
- * current visible view state (slice 030, US3).
+ * current visible view state (slice 030, US3). Carries the serialized
+ * `VisibleView` membership so the host exports exactly the rendered subgraph
+ * (the `visible` scope) rather than re-deriving or falling back to the whole
+ * workspace.
  */
 export interface ExportCurrentViewMessage {
   type: "exportCurrentView";
   viewId: string;
+  nodeIds: string[];
+  edgeIds: string[];
 }
 
 /**

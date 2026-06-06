@@ -172,6 +172,62 @@ describe("SigmaController — lifecycle", () => {
   });
 });
 
+describe("SigmaController — getVisibleView", () => {
+  function attributedGraph(): MultiDirectedGraph {
+    const graph = new MultiDirectedGraph();
+    graph.addNode("fn-1", { nodeKind: "symbol", symbolKind: "function" });
+    graph.addNode("fn-2", { nodeKind: "symbol", symbolKind: "function" });
+    graph.addNode("file-1", { nodeKind: "file" });
+    graph.addEdge("fn-1", "fn-2", { edgeKind: "CALLS" });
+    graph.addDirectedEdge("file-1", "fn-1", { edgeKind: "DEFINES" });
+    return graph;
+  }
+
+  function controllerOn(hiddenNodeKinds: Set<string>, hiddenEdgeKinds: Set<string>) {
+    const store = createGraphViewStore({
+      hiddenNodeKinds,
+      hiddenEdgeKinds: hiddenEdgeKinds as Set<never>,
+    });
+    const controller = new SigmaController(store, options());
+    controller.adopt(stubSigma().sigma, attributedGraph(), stubContainer());
+    return controller;
+  }
+
+  it("includes all nodes/edges when nothing is hidden", () => {
+    const view = controllerOn(new Set(), new Set()).getVisibleView();
+    expect([...view.nodeIds].sort()).toEqual(["file-1", "fn-1", "fn-2"]);
+    expect(view.edgeIds.size).toBe(2);
+  });
+
+  it("excludes nodes whose kind is hidden, and edges touching them", () => {
+    const view = controllerOn(new Set(["file"]), new Set()).getVisibleView();
+    expect(view.nodeIds.has("file-1")).toBe(false);
+    // The DEFINES edge (file-1 → fn-1) drops because an endpoint is hidden; the
+    // CALLS edge between two visible functions survives.
+    expect(view.edgeIds.size).toBe(1);
+  });
+
+  it("excludes edges whose kind is hidden even when endpoints are visible", () => {
+    const view = controllerOn(new Set(), new Set(["CALLS"])).getVisibleView();
+    expect(view.nodeIds.size).toBe(3);
+    expect(view.edgeIds.size).toBe(1); // only DEFINES remains
+  });
+
+  it("respects the depth-visible set", () => {
+    const controller = controllerOn(new Set(), new Set());
+    controller.setDepthVisibleNodeIds(new Set(["fn-1"]));
+    const view = controller.getVisibleView();
+    expect([...view.nodeIds]).toEqual(["fn-1"]);
+    expect(view.edgeIds.size).toBe(0);
+  });
+
+  it("returns an empty view before mount", () => {
+    const view = new SigmaController(freshStore(), options()).getVisibleView();
+    expect(view.nodeIds.size).toBe(0);
+    expect(view.edgeIds.size).toBe(0);
+  });
+});
+
 describe("SigmaController — camera operations", () => {
   it("zoomIn multiplies the ratio by 0.7 at the current centre", () => {
     const controller = new SigmaController(freshStore(), options());

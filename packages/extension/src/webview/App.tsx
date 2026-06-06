@@ -416,8 +416,13 @@ export function App({ vscodeApi }: AppProps) {
             onExportMermaid={() => {
               handleCommand("export-mermaid");
             }}
-            onExportCurrentView={() => {
-              vscodeApi.postMessage({ type: "exportCurrentView", viewId: "graph-view" });
+            onExportCurrentView={(nodeIds, edgeIds) => {
+              vscodeApi.postMessage({
+                type: "exportCurrentView",
+                viewId: "graph-view",
+                nodeIds,
+                edgeIds,
+              });
             }}
             onExportTraceSequence={(trace: TraceSequenceSnapshot) => {
               const message: ExportTraceSequenceMessage = { type: "exportTraceSequence", trace };

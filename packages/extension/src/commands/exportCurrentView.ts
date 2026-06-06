@@ -12,13 +12,19 @@ export function createExportCurrentViewCommand(
   return async (...args: unknown[]) => {
     const viewId = args[0];
     if (typeof viewId === "string" && viewId.length > 0) {
-      await handleExportCurrentViewMessage(viewId, dependencies);
+      const nodeIds = toStringArray(args[1]);
+      const edgeIds = toStringArray(args[2]);
+      await handleExportCurrentViewMessage(viewId, nodeIds, edgeIds, dependencies);
       return;
     }
     await vscode.window.showInformationMessage(
       "Dextree: Current-view export requires an active graph view. Open the graph and use the toolbar export button.",
     );
   };
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
 export function createExportTraceCommand(
@@ -33,12 +39,14 @@ export function createExportTraceCommand(
 
 export async function handleExportCurrentViewMessage(
   viewId: string,
+  nodeIds: string[],
+  edgeIds: string[],
   dependencies: ExportCurrentViewDependencies,
 ): Promise<void> {
   await dependencies.exportInferred({
     intent: "current-view",
     context: { kind: "current-view", viewId },
-    scope: { kind: "workspace" },
+    scope: { kind: "visible", nodeIds, edgeIds },
     diagram: "flowchart",
     direction: "auto",
   });
