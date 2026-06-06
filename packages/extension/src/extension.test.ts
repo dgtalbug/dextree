@@ -60,6 +60,7 @@ vi.mock("@dextree/core", () => ({
 const setWorkspaceHandlers = vi.fn();
 const setLogger = vi.fn();
 const setMermaidPreviewHandler = vi.fn();
+const setPreciseCallsHandler = vi.fn();
 const pushMermaidPreview = vi.fn();
 
 vi.mock("./webview/panel.js", () => ({
@@ -72,6 +73,7 @@ vi.mock("./webview/panel.js", () => ({
     setWorkspaceHandlers,
     setLogger,
     setMermaidPreviewHandler,
+    setPreciseCallsHandler,
   },
 }));
 

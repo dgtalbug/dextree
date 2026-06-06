@@ -14,6 +14,7 @@ import type {
   GraphCommandId,
   IndexedWorkspaceRecord,
   IndexingMessage,
+  PreciseCallEdgeResult,
   RequestMermaidPreviewMessage,
   RequestWorkspaceListMessage,
   SaveMermaidPreviewMessage,
@@ -170,6 +171,12 @@ export function App({ vscodeApi }: AppProps) {
   const [activeScene, setActiveScene] = useState<AppScene>("graph");
   const [workspaceList, setWorkspaceList] = useState<IndexedWorkspaceRecord[] | null>(null);
   const [mermaidPreview, setMermaidPreview] = useState<MermaidPreviewResult | null>(null);
+  // indexing-engine-v2 phase 4 — precise (LSP) callers/callees for the selected
+  // node, posted by the host. Consumed by the graph to upgrade edge confidence.
+  const [preciseCalls, setPreciseCalls] = useState<{
+    nodeId: string;
+    edges: PreciseCallEdgeResult[];
+  } | null>(null);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -231,6 +238,15 @@ export function App({ vscodeApi }: AppProps) {
         console.log(`[App] mermaidPreview: status=${msg.preview.status}`);
         setMermaidPreview(msg.preview);
         setActiveScene("mermaid-preview");
+        return;
+      }
+
+      if (msg.type === "preciseCalls") {
+        // indexing-engine-v2 phase 4 — precise (LSP) callers/callees for the
+        // selected node. The graph overlay consumes these to upgrade the
+        // selected node's edges from heuristic to precise; wired to the live
+        // language server in the extension host (verified in the dev host).
+        setPreciseCalls({ nodeId: msg.nodeId, edges: msg.edges });
         return;
       }
 
@@ -463,6 +479,10 @@ export function App({ vscodeApi }: AppProps) {
             }}
             sourceOnly={showSourceOnly}
             isIndexing={isIndexingActive}
+            onRequestPreciseCalls={(req) => {
+              vscodeApi.postMessage({ type: "requestPreciseCalls", ...req });
+            }}
+            {...(preciseCalls !== null ? { preciseCalls } : {})}
           />
         ) : (
           <div
