@@ -49,6 +49,7 @@ function makeMockIndexer() {
     getCoverageReport: vi
       .fn()
       .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+    neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
     getSessionSummary: vi.fn().mockResolvedValue({}),
   };
 }

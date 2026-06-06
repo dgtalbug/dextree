@@ -6,7 +6,7 @@
 //   5 — adds workspace_framework table + file.framework columns (migration 005)
 //   6 — adds symbol.entry_kind + symbol.arch_layer classification columns (migration 006)
 //   7 — adds symbol.enclosing_symbol_id classification column (migration 007)
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export interface Logger {
   debug(message: string, context?: Record<string, unknown>): void;
@@ -79,9 +79,10 @@ export interface SymbolClassificationRecord {
   archLayer: ArchitecturalLayer;
 }
 
-export type GraphNodeType = "file" | "symbol";
+export type GraphNodeType = "folder" | "file" | "symbol";
 
 export type GraphEdgeKind =
+  | "CONTAINS"
   | "DEFINES"
   | "IMPORTS"
   | "CALLS"
@@ -241,6 +242,21 @@ export interface CoverageReport {
   resolvedRatio: number;
 }
 
+/** Options for the in-store node-scoped traversal (`neighborhood`). */
+export interface NeighborhoodOptions {
+  direction: "out" | "in" | "both";
+  depth: number;
+  edgeKinds?: readonly GraphEdgeKind[];
+  maxNodes?: number;
+}
+
+/** Result of a `neighborhood` traversal. */
+export interface NeighborhoodResult {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  truncated: boolean;
+}
+
 export interface SessionSummary {
   /** Basename of the workspace root folder */
   workspaceName: string;
@@ -301,6 +317,8 @@ export interface Indexer {
   getSessionSummary(workspaceRoot: string): Promise<SessionSummary>;
   /** Relation-coverage metric: edges by kind + resolution tier, resolved/total. */
   getCoverageReport(): Promise<CoverageReport>;
+  /** In-store node-scoped traversal: a node's edges + edge-children to the leaf. */
+  neighborhood(nodeId: string, options: NeighborhoodOptions): Promise<NeighborhoodResult>;
   clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary>;
   clearFile(filePath: string): Promise<ClearFileSummary>;
   clearAll(): Promise<ClearAllSummary>;

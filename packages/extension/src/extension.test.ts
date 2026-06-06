@@ -173,6 +173,7 @@ describe("activate", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     });
 
@@ -244,6 +245,7 @@ describe("activate", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -337,6 +339,7 @@ describe("activate", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       clearWorkspace: vi
         .fn()
         .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
@@ -443,6 +446,7 @@ describe("activate", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -489,6 +493,7 @@ describe("activate", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -532,6 +537,7 @@ describe("activate", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -574,6 +580,7 @@ describe("activate", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     });
 

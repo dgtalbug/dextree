@@ -137,6 +137,7 @@ describe("registerOpenGraphViewCommand", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
     });
     registerOpenGraphViewCommand(context as never, getIndexer as never);
 
@@ -190,6 +191,7 @@ describe("registerOpenGraphViewCommand", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
@@ -230,6 +232,7 @@ describe("registerOpenGraphViewCommand", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
@@ -270,6 +273,7 @@ describe("registerOpenGraphViewCommand", () => {
       getCoverageReport: vi
         .fn()
         .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");

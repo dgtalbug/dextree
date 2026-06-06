@@ -13,6 +13,11 @@ import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
 import { parseSource } from "./parser/grammars.js";
 import { getCoverageReport } from "./query/coverage.js";
+import {
+  neighborhood,
+  type NeighborhoodOptions,
+  type NeighborhoodResult,
+} from "./query/neighborhood.js";
 import { getAllFilesQuery } from "./query/files.js";
 import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 import { querySessionSummary } from "./query/sessionSummary.js";
@@ -24,6 +29,7 @@ import {
   replaceFileGraph,
   replaceWorkspaceFrameworks,
   resolveWorkspaceCrossFileEdges,
+  synthesizeFolderTree,
   setFileFramework,
 } from "./storage/repository.js";
 import { applyMigrations } from "./storage/migrations/runner.js";
@@ -55,6 +61,8 @@ export type {
   ClearWorkspaceSummary,
   CoverageReport,
   CoverageRow,
+  NeighborhoodOptions,
+  NeighborhoodResult,
   EdgeKindCount,
   EntryKind,
   ExtractedFileRecord,
@@ -103,6 +111,7 @@ export type {
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 export { getCoverageReport } from "./query/coverage.js";
+export { neighborhood } from "./query/neighborhood.js";
 export type { CallResolver, ResolvedEdge, ResolutionTier } from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
@@ -350,7 +359,14 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     await resolveWorkspaceCrossFileEdges(database.connection, workspaceRoot);
-    this.logger?.info("Finalized workspace cross-file edges", { workspaceRoot });
+    await synthesizeFolderTree(database.connection);
+    this.logger?.info("Finalized workspace cross-file edges + folder tree", { workspaceRoot });
+  }
+
+  async neighborhood(nodeId: string, options: NeighborhoodOptions): Promise<NeighborhoodResult> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return neighborhood(database.connection, nodeId, options);
   }
 
   async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {

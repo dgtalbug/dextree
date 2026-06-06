@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { v4 as uuidv4 } from "uuid";
 
@@ -738,6 +740,71 @@ export async function resolveWorkspaceCrossFileEdges(
 
   // Re-stamp tiers now that cross-file targets are filled in.
   await stampResolutionTier(connection);
+}
+
+/** Deterministic folder id: stable across re-index so the tree doesn't reshuffle. */
+function folderId(path: string): string {
+  return `folder:${createHash("sha256").update(path, "utf8").digest("hex").slice(0, 32)}`;
+}
+
+/**
+ * Synthesize `folder` nodes + `CONTAINS` edges from the indexed files' relative
+ * paths, producing a connected root→folder→file tree. Deterministic ids (path
+ * hash) keep re-indexing stable. Rebuilt wholesale each call (idempotent): clear
+ * folders + CONTAINS, then re-derive from current files. Runs in finalize.
+ */
+export async function synthesizeFolderTree(connection: DuckDBConnection): Promise<void> {
+  await runInTransaction(connection, async () => {
+    await connection.run("DELETE FROM folder");
+    await connection.run("DELETE FROM edge WHERE kind = 'CONTAINS'");
+
+    const reader = await connection.run("SELECT id, relative_path FROM file");
+    const files = await reader.getRowObjects();
+    if (files.length === 0) return;
+
+    const folders = new Map<string, { id: string; parent: string | null }>();
+    const containsFileEdges: { folder: string; file: string }[] = [];
+
+    for (const f of files) {
+      const rel = String(f.relative_path);
+      const parts = rel.split("/");
+      parts.pop(); // drop the filename
+      // Register every ancestor folder ("" = root), chaining parent links.
+      let parentPath: string | null = null;
+      let accum = "";
+      // Root sentinel so top-level files attach to a single root node.
+      const rootId = folderId("");
+      if (!folders.has("")) folders.set("", { id: rootId, parent: null });
+      parentPath = "";
+      for (const part of parts) {
+        accum = accum === "" ? part : `${accum}/${part}`;
+        if (!folders.has(accum)) {
+          folders.set(accum, { id: folderId(accum), parent: folders.get(parentPath!)!.id });
+        }
+        parentPath = accum;
+      }
+      containsFileEdges.push({ folder: folders.get(parentPath)!.id, file: String(f.id) });
+    }
+
+    for (const [path, info] of folders) {
+      await connection.run(
+        "INSERT INTO folder (id, path, parent_id) VALUES ($id, $path, $parent)",
+        { id: info.id, path, parent: info.parent },
+      );
+      if (info.parent !== null) {
+        await connection.run(
+          "INSERT INTO edge (id, source_id, target_id, kind, metadata) VALUES ($id, $s, $t, 'CONTAINS', '{}')",
+          { id: `contains:${info.parent}->${info.id}`, s: info.parent, t: info.id },
+        );
+      }
+    }
+    for (const e of containsFileEdges) {
+      await connection.run(
+        "INSERT INTO edge (id, source_id, target_id, kind, metadata) VALUES ($id, $s, $t, 'CONTAINS', '{}')",
+        { id: `contains:${e.folder}->${e.file}`, s: e.folder, t: e.file },
+      );
+    }
+  });
 }
 
 /**

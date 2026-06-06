@@ -6,6 +6,7 @@ export const REQUIRED_TABLES = [
   "file",
   "symbol",
   "edge",
+  "folder",
   "diagnostic",
   "workspace_cache",
   "workspace_framework",
@@ -81,6 +82,14 @@ export const SCHEMA_STATEMENTS = [
       kind VARCHAR NOT NULL,
       weight FLOAT,
       metadata JSON DEFAULT '{}'
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS folder (
+      id VARCHAR PRIMARY KEY,
+      path VARCHAR NOT NULL,
+      parent_id VARCHAR,
+      _schema_version UINTEGER NOT NULL DEFAULT ${SCHEMA_VERSION}
     )
   `,
   `
@@ -187,6 +196,8 @@ export const SCHEMA_STATEMENTS = [
   "CREATE INDEX IF NOT EXISTS idx_symbol_fqn ON symbol(fqn)",
   "CREATE INDEX IF NOT EXISTS idx_symbol_file_id ON symbol(file_id)",
   "CREATE INDEX IF NOT EXISTS idx_symbol_kind ON symbol(kind)",
+  "CREATE INDEX IF NOT EXISTS idx_folder_path ON folder(path)",
+  "CREATE INDEX IF NOT EXISTS idx_folder_parent ON folder(parent_id)",
   "CREATE INDEX IF NOT EXISTS idx_edge_source ON edge(source_id)",
   "CREATE INDEX IF NOT EXISTS idx_edge_target ON edge(target_id)",
   "CREATE INDEX IF NOT EXISTS idx_edge_kind ON edge(kind)",
