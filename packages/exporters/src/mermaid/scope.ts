@@ -25,6 +25,9 @@ export function extractMermaidScope(
     case "file":
       return extractFileScope(workspaceSubgraph, scope.relativePath);
 
+    case "visible":
+      return extractVisibleScope(workspaceSubgraph, scope.nodeIds, scope.edgeIds);
+
     case "symbol-callers":
     case "symbol-callees":
       return {
@@ -61,6 +64,46 @@ function extractFileScope(
 
   const materialized = materializeGraphology(workspaceSubgraph);
   const scoped = subgraph(materialized, matchedIds);
+
+  return {
+    status: "ok",
+    subgraph: serializeFromGraphology(scoped, workspaceSubgraph.frameworks),
+  };
+}
+
+/**
+ * Extract the rendered `VisibleView`: the induced subgraph over an explicit node
+ * id set, then restricted to the explicit edge id set. Node induction keeps only
+ * edges with both endpoints visible; intersecting with `edgeIds` additionally
+ * honors edge-kind hiding (a CALLS edge between two visible nodes can still be
+ * hidden by the edge filter, so it must not reappear in the export). Unknown ids
+ * are ignored. An empty visible set yields an empty subgraph (never throws), so
+ * the export always matches exactly what is on screen.
+ */
+function extractVisibleScope(
+  workspaceSubgraph: WorkspaceSubgraph,
+  nodeIds: string[],
+  edgeIds: string[],
+): ScopeExtractionResult {
+  const visibleNodeIds = new Set(nodeIds);
+  const present = new Set<string>();
+  for (const node of workspaceSubgraph.nodes) {
+    if (visibleNodeIds.has(node.id)) {
+      present.add(node.id);
+    }
+  }
+
+  const materialized = materializeGraphology(workspaceSubgraph);
+  const scoped = subgraph(materialized, present);
+
+  // Restrict induced edges to the explicit visible edge set so edge-kind hiding
+  // is honored. An empty edgeIds with non-empty nodes keeps no edges.
+  const visibleEdgeIds = new Set(edgeIds);
+  scoped.forEachEdge((edgeKey) => {
+    if (!visibleEdgeIds.has(edgeKey)) {
+      scoped.dropEdge(edgeKey);
+    }
+  });
 
   return {
     status: "ok",

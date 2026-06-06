@@ -76,6 +76,16 @@ export function fuzz(data: Buffer): void {
     { kind: "workspace" },
     { kind: "file", relativePath: "/fuzz/test.ts" },
     { kind: "file", relativePath: text.slice(0, 64) },
+    // Visible scope: a real node id plus the fuzz text as a (usually unknown)
+    // id, so both the present-node path and unknown-id filtering are exercised.
+    // Always extracts ok (never unsupported), so the flowchart oracle applies.
+    {
+      kind: "visible",
+      nodeIds: ["22222222-2222-2222-2222-222222222222", text.slice(0, 64)],
+      edgeIds: [],
+    },
+    // Empty visible set — must still serialize without throwing on empty.
+    { kind: "visible", nodeIds: [], edgeIds: [] },
   ];
 
   for (const scope of scopes) {

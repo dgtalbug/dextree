@@ -31,13 +31,16 @@ export type MermaidDiagram = "flowchart" | "classDiagram" | "sequenceDiagram";
 
 /**
  * Discriminated union describing which portion of the indexed workspace graph
- * to export. Slice 027 ships `workspace` and `file`; `symbol-callers` /
+ * to export. `workspace` and `file` are the original scopes; `visible` exports
+ * an explicit node/edge id set (the rendered `VisibleView`, so an export matches
+ * exactly what the user sees after lenses/filters/depth). `symbol-callers` /
  * `symbol-callees` are pre-declared so later slices add behavior without
  * changing the option type.
  */
 export type MermaidScope =
   | { kind: "workspace" }
   | { kind: "file"; relativePath: string }
+  | { kind: "visible"; nodeIds: string[]; edgeIds: string[] }
   | { kind: "symbol-callers"; symbolId: string; maxDepth?: number }
   | { kind: "symbol-callees"; symbolId: string; maxDepth?: number };
 

@@ -55,14 +55,27 @@ const SCOPED_THEME_BY_PREVIEW_THEME = {
 } as const;
 
 function titleForOptions(options: MermaidPreviewOptions): string {
-  const scopeLabel =
-    options.scope.kind === "workspace"
-      ? "Workspace"
-      : options.scope.kind === "file"
-        ? `File · ${options.scope.relativePath}`
-        : options.scope.kind === "symbol-callers"
-          ? `Callers · ${options.scope.symbolId}`
-          : `Callees · ${options.scope.symbolId}`;
+  const { scope } = options;
+  let scopeLabel: string;
+  switch (scope.kind) {
+    case "workspace":
+      scopeLabel = "Workspace";
+      break;
+    case "file":
+      scopeLabel = `File · ${scope.relativePath}`;
+      break;
+    case "visible": {
+      const count = scope.nodeIds.length;
+      scopeLabel = `Current view · ${count} ${count === 1 ? "node" : "nodes"}`;
+      break;
+    }
+    case "symbol-callers":
+      scopeLabel = `Callers · ${scope.symbolId}`;
+      break;
+    case "symbol-callees":
+      scopeLabel = `Callees · ${scope.symbolId}`;
+      break;
+  }
   return `${options.diagram} · ${scopeLabel}`;
 }
 
