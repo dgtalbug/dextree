@@ -1344,6 +1344,54 @@ describe("GraphView", () => {
     });
   });
 
+  describe("cluster-hull persistence", () => {
+    it("restores hulls-off from the persisted preference", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+          initialShowClusterHulls={false}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: "Toggle file cluster hulls" });
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("defaults hulls on when no preference is persisted", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: "Toggle file cluster hulls" });
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("persists the new preference when the hull toggle is clicked", () => {
+      const onPersistClusterHulls = vi.fn();
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+          onPersistClusterHulls={onPersistClusterHulls}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Toggle file cluster hulls" }));
+      // Default is on → toggling persists "off".
+      expect(onPersistClusterHulls).toHaveBeenCalledWith(false);
+    });
+  });
+
   describe("node focus", () => {
     it("focuses a selected node and shows the exit chip, then restores on exit", () => {
       render(

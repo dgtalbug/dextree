@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createWorkspaceIgnore } from "@dextree/core";
 import * as vscode from "vscode";
 
+import { readIgnoreOptions } from "../commands/ignoreOptions.js";
 import { SUPPORTED_GLOB } from "../commands/indexWorkspace.js";
 import type { WorkspaceWatcherDependencies, WatcherEvent } from "./types.js";
 
@@ -26,7 +27,7 @@ export function createWorkspaceWatcher(
   let droppedEventCount = 0;
 
   // Lazily-initialized ignore helper — createWorkspaceIgnore reads .gitignore files.
-  const ignorePromise = createWorkspaceIgnore(workspaceRoot);
+  const ignorePromise = createWorkspaceIgnore(workspaceRoot, readIgnoreOptions());
 
   async function isIgnoredPath(filePath: string): Promise<boolean> {
     const ignore = await ignorePromise;

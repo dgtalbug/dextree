@@ -38,47 +38,10 @@ const SEQUENCE_OPTIONS: ScopedMermaidOptions = {
 // ---------------------------------------------------------------------------
 // Slice 031 Phase 1 scaffold
 // ---------------------------------------------------------------------------
-// This file exists so subsequent phases can land RED tests for US1 (trace
-// sequence export) without restructuring imports. Real coverage for the
-// validator + serializer behavior lands in T008 (US1 RED tests).
+// The validator + serializer behavior is covered directly below; the earlier
+// Phase-1 export-existence scaffold was removed as redundant (those exports are
+// exercised by the behavioral tests that call them).
 // ---------------------------------------------------------------------------
-
-describe("sequenceDiagram module surface (slice 031 Phase 1)", () => {
-  it("exports validateSequenceDiagramExport as a callable function", () => {
-    expect(typeof validateSequenceDiagramExport).toBe("function");
-  });
-
-  it("exports serializeToSequenceDiagram as a callable function", () => {
-    expect(typeof serializeToSequenceDiagram).toBe("function");
-  });
-
-  it("TraceSequenceSnapshot type is exported and assignable", () => {
-    const snapshot: TraceSequenceSnapshot = {
-      phase: "path-active",
-      startNodeId: "n1",
-      endNodeId: "n2",
-      nodeIds: ["n1", "n2"],
-      edgeIds: ["e1"],
-    };
-    expect(snapshot.phase).toBe("path-active");
-  });
-
-  it("SequenceDiagramValidation discriminated union accepts each documented status", () => {
-    const cases: SequenceDiagramValidation[] = [
-      { status: "ok", participantCount: 2, stepCount: 1 },
-      { status: "empty", reason: "no nodes" },
-      { status: "unsupported", reason: "no active trace" },
-      {
-        status: "oversized",
-        participantCount: 99,
-        stepCount: 999,
-        cap: { participants: 40, steps: 100 },
-        reason: "exceeds caps",
-      },
-    ];
-    expect(cases).toHaveLength(4);
-  });
-});
 
 describe("validateSequenceDiagramExport behavior (slice 031 T008)", () => {
   it("returns ok for a representative active trace under the caps", () => {
