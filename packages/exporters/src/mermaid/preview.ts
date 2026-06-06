@@ -1,6 +1,12 @@
 import type { Logger, WorkspaceSubgraph } from "@dextree/core";
 
-import { serializeToScopedMermaid } from "./scopedSerializer.js";
+import {
+  applyMermaidGranularity,
+  clampGranularityToScope,
+  extractMermaidScope,
+  serializeToScopedMermaid,
+  validateScopedMermaidExport,
+} from "./scopedSerializer.js";
 import type { MermaidDirection, MermaidGranularity, MermaidScope } from "./scopedSerializer.js";
 import { MERMAID_INIT_DIRECTIVE } from "./theme.js";
 
@@ -42,6 +48,12 @@ export type MermaidPreviewResult =
       options: MermaidPreviewOptions;
       source: string;
       title: string;
+      /**
+       * Non-blocking "large diagram" notice when the export is above the soft
+       * cap but within the hard cap. Present only in that case; the source is
+       * still valid and rendered.
+       */
+      warning?: string;
     }
   | {
       status: "empty" | "oversized" | "unsupported";
@@ -118,6 +130,7 @@ export function generateMermaidPreview(
       options,
       source,
       title: titleForOptions(options),
+      ...(softCapWarning(subgraph, options) ?? {}),
     };
   } catch (err) {
     logger?.error("generateMermaidPreview failed", err, {
@@ -129,6 +142,30 @@ export function generateMermaidPreview(
     const status = classifyFailure(reason);
     return { status, options, reason };
   }
+}
+
+/**
+ * Detect the soft-cap `warning` for a successful flowchart preview by re-running
+ * the (pure) extract → collapse → validate pipeline. Returns `{ warning }` when
+ * the export is above the soft cap (but within the hard cap, else it would have
+ * thrown), or null otherwise. ClassDiagram has no node-cap path, so it never
+ * warns here.
+ */
+function softCapWarning(
+  subgraph: WorkspaceSubgraph,
+  options: MermaidPreviewOptions,
+): { warning: string } | null {
+  if (options.diagram !== "flowchart") {
+    return null;
+  }
+  const extracted = extractMermaidScope(subgraph, options.scope);
+  if (extracted.status !== "ok") {
+    return null;
+  }
+  const granularity = clampGranularityToScope(options.scope, options.granularity);
+  const collapsed = applyMermaidGranularity(extracted.subgraph, granularity);
+  const validation = validateScopedMermaidExport(collapsed, granularity);
+  return validation.status === "warning" ? { warning: validation.reason } : null;
 }
 
 function classifyFailure(reason: string): "empty" | "oversized" | "unsupported" {

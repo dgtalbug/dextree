@@ -516,6 +516,25 @@ describe("MermaidPreviewPanel mockup layout (slice 033 Phase 4)", () => {
     expect(statusRow!.textContent).toMatch(/light/i);
   });
 
+  it("surfaces the soft-cap 'Large diagram' notice when the preview warns", () => {
+    const warned: MermaidPreviewResult = {
+      status: "ok",
+      options: DEFAULT_OPTIONS,
+      source: "graph TB\n  a-->b",
+      title: "flowchart · Current view",
+      warning: "Scoped graph has 150 nodes ... above the symbol soft cap (100 nodes ...).",
+    };
+    render(<MermaidPreviewPanel preview={warned} renderSource={renderOk} />);
+    const notice = screen.getByTestId("mermaid-soft-cap-warning");
+    expect(notice.textContent).toMatch(/large diagram/i);
+    expect(notice.getAttribute("title")).toMatch(/soft cap/i);
+  });
+
+  it("omits the soft-cap notice for a within-cap preview", () => {
+    render(<MermaidPreviewPanel preview={okPreview()} renderSource={renderOk} />);
+    expect(screen.queryByTestId("mermaid-soft-cap-warning")).toBeNull();
+  });
+
   it("splits the body with the rendered preview before the source (T022)", async () => {
     const { container } = render(
       <MermaidPreviewPanel preview={okPreview()} renderSource={renderOk} />,

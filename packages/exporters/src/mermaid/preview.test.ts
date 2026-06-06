@@ -144,6 +144,54 @@ describe("generateMermaidPreview — flowchart routing (slice 029 PR-A)", () => 
   });
 });
 
+describe("generateMermaidPreview — soft-cap warning", () => {
+  // The `visible` scope keeps the explicit node set (no workspace→file floor),
+  // so a 120-file visible export sits between the symbol soft (100) and hard
+  // (200) node caps → ok-with-warning.
+  function manyFiles(n: number): GraphNode[] {
+    return Array.from({ length: n }, (_, i) => fileNode(`f-${i}`, `src/f${i}.ts`));
+  }
+
+  it("returns ok with a non-blocking warning above the soft cap", () => {
+    const files = manyFiles(120);
+    const sg = subgraph(files);
+    const result = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      scope: { kind: "visible", nodeIds: files.map((f) => f.id), edgeIds: [] },
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.warning).toBeDefined();
+      expect(result.warning).toMatch(/soft cap/i);
+      // The source is still produced and valid.
+      expect(result.source).toContain("graph");
+    }
+  });
+
+  it("returns ok with no warning at or below the soft cap", () => {
+    const files = manyFiles(50);
+    const sg = subgraph(files);
+    const result = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      scope: { kind: "visible", nodeIds: files.map((f) => f.id), edgeIds: [] },
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.warning).toBeUndefined();
+    }
+  });
+
+  it("blocks (oversized) above the hard cap", () => {
+    const files = manyFiles(250);
+    const sg = subgraph(files);
+    const result = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      scope: { kind: "visible", nodeIds: files.map((f) => f.id), edgeIds: [] },
+    });
+    expect(result.status).toBe("oversized");
+  });
+});
+
 describe("generateMermaidPreview — classDiagram routing (slice 029 PR-B / US2)", () => {
   it("returns ok with classDiagram source for a subgraph with class-like symbols", () => {
     const sg = subgraph([
