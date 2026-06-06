@@ -432,10 +432,9 @@ export function App({ vscodeApi }: AppProps) {
             onNavigate={handleNavigate}
             {...(initialShowClusterHulls !== undefined ? { initialShowClusterHulls } : {})}
             onPersistClusterHulls={persistShowClusterHulls}
-            onExportMermaid={() => {
-              handleCommand("export-mermaid");
-            }}
-            onExportCurrentView={(nodeIds, edgeIds) => {
+            onExportMermaid={(nodeIds, edgeIds) => {
+              // Carry the current VisibleView membership so the host can offer
+              // "current view (N)" vs "whole workspace" and export the choice.
               vscodeApi.postMessage({
                 type: "exportCurrentView",
                 viewId: "graph-view",

@@ -328,7 +328,6 @@ export function GraphView({
   edges,
   onNavigate,
   onExportMermaid,
-  onExportCurrentView,
   initialShowClusterHulls,
   onPersistClusterHulls,
   onExportTraceSequence,
@@ -709,11 +708,13 @@ export function GraphView({
   // from the controller (same hide logic as the reducers) and hand the id arrays
   // up so the host exports the `visible` scope. No-op before the controller is
   // mounted (nothing rendered yet to export).
-  const handleExportCurrentView = useCallback((): void => {
+  // Single Export entry point: hand the host the current VisibleView membership
+  // so it can offer "current view (N nodes)" vs "whole workspace" and export the
+  // chosen scope. The host shows the picker; the webview only supplies the ids.
+  const handleExportMermaid = useCallback((): void => {
     const view = controllerRef.current?.getVisibleView();
-    if (view === undefined) return;
-    onExportCurrentView([...view.nodeIds], [...view.edgeIds]);
-  }, [onExportCurrentView]);
+    onExportMermaid([...(view?.nodeIds ?? [])], [...(view?.edgeIds ?? [])]);
+  }, [onExportMermaid]);
 
   // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
   // Sigma node/edge reducers via their refs; these handlers expose the toggle
@@ -750,18 +751,13 @@ export function GraphView({
       return;
     }
 
-    // Bound the trace to the VisibleView: a path must not run through nodes the
-    // user has filtered out. If either endpoint is outside the visible set, or
-    // the shortest path crosses a hidden node, report "no path" (the existing
-    // non-blocking notice) rather than tracing through hidden nodes.
-    const view = controllerRef.current?.getVisibleView();
-    const visibleNodeIds = view?.nodeIds ?? null;
-    const inView = (id: string): boolean => visibleNodeIds === null || visibleNodeIds.has(id);
+    // Trace the real call path on the full graph. Filters affect what the canvas
+    // *renders*, but the trace must find the actual route between the two nodes —
+    // bounding it to the visible set made any path through a filtered-out kind
+    // (file/property/variable/…, hidden by default) collapse to "no path".
+    const nodePath = bidirectional(graph, startId, endId);
 
-    const nodePath = inView(startId) && inView(endId) ? bidirectional(graph, startId, endId) : null;
-    const pathWithinView = nodePath !== null && nodePath.every(inView);
-
-    if (!pathWithinView) {
+    if (nodePath === null) {
       controllerRef.current?.setTracePhase("path-active");
       setTraceState({
         phase: "path-active",
@@ -1297,8 +1293,7 @@ export function GraphView({
       {/* TOOLBAR area */}
       <div className={shellStyles.toolbarArea}>
         <GraphToolbar
-          onExportMermaid={onExportMermaid}
-          onExportCurrentView={handleExportCurrentView}
+          onExportMermaid={handleExportMermaid}
           showMinimap={showMinimap}
           onToggleMinimap={onToggleMinimap}
           showClusterHulls={showClusterHulls}

@@ -94,13 +94,30 @@ export type ScopedExportValidation =
   | { status: "ok"; nodeCount: number; edgeCount: number }
   | { status: "empty"; reason: string }
   | {
+      // Above the soft cap but within the hard cap: the export proceeds, but the
+      // result is flagged so the UI can surface a non-blocking "large diagram"
+      // notice. The serializer still produces output for this status.
+      status: "warning";
+      nodeCount: number;
+      edgeCount: number;
+      cap: MermaidExportCap;
+      reason: string;
+    }
+  | {
       status: "oversized";
       nodeCount: number;
       edgeCount: number;
-      cap: { nodes: number; edges: number };
+      cap: MermaidExportCap;
       reason: string;
     }
   | { status: "unsupported"; reason: string };
+
+/** Two-tier export cap: hard `nodes`/`edges` plus the `soft` warning thresholds. */
+export interface MermaidExportCap {
+  nodes: number;
+  edges: number;
+  soft: { nodes: number; edges: number };
+}
 
 /**
  * Result of scope extraction. Forward-compatibility seam: scope kinds not yet
@@ -222,7 +239,10 @@ function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidO
 
   const collapsed = applyMermaidGranularity(extracted.subgraph, granularity);
   const validation = validateScopedMermaidExport(collapsed, granularity);
-  if (validation.status !== "ok") {
+  // `warning` is above the soft cap but within the hard cap: serialize anyway
+  // (the UI surfaces the non-blocking notice). Only empty / oversized /
+  // unsupported block the export.
+  if (validation.status !== "ok" && validation.status !== "warning") {
     throw new Error(validation.reason);
   }
 

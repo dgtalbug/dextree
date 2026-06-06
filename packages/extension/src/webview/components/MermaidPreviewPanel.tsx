@@ -308,12 +308,23 @@ export function MermaidPreviewPanel({
         </button>
       </div>
 
-      {/* Row 2 — status row (theme + click-links; counts/cap absent from payload, CC-003) */}
+      {/* Row 2 — status row (theme + an optional soft-cap "large diagram" notice) */}
       <div className={styles.statusRow} data-testid="mermaid-status-row">
         <span className={styles.statusItem}>
           <span className="codicon codicon-info" aria-hidden="true" />
           Theme: {themeLabel}
         </span>
+        {okPreview?.warning !== undefined && (
+          <span
+            className={styles.statusItem}
+            data-testid="mermaid-soft-cap-warning"
+            role="status"
+            title={okPreview.warning}
+          >
+            <span className="codicon codicon-warning" aria-hidden="true" />
+            Large diagram
+          </span>
+        )}
         <span className={styles.statusSpacer} />
         {exportStatus.type !== "idle" && (
           <span

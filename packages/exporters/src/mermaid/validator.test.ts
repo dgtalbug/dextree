@@ -29,10 +29,59 @@ function subgraph(nodeCount: number, edgeCount: number): WorkspaceSubgraph {
 // ---------------------------------------------------------------------------
 
 describe("MERMAID_GRANULARITY_CAPS", () => {
-  it("exposes node + edge caps for every granularity level", () => {
-    expect(MERMAID_GRANULARITY_CAPS.package).toEqual({ nodes: 150, edges: 300 });
-    expect(MERMAID_GRANULARITY_CAPS.file).toEqual({ nodes: 400, edges: 800 });
-    expect(MERMAID_GRANULARITY_CAPS.symbol).toEqual({ nodes: 200, edges: 400 });
+  it("exposes hard + soft node/edge caps for every granularity level", () => {
+    expect(MERMAID_GRANULARITY_CAPS.package).toEqual({
+      nodes: 150,
+      edges: 300,
+      soft: { nodes: 75, edges: 150 },
+    });
+    expect(MERMAID_GRANULARITY_CAPS.file).toEqual({
+      nodes: 400,
+      edges: 800,
+      soft: { nodes: 200, edges: 400 },
+    });
+    expect(MERMAID_GRANULARITY_CAPS.symbol).toEqual({
+      nodes: 200,
+      edges: 400,
+      soft: { nodes: 100, edges: 200 },
+    });
+  });
+
+  it("keeps every soft cap below its hard cap", () => {
+    for (const cap of Object.values(MERMAID_GRANULARITY_CAPS)) {
+      expect(cap.soft.nodes).toBeLessThan(cap.nodes);
+      expect(cap.soft.edges).toBeLessThan(cap.edges);
+    }
+  });
+});
+
+describe("validateScopedMermaidExport — soft cap (warning tier)", () => {
+  it("returns ok at or below the symbol soft cap (100 nodes)", () => {
+    const result = validateScopedMermaidExport(subgraph(100, 0), "symbol");
+    expect(result.status).toBe("ok");
+  });
+
+  it("returns warning (not blocking) between the symbol soft and hard caps", () => {
+    const result = validateScopedMermaidExport(subgraph(150, 0), "symbol");
+    expect(result.status).toBe("warning");
+    if (result.status === "warning") {
+      expect(result.nodeCount).toBe(150);
+      expect(result.reason).toMatch(/soft cap/i);
+    }
+  });
+
+  it("returns warning at exactly soft+1 nodes", () => {
+    expect(validateScopedMermaidExport(subgraph(101, 0), "symbol").status).toBe("warning");
+  });
+
+  it("returns oversized (blocking) above the symbol hard cap (200 nodes)", () => {
+    expect(validateScopedMermaidExport(subgraph(201, 0), "symbol").status).toBe("oversized");
+  });
+
+  it("warns on edges above the soft edge cap even when nodes are fine", () => {
+    // symbol soft edges = 200, hard edges = 400.
+    const result = validateScopedMermaidExport(subgraph(10, 250), "symbol");
+    expect(result.status).toBe("warning");
   });
 });
 
@@ -72,7 +121,7 @@ describe("validateScopedMermaidExport — oversized", () => {
     const result = validateScopedMermaidExport(subgraph(151, 0), "package");
     expect(result.status).toBe("oversized");
     if (result.status === "oversized") {
-      expect(result.cap).toEqual({ nodes: 150, edges: 300 });
+      expect(result.cap).toEqual({ nodes: 150, edges: 300, soft: { nodes: 75, edges: 150 } });
     }
   });
 
@@ -91,8 +140,16 @@ describe("validateScopedMermaidExport — ok", () => {
     expect(result).toEqual({ status: "ok", nodeCount: 50, edgeCount: 75 });
   });
 
-  it("returns ok at the exact cap boundary (cap is inclusive)", () => {
+  it("does not block at the exact hard-cap boundary (cap is inclusive — warns, not oversized)", () => {
+    // 200 nodes / 400 edges == the symbol hard cap: allowed (not oversized), but
+    // above the soft cap so it surfaces a warning rather than a clean ok.
     const result = validateScopedMermaidExport(subgraph(200, 400), "symbol");
+    expect(result.status).toBe("warning");
+  });
+
+  it("returns ok at exactly the soft-cap boundary (soft is inclusive)", () => {
+    // symbol soft cap = 100 nodes / 200 edges → still a clean ok.
+    const result = validateScopedMermaidExport(subgraph(100, 200), "symbol");
     expect(result.status).toBe("ok");
   });
 });
