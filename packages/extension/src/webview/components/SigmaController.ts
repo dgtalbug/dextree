@@ -8,7 +8,18 @@ import { NodeCircleProgram } from "sigma/rendering";
 import type { EdgeDisplayData, NodeDisplayData } from "sigma/types";
 
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
-import { stabilizeFileAnchors, toFadedColor } from "./graphBuild.js";
+import {
+  detectCommunities,
+  EMPTY_PARTITION,
+  seedPositionsByCommunity,
+  type CommunityPartition,
+} from "./graphCommunities.js";
+import {
+  fadeColorTo,
+  INTER_COMMUNITY_ALPHA,
+  stabilizeFileAnchors,
+  toFadedColor,
+} from "./graphBuild.js";
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { computeSelection } from "./graphTraversal.js";
 import { dimColor } from "./lensColor.js";
@@ -153,6 +164,10 @@ export class SigmaController {
   private focusNodeId: string | null = null;
   private focusVisibleNodeIds: Set<string> | null = null;
   private decoratorBackedNodeIds: Set<string> = new Set();
+  // Community partition (Louvain) over the mounted graph, computed once at mount.
+  // Feeds the layout (members attract), the edge reducer (inter-community edges
+  // recede), and the per-community hull drawing.
+  private communities: CommunityPartition = EMPTY_PARTITION;
   private matchedNodeIds: ReadonlySet<string> = new Set();
   private lensMatchSet: ReadonlySet<string> | null = null;
   private lensColorOf: ((archLayer: string | undefined) => string | null) | null = null;
@@ -569,6 +584,22 @@ export class SigmaController {
         return emphasised;
       }
 
+      // Inter-community edges recede so the cluster structure is legible. Applies
+      // only to un-emphasised member edges: lens emphasis and trace dimming above
+      // already returned, so they still win. A moderate alpha keeps them visible
+      // (distinct from the much stronger hover/trace fade). Intra keeps base.
+      if (this.isInterCommunityEdge(edge, graph)) {
+        return {
+          ...data,
+          color: fadeColorTo(
+            data.baseColor ?? data.color,
+            colors?.disabledColor ?? String(data.color),
+            INTER_COMMUNITY_ALPHA,
+          ),
+          size: Math.max(Number(data.baseSize ?? data.size) * 0.85, 1),
+        };
+      }
+
       return data;
     }
 
@@ -583,6 +614,23 @@ export class SigmaController {
   };
 
   /**
+   * Whether an edge's endpoints belong to different communities. False when there
+   * is no partition, no graph, or either endpoint is unassigned (treated as same
+   * community so unknown edges are not dimmed).
+   */
+  private isInterCommunityEdge(edge: string, graph: MultiDirectedGraph | null): boolean {
+    if (graph === null || this.communities.count === 0) {
+      return false;
+    }
+    const sourceCommunity = this.communities.byNode.get(graph.source(edge));
+    const targetCommunity = this.communities.byNode.get(graph.target(edge));
+    if (sourceCommunity === undefined || targetCommunity === undefined) {
+      return false;
+    }
+    return sourceCommunity !== targetCommunity;
+  }
+
+  /**
    * Construct and mount the Sigma renderer onto a container for a prepared graph,
    * wiring layout, theme, the node/edge reducers, interaction listeners, the
    * resize + theme observers, and the afterRender overlay draw. The component
@@ -595,10 +643,19 @@ export class SigmaController {
     graph: MultiDirectedGraph,
     callbacks: SigmaMountCallbacks,
   ): Sigma {
+    // Detect communities once over the mounted graph (deterministic). Drives the
+    // community-aware layout seeding below, the inter-community edge dimming in
+    // the edge reducer, and the per-community hull drawing.
+    this.communities = detectCommunities(graph);
+
     // Run the force-directed layout before constructing Sigma so the first paint
     // is already settled. Layout failure is non-fatal — render the raw positions.
     if (graph.order > 0) {
       try {
+        // Seed members near their community centroid first so FA2 refines from a
+        // grouped, reproducible start: members attract into islands, distinct
+        // communities stay apart.
+        seedPositionsByCommunity(graph, this.communities);
         forceAtlas2.assign(graph, {
           iterations: FORCE_ATLAS2_ITERATIONS,
           settings: {
@@ -706,6 +763,11 @@ export class SigmaController {
     return sigma;
   }
 
+  /** The community partition over the mounted graph (empty before mount). */
+  get communityPartition(): CommunityPartition {
+    return this.communities;
+  }
+
   /** Whether the minimap should draw given the current graph order. */
   shouldDrawMinimap(): boolean {
     return this.graph !== null && this.graph.order > MINIMAP_MIN_NODES;
@@ -803,6 +865,7 @@ export class SigmaController {
     this.focusNodeId = null;
     this.focusVisibleNodeIds = null;
     this.decoratorBackedNodeIds = new Set();
+    this.communities = EMPTY_PARTITION;
     this.matchedNodeIds = new Set();
     this.lensMatchSet = null;
     this.lensColorOf = null;

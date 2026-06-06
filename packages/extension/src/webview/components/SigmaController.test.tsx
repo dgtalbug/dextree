@@ -671,6 +671,46 @@ describe("SigmaController — edge reducer branches", () => {
     expect(out.hidden).toBe(true);
   });
 
+  it("dims an inter-community edge but not an intra-community edge", () => {
+    // Two triangles bridged by one edge → Louvain yields 2 communities; the
+    // bridge edge is inter-community, the triangle edges are intra-community.
+    const graph = new MultiDirectedGraph();
+    for (const id of ["a1", "a2", "a3", "b1", "b2", "b3"]) {
+      graph.addNode(id, { edgeKind: undefined });
+    }
+    graph.addEdgeWithKey("a-tri", "a1", "a2", edgeAttrs());
+    graph.addEdgeWithKey("a-tri2", "a2", "a3", edgeAttrs());
+    graph.addEdgeWithKey("a-tri3", "a3", "a1", edgeAttrs());
+    graph.addEdgeWithKey("b-tri", "b1", "b2", edgeAttrs());
+    graph.addEdgeWithKey("b-tri2", "b2", "b3", edgeAttrs());
+    graph.addEdgeWithKey("b-tri3", "b3", "b1", edgeAttrs());
+    graph.addEdgeWithKey("bridge", "a1", "b1", edgeAttrs());
+
+    const store = createGraphViewStore({ hiddenNodeKinds: new Set(), hiddenEdgeKinds: new Set() });
+    const controller = new SigmaController(store, options());
+    // mount() runs community detection; use a stub sigma + the real graph.
+    controller.mount(stubContainer(), graph, {
+      onNavigate: vi.fn(),
+      onSelect: vi.fn(),
+      onClear: vi.fn(),
+      onTracePick: vi.fn(),
+      applyTheme: () => REDUCER_THEME,
+      updateOverlay: vi.fn(),
+      onResize: vi.fn(),
+      onAfterRender: vi.fn(),
+    });
+
+    // Sanity: the partition split the two triangles.
+    expect(controller.communityPartition.count).toBeGreaterThanOrEqual(2);
+
+    const bridge = controller.edgeReducer("bridge", edgeAttrs() as never);
+    const intra = controller.edgeReducer("a-tri", edgeAttrs() as never);
+    // Inter-community bridge recedes (color shifts toward the disabled colour);
+    // intra-community edge keeps its base colour.
+    expect(bridge.color).not.toBe("#abcabc");
+    expect(intra.color).toBe("#abcabc");
+  });
+
   it("styles on-path edges and dims off-path edges during trace", () => {
     const controller = reducerController();
     controller.setTracePath("path-active", [], ["a->b"]);

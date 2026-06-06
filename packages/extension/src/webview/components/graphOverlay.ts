@@ -66,37 +66,78 @@ export function drawClusterHulls(
   canvas: HTMLCanvasElement,
   hoveredFilePath: string | null,
   selectedFilePath: string | null,
+  communityByNode?: ReadonlyMap<string, number>,
+  visibleNodeIds?: ReadonlySet<string>,
 ): void {
   const ctx = canvas.getContext("2d");
   if (ctx === null) return;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Group symbol nodes by filePath, collect viewport coordinates.
-  // sigma.graphToViewport takes graph-space {x,y} coords — NOT a node ID.
-  const fileGroups = new Map<string, Array<{ x: number; y: number }>>();
-  const fileColors = new Map<string, string>();
+  // When a visible set is supplied (filters / depth / focus active), hulls are
+  // computed over only those members, so the regions reflect the filtered view.
+  const isVisible = (nodeId: string): boolean =>
+    visibleNodeIds === undefined || visibleNodeIds.has(nodeId);
 
-  graph.forEachNode((_nodeId, attrs) => {
+  // Grouping key per symbol node: by community id when a partition is supplied
+  // (cluster-aesthetics), else by filePath (the original per-file hulls). The
+  // active/dimmed highlight resolves the hovered/selected node's group key too,
+  // so highlighting works the same way under either grouping.
+  const byCommunity = communityByNode !== undefined && communityByNode.size > 0;
+  const groupKeyForNode = (nodeId: string, filePath: string): string | null => {
+    if (byCommunity) {
+      const community = communityByNode.get(nodeId);
+      return community === undefined ? null : `community:${community}`;
+    }
+    return filePath;
+  };
+
+  // Group symbol nodes by their group key, collect viewport coordinates.
+  // sigma.graphToViewport takes graph-space {x,y} coords — NOT a node ID.
+  const groups = new Map<string, Array<{ x: number; y: number }>>();
+  const groupColors = new Map<string, string>();
+  // When grouping by community, resolve the active keys from the hovered /
+  // selected node's community (the highlight is by node, surfaced as file path).
+  let activeKey: string | null = null;
+  let selectedKey: string | null = null;
+
+  graph.forEachNode((nodeId, attrs) => {
     const a = attrs as GraphNodeAttributes;
     if (a.nodeKind === "file") {
-      fileColors.set(String(a.filePath), String(a.baseColor ?? a.color));
+      if (!byCommunity) {
+        groupColors.set(String(a.filePath), String(a.baseColor ?? a.color));
+      }
       return;
     }
+    if (!isVisible(nodeId)) return;
+    const key = groupKeyForNode(nodeId, String(a.filePath));
+    if (key === null) return;
+    // First color seen for a group wins (deterministic via node iteration order).
+    if (!groupColors.has(key)) {
+      groupColors.set(key, String(a.baseColor ?? a.color));
+    }
+    // Track which group the hovered/selected node belongs to.
+    if (String(a.filePath) === hoveredFilePath) activeKey = key;
+    if (String(a.filePath) === selectedFilePath) selectedKey = key;
     const gx = Number(a.x);
     const gy = Number(a.y);
     if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
     const vp = sigma.graphToViewport({ x: gx, y: gy });
-    const fp = String(a.filePath);
-    let group = fileGroups.get(fp);
+    let group = groups.get(key);
     if (group === undefined) {
       group = [];
-      fileGroups.set(fp, group);
+      groups.set(key, group);
     }
     group.push({ x: vp.x, y: vp.y });
   });
 
-  for (const [fp, points] of fileGroups.entries()) {
+  // Under file grouping the active keys are the file paths directly.
+  if (!byCommunity) {
+    activeKey = hoveredFilePath;
+    selectedKey = selectedFilePath;
+  }
+
+  for (const [fp, points] of groups.entries()) {
     if (points.length < 3) continue;
     const hull = convexHull(points);
     if (hull.length < 3) continue;
@@ -119,11 +160,11 @@ export function drawClusterHulls(
       return { x: cx + (dx / dist) * (dist + 14), y: cy + (dy / dist) * (dist + 14) };
     });
 
-    const isActive = fp === hoveredFilePath || fp === selectedFilePath;
-    const isDimmed = (hoveredFilePath !== null || selectedFilePath !== null) && !isActive;
+    const isActive = fp === activeKey || fp === selectedKey;
+    const isDimmed = (activeKey !== null || selectedKey !== null) && !isActive;
     const fillAlpha = isActive ? 0.14 : isDimmed ? 0.03 : 0.08;
     const strokeAlpha = isActive ? 0.5 : isDimmed ? 0.1 : 0.28;
-    const baseColor = fileColors.get(fp) ?? "#808080";
+    const baseColor = groupColors.get(fp) ?? "#808080";
 
     ctx.beginPath();
     ctx.moveTo(expanded[0]!.x, expanded[0]!.y);

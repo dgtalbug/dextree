@@ -935,7 +935,15 @@ export function GraphView({
                       .filePath,
                   )
                 : null;
-            drawClusterHulls(graph, sigma, cc, hoveredFilePath, selectedFilePath);
+            drawClusterHulls(
+              graph,
+              sigma,
+              cc,
+              hoveredFilePath,
+              selectedFilePath,
+              controller.communityPartition.byNode,
+              controller.getVisibleView().nodeIds,
+            );
           }
         }
         if (minimapCanvasRef.current !== null && controller.shouldDrawMinimap()) {
