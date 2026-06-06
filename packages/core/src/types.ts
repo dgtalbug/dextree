@@ -224,6 +224,23 @@ export interface EdgeKindCount {
  * Produced by `querySessionSummary` in `packages/core`.
  * Never persisted to DuckDB.
  */
+/** One row of the relation-coverage metric: a (kind, resolution-tier) bucket. */
+export interface CoverageRow {
+  kind: string;
+  tier: string;
+  total: number;
+  resolved: number;
+}
+
+/** Relation-coverage report — index quality made observable, not assumed. */
+export interface CoverageReport {
+  rows: CoverageRow[];
+  totalEdges: number;
+  resolvedEdges: number;
+  /** resolved / total over all edge kinds (0..1). */
+  resolvedRatio: number;
+}
+
 export interface SessionSummary {
   /** Basename of the workspace root folder */
   workspaceName: string;
@@ -282,6 +299,8 @@ export interface Indexer {
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph>;
   getPresentEdgeKinds(workspaceRoot: string): Promise<readonly string[]>;
   getSessionSummary(workspaceRoot: string): Promise<SessionSummary>;
+  /** Relation-coverage metric: edges by kind + resolution tier, resolved/total. */
+  getCoverageReport(): Promise<CoverageReport>;
   clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary>;
   clearFile(filePath: string): Promise<ClearFileSummary>;
   clearAll(): Promise<ClearAllSummary>;

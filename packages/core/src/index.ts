@@ -12,6 +12,7 @@ import { buildBaselineFileRecord, createDefaultExtractorRegistry } from "./extra
 import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
 import { parseSource } from "./parser/grammars.js";
+import { getCoverageReport } from "./query/coverage.js";
 import { getAllFilesQuery } from "./query/files.js";
 import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 import { querySessionSummary } from "./query/sessionSummary.js";
@@ -33,6 +34,7 @@ import {
   type ClearAllSummary,
   type ClearFileSummary,
   type ClearWorkspaceSummary,
+  type CoverageReport,
   type FrameworkInfo,
   type IndexResult,
   type Indexer,
@@ -51,6 +53,8 @@ export type {
   ClearAllSummary,
   ClearFileSummary,
   ClearWorkspaceSummary,
+  CoverageReport,
+  CoverageRow,
   EdgeKindCount,
   EntryKind,
   ExtractedFileRecord,
@@ -98,6 +102,8 @@ export type {
   KnownSymbol,
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
+export { getCoverageReport } from "./query/coverage.js";
+export type { CallResolver, ResolvedEdge, ResolutionTier } from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 
@@ -375,6 +381,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return getPresentEdgeKinds(database.connection, workspaceRoot);
+  }
+
+  async getCoverageReport(): Promise<CoverageReport> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return getCoverageReport(database.connection);
   }
 
   async getSessionSummary(workspaceRoot: string): Promise<SessionSummary> {

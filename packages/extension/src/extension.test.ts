@@ -168,6 +168,9 @@ describe("activate", () => {
       getAllFiles: vi.fn(),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
       dispose: vi.fn(),
     });
 
@@ -236,6 +239,9 @@ describe("activate", () => {
         frameworks: [],
       }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
       dispose: vi.fn(),
     };
 
@@ -326,6 +332,9 @@ describe("activate", () => {
         frameworks: [],
       }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
       clearWorkspace: vi
         .fn()
         .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
@@ -429,6 +438,9 @@ describe("activate", () => {
         ]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
       dispose: vi.fn(),
     };
 
@@ -472,6 +484,9 @@ describe("activate", () => {
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
       dispose: vi.fn(),
     };
 
@@ -512,6 +527,9 @@ describe("activate", () => {
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
       dispose: vi.fn(),
     };
 
@@ -551,6 +569,9 @@ describe("activate", () => {
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
       dispose: vi.fn(),
     });
 

@@ -134,6 +134,9 @@ describe("registerOpenGraphViewCommand", () => {
         edges: [],
       }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
     });
     registerOpenGraphViewCommand(context as never, getIndexer as never);
 
@@ -184,6 +187,9 @@ describe("registerOpenGraphViewCommand", () => {
       }),
       getWorkspaceSubgraph,
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
@@ -221,6 +227,9 @@ describe("registerOpenGraphViewCommand", () => {
       }),
       getWorkspaceSubgraph,
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");
@@ -258,6 +267,9 @@ describe("registerOpenGraphViewCommand", () => {
       }),
       getWorkspaceSubgraph,
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
     });
 
     const { registerOpenGraphViewCommand } = await import("./openGraphView.js");

@@ -54,6 +54,9 @@ function createMockIndexer() {
     clearFile: vi.fn().mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
     clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
     getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+    getCoverageReport: vi
+      .fn()
+      .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
     getSessionSummary: vi.fn().mockResolvedValue({}),
     dispose: vi.fn(),
   };

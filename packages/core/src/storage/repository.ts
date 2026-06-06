@@ -438,6 +438,46 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
     `,
     { file_id: fileId },
   );
+
+  await stampResolutionTier(connection);
+}
+
+/**
+ * Stamp every relational edge with an explicit resolution tier + confidence so a
+ * consumer can distinguish a real target from a guess (RULE-ARCH-010). Same-file
+ * + cross-file name resolution is the `heuristic` tier; the precise tier (the
+ * user's LSP) is applied later, by the host, and overrides this. Edges still
+ * without a target are `unresolved`. Idempotent — re-running only upgrades the
+ * tier field, never the target.
+ */
+export async function stampResolutionTier(connection: DuckDBConnection): Promise<void> {
+  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS')`;
+  // Resolved → heuristic (unless already marked precise by a higher tier).
+  await connection.run(
+    `
+      UPDATE edge
+      SET metadata = json_merge_patch(
+        metadata,
+        '{"resolution":"heuristic","confidence":0.6}'
+      )
+      WHERE kind IN ${RELATIONAL_KINDS}
+        AND target_id IS NOT NULL
+        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') <> 'precise'
+    `,
+  );
+  // Unresolved → explicit unresolved tier (never silently target-less).
+  await connection.run(
+    `
+      UPDATE edge
+      SET metadata = json_merge_patch(
+        metadata,
+        '{"resolution":"unresolved","confidence":0.0}'
+      )
+      WHERE kind IN ${RELATIONAL_KINDS}
+        AND target_id IS NULL
+        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') NOT IN ('precise', 'heuristic')
+    `,
+  );
 }
 
 export async function replaceFileGraph(
@@ -695,6 +735,9 @@ export async function resolveWorkspaceCrossFileEdges(
     `,
     params,
   );
+
+  // Re-stamp tiers now that cross-file targets are filled in.
+  await stampResolutionTier(connection);
 }
 
 /**
