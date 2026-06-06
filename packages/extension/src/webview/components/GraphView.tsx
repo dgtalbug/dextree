@@ -23,7 +23,6 @@ import {
   restoreNodePositions,
   snapshotNodePositions,
 } from "./graphLayoutPresets.js";
-import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { GraphToolbar } from "./GraphToolbar.js";
 import { EdgeTypesPanel, type EdgeTypeEntry } from "./EdgeTypesPanel.js";
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
@@ -77,7 +76,6 @@ import {
 
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
-const FLOW_MAX_DEPTH = 4;
 // Target camera ratio when flying to a search result — small enough to read
 // the node clearly. Clamped so we only ever zoom in, never out.
 const SEARCH_FLY_TO_RATIO = 0.5;
@@ -362,15 +360,11 @@ export function GraphView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MultiDirectedGraph | null>(null);
   const sigmaRef = useRef<Sigma | null>(null);
-  const hoverRef = useRef<HoverNeighborhood | null>(null);
-  const hoverSelectionRef = useRef<SelectionTraversal | null>(null);
-  const selectionRef = useRef<SelectionTraversal | null>(null);
   const clickTimeoutRef = useRef<number | null>(null);
   // Tracks last single-click for manual double-click detection on nodes.
   // Sigma 3's "doubleClickNode" can miss if WebGL picking fails on rapid 2nd click.
   const lastClickRef = useRef<{ node: string; time: number } | null>(null);
   const clusterCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const hoveredNodeIdRef = useRef<string | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const reducedMotion = useReducedMotionPreference();
   // Single source of truth for the view-membership primitives. The imperative
@@ -388,7 +382,20 @@ export function GraphView({
   // the ~460-line effect can collapse to construct/adopt/dispose.
   const controllerRef = useRef<SigmaController | null>(null);
   if (controllerRef.current === null) {
-    controllerRef.current = new SigmaController(graphViewStoreRef.current, { readThemeColors });
+    controllerRef.current = new SigmaController(graphViewStoreRef.current, {
+      readThemeColors,
+      // React owns the SVG traveler overlay; the controller hands back the
+      // active selection and we build the segments from the live sigma/graph.
+      onOverlayUpdate: (selection) => {
+        const sigma = sigmaRef.current;
+        const graph = graphRef.current;
+        if (sigma === null || graph === null) {
+          setOverlaySegments([]);
+          return;
+        }
+        setOverlaySegments(createOverlaySegments(graph, sigma, selection));
+      },
+    });
   }
 
   const [error, setError] = useState<string | null>(null);
@@ -639,8 +646,9 @@ export function GraphView({
     const graph = graphRef.current;
     if (graph === null || !graph.hasNode(nodeId)) return;
     setSelectedNodeId(nodeId);
-    selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
-    if (sigma !== null) refreshSigma(sigma);
+    // Historically this path set the selection + refreshed but did not touch the
+    // overlay (unlike a canvas click); preserve that by opting out.
+    controllerRef.current?.setSelection(nodeId, { updateOverlay: false });
 
     // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
     // zoomed-out graph). Clamp so we only ever zoom in, never out.
@@ -846,9 +854,11 @@ export function GraphView({
 
   useEffect(() => {
     setSelectedNodeId(null);
-    selectionRef.current = null;
-    hoverRef.current = null;
-    hoverSelectionRef.current = null;
+    // Clear the controller's selection/hover render mirror when the graph data
+    // changes. setSelection(null) also clears the overlay; setHover(null) is a
+    // no-op before mount (no graph yet) and clears hover after.
+    controllerRef.current?.setSelection(null);
+    controllerRef.current?.setHover(null);
     lastClickRef.current = null;
     setOverlaySegments([]);
   }, [edges, nodes]);
@@ -887,7 +897,9 @@ export function GraphView({
         return;
       }
 
-      setOverlaySegments(createOverlaySegments(activeGraph, sigma, selectionRef.current));
+      setOverlaySegments(
+        createOverlaySegments(activeGraph, sigma, controllerRef.current?.currentSelection ?? null),
+      );
     };
 
     let sigma: Sigma | null = null;
@@ -895,35 +907,11 @@ export function GraphView({
     let resizeObserver: ResizeObserver | null = null;
 
     const enterNodeListener = (event: { node: string }): void => {
-      hoveredNodeIdRef.current = event.node;
-      hoverRef.current = computeHoverNeighborhood(graph, event.node);
-      hoverSelectionRef.current = computeSelection(graph, event.node, FLOW_MAX_DEPTH);
-      if (sigma !== null) {
-        refreshSigma(sigma);
-        // Show animated edge overlay on hover when nothing is selected
-        if (selectionRef.current === null) {
-          setOverlaySegments(
-            createOverlaySegments(graphRef.current ?? graph, sigma, hoverSelectionRef.current),
-          );
-        }
-      }
+      controllerRef.current?.setHover(event.node);
     };
 
     const leaveNodeListener = (): void => {
-      hoveredNodeIdRef.current = null;
-      hoverRef.current = null;
-      hoverSelectionRef.current = null;
-      if (sigma !== null) {
-        refreshSigma(sigma);
-        // Restore selection overlay or clear
-        if (selectionRef.current === null) {
-          setOverlaySegments([]);
-        } else {
-          setOverlaySegments(
-            createOverlaySegments(graphRef.current ?? graph, sigma, selectionRef.current),
-          );
-        }
-      }
+      controllerRef.current?.setHover(null);
     };
 
     const navigateToNode = (nodeId: string): void => {
@@ -932,17 +920,11 @@ export function GraphView({
     };
 
     const selectNode = (nodeId: string): void => {
+      // React stays authoritative for the Inspector; the controller owns the
+      // selection traversal the reducers read + the overlay. Selecting does NOT
+      // recenter the camera — an auto-pan on every click makes the graph jump.
       setSelectedNodeId(nodeId);
-      selectionRef.current = computeSelection(graph, nodeId, FLOW_MAX_DEPTH);
-
-      // Selecting highlights the node + its neighborhood and opens the inspector,
-      // but deliberately does NOT recenter the camera — an auto-pan on every
-      // click makes the graph jump under the cursor. The viewport only moves on
-      // explicit Fit / search-result navigation.
-      if (sigma !== null) {
-        refreshSigma(sigma);
-        updateOverlay();
-      }
+      controllerRef.current?.setSelection(nodeId);
     };
 
     const clearSelection = (): void => {
@@ -952,12 +934,7 @@ export function GraphView({
       }
 
       setSelectedNodeId(null);
-      selectionRef.current = null;
-      setOverlaySegments([]);
-
-      if (sigma !== null) {
-        refreshSigma(sigma);
-      }
+      controllerRef.current?.setSelection(null);
     };
 
     if (!canUseWebGL()) {
@@ -1052,8 +1029,8 @@ export function GraphView({
             return data;
           }
 
-          const hover = hoverRef.current;
-          const selection = selectionRef.current;
+          const hover = controllerRef.current?.hover ?? null;
+          const selection = controllerRef.current?.currentSelection ?? null;
           const activeFocus = hover ?? selection;
 
           if (activeFocus === null || activeFocus.nodeIds.has(node)) {
@@ -1108,8 +1085,8 @@ export function GraphView({
           };
         },
         edgeReducer: (edge, data) => {
-          const hover = hoverRef.current;
-          const selection = selectionRef.current;
+          const hover = controllerRef.current?.hover ?? null;
+          const selection = controllerRef.current?.currentSelection ?? null;
           const edgeAttrs = data as GraphEdgeAttributes;
 
           // Hide edges whose kind is toggled off by the filter bar. Read from
@@ -1253,19 +1230,18 @@ export function GraphView({
             if (!showClusterHullsRef.current) {
               cc.getContext("2d")?.clearRect(0, 0, cc.width, cc.height);
             } else {
+              const hoveredNodeId = controllerRef.current?.hoveredNode ?? null;
+              const activeSelection = controllerRef.current?.currentSelection ?? null;
               const hoveredFilePath =
-                hoveredNodeIdRef.current !== null && graph.hasNode(hoveredNodeIdRef.current)
-                  ? String(
-                      (graph.getNodeAttributes(hoveredNodeIdRef.current) as GraphNodeAttributes)
-                        .filePath,
-                    )
+                hoveredNodeId !== null && graph.hasNode(hoveredNodeId)
+                  ? String((graph.getNodeAttributes(hoveredNodeId) as GraphNodeAttributes).filePath)
                   : null;
               const selectedFilePath =
-                selectionRef.current !== null && graph.hasNode(selectionRef.current.selectedNodeId)
+                activeSelection !== null && graph.hasNode(activeSelection.selectedNodeId)
                   ? String(
                       (
                         graph.getNodeAttributes(
-                          selectionRef.current.selectedNodeId,
+                          activeSelection.selectedNodeId,
                         ) as GraphNodeAttributes
                       ).filePath,
                     )
@@ -1310,33 +1286,21 @@ export function GraphView({
 
       observer?.disconnect();
       resizeObserver?.disconnect();
-      hoverRef.current = null;
-      selectionRef.current = null;
-      // dispose() kills the Sigma instance the controller adopted, so we do not
-      // also call sigmaRef.current.kill() — double-kill throws on real Sigma.
+      // dispose() kills the Sigma instance the controller adopted and clears its
+      // hover/selection render mirror, so we do not also call
+      // sigmaRef.current.kill() — double-kill throws on real Sigma.
       controllerRef.current?.dispose();
       sigmaRef.current = null;
       graphRef.current = null;
     };
   }, [edges, nodes, onNavigate, reducedMotion, retryCount]);
 
+  // Keep the controller's selection render mirror in sync whenever the React
+  // selectedNodeId changes (canvas click, search/lens row, clear). The
+  // controller recomputes the traversal, refreshes Sigma, and pushes the
+  // overlay; this is the single sync point so all selection sources converge.
   useEffect(() => {
-    const graph = graphRef.current;
-    const sigma = sigmaRef.current;
-
-    selectionRef.current = computeSelection(
-      graph ?? new MultiDirectedGraph(),
-      selectedNodeId,
-      FLOW_MAX_DEPTH,
-    );
-
-    if (graph === null || sigma === null) {
-      setOverlaySegments([]);
-      return;
-    }
-
-    refreshSigma(sigma);
-    setOverlaySegments(createOverlaySegments(graph, sigma, selectionRef.current));
+    controllerRef.current?.setSelection(selectedNodeId);
   }, [selectedNodeId]);
 
   // Mirror hidden-edge-kinds into the store so the edgeReducer (created once in

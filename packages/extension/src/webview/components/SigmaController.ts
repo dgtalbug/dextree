@@ -2,7 +2,8 @@ import type { MultiDirectedGraph } from "graphology";
 import type Sigma from "sigma";
 
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
-import type { HoverNeighborhood } from "./graphHover.js";
+import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
+import { computeSelection } from "./graphTraversal.js";
 import type { GraphViewStore } from "../state/graphViewStore.js";
 import type { SelectionTraversal, ThemeColors, TracePhase } from "./graphViewTypes.js";
 
@@ -12,6 +13,10 @@ const ZOOM_IN_FACTOR = 0.7;
 const ZOOM_OUT_FACTOR = 1.4;
 const ZOOM_BUTTON_DURATION_MS = 200;
 const ZOOM_RESET_DURATION_MS = 300;
+
+// Neighbourhood radius for hover/selection traversal — matches the value the
+// inline GraphView effect used (FLOW_MAX_DEPTH).
+const NEIGHBOURHOOD_MAX_DEPTH = 4;
 
 /** Structural view of the Sigma camera surface the controller drives. */
 interface CameraSurface {
@@ -35,6 +40,13 @@ type SigmaWithCamera = Sigma & { getCamera?: () => CameraSurface };
 export interface SigmaControllerOptions {
   /** Reads theme tokens at mount/refresh time (kept injectable for tests). */
   readThemeColors: () => ThemeColors;
+  /**
+   * Called whenever the active overlay selection changes (hover begins/ends,
+   * a node is selected/cleared). React owns the SVG traveler overlay, so the
+   * controller hands it the selection to render — `null` clears the overlay.
+   * The component builds the segments from its own sigma/graph handles.
+   */
+  onOverlayUpdate: (selection: SelectionTraversal | null) => void;
 }
 
 /**
@@ -150,6 +162,75 @@ export class SigmaController {
         { x: state.x, y: state.y, ratio: state.ratio * factor },
         { duration: ZOOM_BUTTON_DURATION_MS },
       );
+    }
+  }
+
+  /** The node currently hovered, or null. Read by the afterRender hull draw. */
+  get hoveredNode(): string | null {
+    return this.hoveredNodeId;
+  }
+
+  /** The active hover neighbourhood, or null. Read by the node/edge reducers. */
+  get hover(): HoverNeighborhood | null {
+    return this.hoverNeighborhood;
+  }
+
+  /** The active selection traversal, or null. Read by the reducers + overlay. */
+  get currentSelection(): SelectionTraversal | null {
+    return this.selection;
+  }
+
+  /**
+   * Begin or end a hover. Passing a node id computes its hover neighbourhood and
+   * full traversal (matching the inline `enterNode` listener); passing null
+   * clears them (the `leaveNode` listener). Refreshes Sigma so the reducers
+   * re-run, and — only when nothing is selected — pushes the hover (or cleared)
+   * overlay to React. No-op before mount.
+   */
+  setHover(nodeId: string | null): void {
+    const graph = this.graph;
+    if (graph === null) {
+      return;
+    }
+    if (nodeId === null) {
+      this.hoveredNodeId = null;
+      this.hoverNeighborhood = null;
+      this.hoverSelection = null;
+    } else {
+      this.hoveredNodeId = nodeId;
+      this.hoverNeighborhood = computeHoverNeighborhood(graph, nodeId);
+      this.hoverSelection = computeSelection(graph, nodeId, NEIGHBOURHOOD_MAX_DEPTH);
+    }
+    this.refresh();
+    // A committed selection's overlay always wins over hover. With a selection
+    // active, entering/leaving a node restores the selection overlay; with no
+    // selection, hover drives the overlay (or clears it on leave).
+    if (this.selection !== null) {
+      this.options.onOverlayUpdate(this.selection);
+    } else {
+      this.options.onOverlayUpdate(nodeId === null ? null : this.hoverSelection);
+    }
+  }
+
+  /**
+   * Commit or clear the selection's render mirror. React remains the source of
+   * truth for the Inspector (the component still calls setSelectedNodeId); this
+   * owns the traversal the reducers read and the selection overlay. Refreshes
+   * Sigma and pushes the overlay. No-op before mount for the traversal compute,
+   * but still clears state so a pre-mount clear is safe.
+   */
+  setSelection(nodeId: string | null, opts: { updateOverlay?: boolean } = {}): void {
+    const graph = this.graph;
+    this.selection =
+      nodeId === null || graph === null
+        ? null
+        : computeSelection(graph, nodeId, NEIGHBOURHOOD_MAX_DEPTH);
+    this.refresh();
+    // The canvas-click + clear paths refresh the overlay; the search/lens-row
+    // fly-to path historically did not (it only set the ref + refreshed), so
+    // callers opt in. Defaults to true to match the common case.
+    if (opts.updateOverlay !== false) {
+      this.options.onOverlayUpdate(this.selection);
     }
   }
 

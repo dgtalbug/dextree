@@ -15,8 +15,19 @@ function freshStore(): GraphViewStore {
   });
 }
 
-function options(): SigmaControllerOptions {
-  return { readThemeColors: () => STUB_THEME };
+function options(overrides: Partial<SigmaControllerOptions> = {}): SigmaControllerOptions {
+  return { readThemeColors: () => STUB_THEME, onOverlayUpdate: vi.fn(), ...overrides };
+}
+
+/** A tiny connected graph: a → b → c, so traversals produce non-empty sets. */
+function triadGraph(): MultiDirectedGraph {
+  const graph = new MultiDirectedGraph();
+  graph.addNode("a", { x: 0, y: 0 });
+  graph.addNode("b", { x: 1, y: 1 });
+  graph.addNode("c", { x: 2, y: 2 });
+  graph.addEdge("a", "b");
+  graph.addEdge("b", "c");
+  return graph;
 }
 
 /**
@@ -142,5 +153,112 @@ describe("SigmaController — camera operations", () => {
       controller.zoomFit();
       controller.zoomReset();
     }).not.toThrow();
+  });
+});
+
+describe("SigmaController — hover", () => {
+  it("setHover computes the hover neighbourhood, refreshes, and pushes the overlay", () => {
+    const onOverlayUpdate = vi.fn();
+    const controller = new SigmaController(freshStore(), options({ onOverlayUpdate }));
+    const { sigma, refresh } = stubSigma();
+    controller.adopt(sigma, triadGraph(), stubContainer());
+
+    controller.setHover("b");
+
+    expect(controller.hoveredNode).toBe("b");
+    expect(controller.hover).not.toBeNull();
+    expect(refresh).toHaveBeenCalled();
+    // No committed selection → hover drives the overlay with a non-null traversal.
+    expect(onOverlayUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nodeIds: expect.anything() }),
+    );
+  });
+
+  it("setHover(null) clears hover state and the overlay when nothing is selected", () => {
+    const onOverlayUpdate = vi.fn();
+    const controller = new SigmaController(freshStore(), options({ onOverlayUpdate }));
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+
+    controller.setHover("b");
+    controller.setHover(null);
+
+    expect(controller.hoveredNode).toBeNull();
+    expect(controller.hover).toBeNull();
+    expect(onOverlayUpdate).toHaveBeenLastCalledWith(null);
+  });
+
+  it("a committed selection's overlay wins over hover enter/leave", () => {
+    const onOverlayUpdate = vi.fn();
+    const controller = new SigmaController(freshStore(), options({ onOverlayUpdate }));
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+
+    controller.setSelection("a");
+    const selection = controller.currentSelection;
+    onOverlayUpdate.mockClear();
+
+    controller.setHover("c");
+    expect(onOverlayUpdate).toHaveBeenLastCalledWith(selection);
+    controller.setHover(null);
+    expect(onOverlayUpdate).toHaveBeenLastCalledWith(selection);
+  });
+
+  it("setHover is a no-op before mount (no graph)", () => {
+    const onOverlayUpdate = vi.fn();
+    const controller = new SigmaController(freshStore(), options({ onOverlayUpdate }));
+    expect(() => controller.setHover("a")).not.toThrow();
+    expect(controller.hoveredNode).toBeNull();
+    expect(onOverlayUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("SigmaController — selection", () => {
+  it("setSelection computes the traversal, refreshes, and pushes the overlay", () => {
+    const onOverlayUpdate = vi.fn();
+    const controller = new SigmaController(freshStore(), options({ onOverlayUpdate }));
+    const { sigma, refresh } = stubSigma();
+    controller.adopt(sigma, triadGraph(), stubContainer());
+
+    controller.setSelection("b");
+
+    expect(controller.currentSelection).not.toBeNull();
+    expect(controller.currentSelection?.selectedNodeId).toBe("b");
+    expect(refresh).toHaveBeenCalled();
+    expect(onOverlayUpdate).toHaveBeenCalledWith(controller.currentSelection);
+  });
+
+  it("setSelection(null) clears selection and the overlay", () => {
+    const onOverlayUpdate = vi.fn();
+    const controller = new SigmaController(freshStore(), options({ onOverlayUpdate }));
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+
+    controller.setSelection("b");
+    controller.setSelection(null);
+
+    expect(controller.currentSelection).toBeNull();
+    expect(onOverlayUpdate).toHaveBeenLastCalledWith(null);
+  });
+
+  it("setSelection with updateOverlay:false sets the traversal but skips the overlay", () => {
+    const onOverlayUpdate = vi.fn();
+    const controller = new SigmaController(freshStore(), options({ onOverlayUpdate }));
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+
+    controller.setSelection("b", { updateOverlay: false });
+
+    expect(controller.currentSelection?.selectedNodeId).toBe("b");
+    expect(onOverlayUpdate).not.toHaveBeenCalled();
+  });
+
+  it("dispose clears hover + selection render state", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setSelection("a");
+    controller.setHover("b");
+
+    controller.dispose();
+
+    expect(controller.currentSelection).toBeNull();
+    expect(controller.hover).toBeNull();
+    expect(controller.hoveredNode).toBeNull();
   });
 });
