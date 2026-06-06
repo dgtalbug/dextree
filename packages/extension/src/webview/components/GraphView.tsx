@@ -12,7 +12,6 @@ import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { edgePathFromNodePath } from "graphology-shortest-path";
 import { bidirectional } from "graphology-shortest-path/unweighted";
-import { bfsFromNode } from "graphology-traversal";
 import { motion } from "framer-motion";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
@@ -46,6 +45,7 @@ import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
 import { dimColor, layerColor } from "./lensColor.js";
 import { drawClusterHulls, drawMinimap } from "./graphOverlay.js";
+import { computeSelection, computeTracePath } from "./graphTraversal.js";
 import { createGraphViewStore } from "../state/graphViewStore.js";
 import {
   TRACE_STATE_IDLE,
@@ -64,7 +64,6 @@ import {
   type ThemeColors,
   type TracePhase,
   type TraceState,
-  type TracePath,
 } from "./graphViewTypes.js";
 
 // Keep faded nodes/edges very dim so only the hovered/selected cluster is prominent
@@ -723,123 +722,6 @@ function StaticGraphFallback({
       </div>
     </div>
   );
-}
-
-function computeSelection(
-  graph: MultiDirectedGraph,
-  selectedNodeId: string | null,
-  maxDepth: number,
-): SelectionTraversal | null {
-  if (selectedNodeId === null || !graph.hasNode(selectedNodeId)) {
-    return null;
-  }
-
-  const nodeIds = new Set<string>([selectedNodeId]);
-  // Group visited nodes by depth so we can walk outbound edges layer-by-layer below.
-  const nodesByDepth = new Map<number, string[]>([[0, [selectedNodeId]]]);
-
-  bfsFromNode(
-    graph,
-    selectedNodeId,
-    (node, _attrs, depth) => {
-      // bfsFromNode invokes the callback for the start node at depth 0 too.
-      if (node !== selectedNodeId) {
-        nodeIds.add(node);
-        const layer = nodesByDepth.get(depth);
-        if (layer === undefined) {
-          nodesByDepth.set(depth, [node]);
-        } else {
-          layer.push(node);
-        }
-      }
-      // Returning true prunes further traversal beyond this node. We prune when
-      // we've reached maxDepth so the next layer is never expanded.
-      return depth >= maxDepth;
-    },
-    { mode: "outbound" },
-  );
-
-  // Walk outbound edges per BFS layer to reproduce hopLayers / orderedEdgeIds
-  // exactly as the legacy implementation produced them. The DEFINES quirk
-  // (re-adding the source node when the edge is DEFINES) is preserved.
-  const edgeIds = new Set<string>();
-  const orderedEdgeIds: string[] = [];
-  const hopLayers: string[][] = [];
-
-  for (let depth = 0; depth < maxDepth; depth++) {
-    const frontier = nodesByDepth.get(depth);
-    if (frontier === undefined) {
-      break;
-    }
-    const layerEdges: string[] = [];
-    for (const currentNodeId of frontier) {
-      graph.forEachOutboundEdge(currentNodeId, (edge, attributes, _source, target) => {
-        edgeIds.add(edge);
-        orderedEdgeIds.push(edge);
-        layerEdges.push(edge);
-
-        // Ensure all reachable targets at depth+1 are in nodeIds even if BFS
-        // pruned them (e.g. when an edge crosses to a node already visited at
-        // the same or lower depth).
-        nodeIds.add(target);
-
-        if ((attributes as GraphEdgeAttributes).edgeKind === "DEFINES") {
-          nodeIds.add(currentNodeId);
-        }
-      });
-    }
-    if (layerEdges.length > 0) {
-      hopLayers.push(layerEdges);
-    }
-  }
-
-  return {
-    selectedNodeId,
-    nodeIds,
-    edgeIds,
-    orderedEdgeIds,
-    hopLayers,
-    maxDepth,
-  };
-}
-
-/**
- * Derive a TracePath summary from the trace state for the right-rail
- * TraceInspector (slice 023). Returns null when the path is empty.
- * `layersCrossed` is currently always empty because `arch_layer` is a
- * slice 026 column; we render gracefully when absent per spec CC-003.
- */
-function computeTracePath(graph: MultiDirectedGraph, state: TraceState): TracePath | null {
-  if (state.pathNodeIds.length === 0 || state.startNodeId === null || state.endNodeId === null) {
-    return null;
-  }
-
-  const filePaths = new Set<string>();
-  const frameworks = new Set<string>();
-  for (const nodeId of state.pathNodeIds) {
-    if (!graph.hasNode(nodeId)) {
-      continue;
-    }
-    const filePath = graph.getNodeAttribute(nodeId, "filePath") as string | undefined;
-    if (typeof filePath === "string" && filePath.length > 0) {
-      filePaths.add(filePath);
-    }
-    const framework = graph.getNodeAttribute(nodeId, "framework") as string | undefined;
-    if (typeof framework === "string" && framework.length > 0) {
-      frameworks.add(framework);
-    }
-  }
-
-  return {
-    startNodeId: state.startNodeId,
-    endNodeId: state.endNodeId,
-    hopCount: state.pathEdgeIds.length,
-    fileCount: filePaths.size,
-    layersCrossed: [],
-    crossesFrameworkBoundary: frameworks.size > 1,
-    nodeIds: state.pathNodeIds,
-    edgeIds: state.pathEdgeIds,
-  };
 }
 
 function createOverlaySegments(
