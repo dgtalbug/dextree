@@ -85,6 +85,63 @@ describe("drawClusterHulls", () => {
     expect(ctx.clearRect).toHaveBeenCalled();
     expect(ctx.fill).not.toHaveBeenCalled();
   });
+
+  it("groups by community when a partition is supplied (3 cross-file members → one hull)", () => {
+    // Three symbols across DIFFERENT files but in the SAME community: under file
+    // grouping this is 3 singletons (no hull); under community grouping it is one
+    // group of 3 → a hull is drawn.
+    const graph = new MultiDirectedGraph();
+    graph.addNode("s1", { nodeKind: "symbol", filePath: "a.ts", x: 1, y: 0, color: "#445566" });
+    graph.addNode("s2", { nodeKind: "symbol", filePath: "b.ts", x: 3, y: 0, color: "#445566" });
+    graph.addNode("s3", { nodeKind: "symbol", filePath: "c.ts", x: 2, y: 3, color: "#445566" });
+    const community = new Map([
+      ["s1", 0],
+      ["s2", 0],
+      ["s3", 0],
+    ]);
+
+    const ctx = makeContext();
+    drawClusterHulls(
+      graph,
+      makeSigma(),
+      makeCanvas(ctx) as HTMLCanvasElement,
+      null,
+      null,
+      community,
+    );
+
+    expect(ctx.fill).toHaveBeenCalled();
+    expect(ctx.stroke).toHaveBeenCalled();
+  });
+
+  it("excludes nodes outside the visible set from the hull", () => {
+    // Same community of 3, but one member is filtered out → only 2 visible → no
+    // hull (needs 3+ points).
+    const graph = new MultiDirectedGraph();
+    graph.addNode("s1", { nodeKind: "symbol", filePath: "a.ts", x: 1, y: 0, color: "#445566" });
+    graph.addNode("s2", { nodeKind: "symbol", filePath: "b.ts", x: 3, y: 0, color: "#445566" });
+    graph.addNode("s3", { nodeKind: "symbol", filePath: "c.ts", x: 2, y: 3, color: "#445566" });
+    const community = new Map([
+      ["s1", 0],
+      ["s2", 0],
+      ["s3", 0],
+    ]);
+    const visible = new Set(["s1", "s2"]); // s3 filtered out
+
+    const ctx = makeContext();
+    drawClusterHulls(
+      graph,
+      makeSigma(),
+      makeCanvas(ctx) as HTMLCanvasElement,
+      null,
+      null,
+      community,
+      visible,
+    );
+
+    expect(ctx.clearRect).toHaveBeenCalled();
+    expect(ctx.fill).not.toHaveBeenCalled();
+  });
 });
 
 describe("drawMinimap", () => {

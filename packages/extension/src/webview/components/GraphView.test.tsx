@@ -682,8 +682,12 @@ describe("GraphView", () => {
     const leaveNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "leaveNode")?.[1];
     leaveNodeHandler?.({});
 
+    // On leave the hover fade is removed: the edge returns to its no-hover
+    // baseline. (That baseline is the un-emphasised member state — which may
+    // itself carry inter-community dimming from cluster-aesthetics — so assert
+    // the strong hover fade (alpha 0.06) is gone rather than an exact hex.)
     const restoredEdge = settings.edgeReducer("edge-calls", { color: "rgb(255, 170, 90)" });
-    expect(restoredEdge.color).toBe("rgb(255, 170, 90)");
+    expect(String(restoredEdge.color)).not.toMatch(/0\.06\)/);
   });
 
   it("emphasizes descendant edges after a node is selected", () => {

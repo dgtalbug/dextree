@@ -45,6 +45,7 @@
     "@sigma/node-square": "^3.0.0",
     "dompurify": "^3.4.7",
     "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
     "graphology-dag": "^0.4.1",
     "graphology-layout": "^0.6.1",
     "graphology-layout-noverlap": "^0.4.2",

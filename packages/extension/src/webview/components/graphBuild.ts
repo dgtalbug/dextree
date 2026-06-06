@@ -20,17 +20,23 @@ import {
 
 /** Opacity applied to faded (dimmed) nodes/edges so only the focused cluster reads. */
 export const FADE_ALPHA = 0.06;
+/**
+ * Opacity for inter-community edges: they recede so the cluster structure is
+ * legible, but stay clearly visible — distinct from the much stronger
+ * hover/trace fade ({@link FADE_ALPHA}).
+ */
+export const INTER_COMMUNITY_ALPHA = 0.45;
 
 const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
 const SYMBOL_SIZE_RANGE = { min: 5, max: 15, base: 7 } as const;
 const METHOD_SIZE_RANGE = { min: 3, max: 9, base: 4 } as const;
 
-/** Fade a colour to {@link FADE_ALPHA}, accepting `rgb[a]()` or `#rrggbb`. */
-export function toFadedColor(color: unknown, fallbackColor: string): string {
+/** Fade a colour to the given alpha, accepting `rgb[a]()` or `#rrggbb`. */
+export function fadeColorTo(color: unknown, fallbackColor: string, alpha: number): string {
   const nextColor = typeof color === "string" && color.length > 0 ? color : fallbackColor;
   const rgbaMatch = nextColor.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
   if (rgbaMatch !== null) {
-    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${FADE_ALPHA})`;
+    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${alpha})`;
   }
 
   const hexMatch = nextColor.match(/^#([0-9a-f]{6})$/i);
@@ -39,10 +45,15 @@ export function toFadedColor(color: unknown, fallbackColor: string): string {
     const r = parseInt(hex.slice(0, 2), 16);
     const g = parseInt(hex.slice(2, 4), 16);
     const b = parseInt(hex.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${FADE_ALPHA})`;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
   return fallbackColor;
+}
+
+/** Fade a colour to {@link FADE_ALPHA}, accepting `rgb[a]()` or `#rrggbb`. */
+export function toFadedColor(color: unknown, fallbackColor: string): string {
+  return fadeColorTo(color, fallbackColor, FADE_ALPHA);
 }
 
 /** Map an edge kind to its themed colour (falls back to the DEFINES colour). */
