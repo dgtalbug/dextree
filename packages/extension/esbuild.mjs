@@ -71,6 +71,15 @@ const assetMatrix = [
       ...pnpmStore("tree-sitter-javascript@", "tree-sitter-javascript/tree-sitter-javascript.wasm"),
     ],
   },
+  // Additional language grammars (indexing-engine-v2 phase 2). Each is data: a
+  // prebuilt wasm shipped by its official tree-sitter package.
+  ...["python", "go", "java", "ruby", "rust"].map((lang) => ({
+    target: `tree-sitter-${lang}/tree-sitter-${lang}.wasm`,
+    candidates: [
+      resolve(repoRoot, `node_modules/tree-sitter-${lang}/tree-sitter-${lang}.wasm`),
+      ...pnpmStore(`tree-sitter-${lang}@`, `tree-sitter-${lang}/tree-sitter-${lang}.wasm`),
+    ],
+  })),
   // Copy each platform's DuckDB native binding. Each entry is tagged with its
   // platform so VSCE_TARGET can filter to a single one in matrix release builds.
   ...DUCKDB_PLATFORMS.map((platform) => ({

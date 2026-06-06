@@ -42,6 +42,11 @@ const GRAMMARS: Readonly<Record<string, GrammarAsset>> = {
     dir: "tree-sitter-javascript",
     wasm: "tree-sitter-javascript.wasm",
   },
+  python: { language: "python", dir: "tree-sitter-python", wasm: "tree-sitter-python.wasm" },
+  go: { language: "go", dir: "tree-sitter-go", wasm: "tree-sitter-go.wasm" },
+  java: { language: "java", dir: "tree-sitter-java", wasm: "tree-sitter-java.wasm" },
+  ruby: { language: "ruby", dir: "tree-sitter-ruby", wasm: "tree-sitter-ruby.wasm" },
+  rust: { language: "rust", dir: "tree-sitter-rust", wasm: "tree-sitter-rust.wasm" },
 };
 
 export function getGrammarAsset(language: string): GrammarAsset | undefined {
