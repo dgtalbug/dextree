@@ -70,6 +70,8 @@ function scopeKindToken(kind: MermaidPreviewOptions["scope"]["kind"]): string {
       return "workspace";
     case "file":
       return "file";
+    case "visible":
+      return "view";
     case "symbol-callers":
       return "callers";
     case "symbol-callees":
