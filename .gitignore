@@ -43,7 +43,7 @@ coverage/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 docs/.vitepress/.temp/
-openspec/config.yaml
+openspec/*
 .github/skills/openspec-apply-change/SKILL.md
 .github/skills/openspec-archive-change/SKILL.md
 .github/skills/openspec-bulk-archive-change/SKILL.md

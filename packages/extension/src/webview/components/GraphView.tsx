@@ -1,4 +1,4 @@
-import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { GraphEdge } from "@dextree/core";
 import {
   CLASSIFIED_LAYERS,
   countArchitectureNodes,
@@ -12,9 +12,8 @@ import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { edgePathFromNodePath } from "graphology-shortest-path";
 import { bidirectional } from "graphology-shortest-path/unweighted";
-import { bfsFromNode } from "graphology-traversal";
 import { motion } from "framer-motion";
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 import { NodeCircleProgram } from "sigma/rendering";
 
@@ -45,10 +44,21 @@ import shellStyles from "./GraphView.module.css";
 import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
 import { dimColor, layerColor } from "./lensColor.js";
+import { drawClusterHulls, drawMinimap } from "./graphOverlay.js";
+import { computeSelection, computeTracePath } from "./graphTraversal.js";
+import { StaticGraphFallback } from "./StaticGraphFallback.js";
+import {
+  buildGraph,
+  edgeColor,
+  mixWithBackground,
+  snapshotGraph,
+  stabilizeFileAnchors,
+  symbolColor,
+  toFadedColor,
+} from "./graphBuild.js";
+import { createGraphViewStore } from "../state/graphViewStore.js";
 import {
   TRACE_STATE_IDLE,
-  entryVisualState,
-  type FallbackNode,
   type FallbackGraph,
   type GraphEdgeAttributes,
   type GraphNodeAttributes,
@@ -62,11 +72,8 @@ import {
   type ThemeColors,
   type TracePhase,
   type TraceState,
-  type TracePath,
 } from "./graphViewTypes.js";
 
-// Keep faded nodes/edges very dim so only the hovered/selected cluster is prominent
-const FADE_ALPHA = 0.06;
 const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 const FLOW_MAX_DEPTH = 4;
@@ -209,637 +216,6 @@ function readThemeColors(): ThemeColors {
   };
 }
 
-function toFadedColor(color: unknown, fallbackColor: string): string {
-  const nextColor = typeof color === "string" && color.length > 0 ? color : fallbackColor;
-  const rgbaMatch = nextColor.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
-  if (rgbaMatch !== null) {
-    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${FADE_ALPHA})`;
-  }
-
-  const hexMatch = nextColor.match(/^#([0-9a-f]{6})$/i);
-  if (hexMatch !== null) {
-    const hex = hexMatch[1] as string;
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${FADE_ALPHA})`;
-  }
-
-  return fallbackColor;
-}
-
-function edgeColor(kind: GraphEdge["kind"], colors: ThemeColors): string {
-  switch (kind) {
-    case "DEFINES":
-      return colors.definesEdgeColor;
-    case "IMPORTS":
-      return colors.importsEdgeColor;
-    case "CALLS":
-      return colors.callsEdgeColor;
-    case "INHERITS":
-      return colors.inheritsEdgeColor;
-    case "INSTANTIATES":
-      return colors.instantiatesEdgeColor;
-    default:
-      return colors.definesEdgeColor;
-  }
-}
-
-function edgeSize(kind: GraphEdge["kind"]): number {
-  switch (kind) {
-    case "DEFINES":
-      return 2.2; // file→symbol: solid bold
-    case "CALLS":
-      return 1.8;
-    case "INHERITS":
-      return 2.0; // class hierarchy: prominent
-    case "INSTANTIATES":
-      return 1.6;
-    case "IMPORTS":
-    default:
-      return 1.4; // file→file: visible arc connecting file nodes
-  }
-}
-
-function symbolColor(node: GraphNode, colors: ThemeColors): string {
-  if (node.type === "file") {
-    return colors.fileNodeColor;
-  }
-
-  if (node.symbolKind === "type") {
-    return colors.symbolKindColors.type || colors.symbolKindColors.class;
-  }
-
-  if (node.symbolKind !== undefined) {
-    return colors.symbolKindColors[node.symbolKind] || colors.symbolKindColors.default;
-  }
-
-  return colors.symbolKindColors.default;
-}
-
-function buildInitialPositions(nodes: GraphNode[]): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>();
-  const fileNodes = nodes.filter((n) => n.type === "file");
-  const symbolNodes = nodes.filter((n) => n.type !== "file");
-
-  // Files evenly spaced around a large outer ring so FA2 starts with them spread apart.
-  const FILE_RADIUS = 1.8;
-  const filePosByPath = new Map<string, { x: number; y: number }>();
-  for (const [fi, file] of fileNodes.entries()) {
-    const angle = (fi / Math.max(fileNodes.length, 1)) * Math.PI * 2;
-    const pos = { x: Math.cos(angle) * FILE_RADIUS, y: Math.sin(angle) * FILE_RADIUS };
-    positions.set(file.id, pos);
-    filePosByPath.set(file.filePath, pos);
-  }
-
-  // Group symbols by their source file so we can fan them around the file's seed position.
-  const symsByFile = new Map<string, GraphNode[]>();
-  for (const sym of symbolNodes) {
-    const arr = symsByFile.get(sym.filePath);
-    if (arr === undefined) {
-      symsByFile.set(sym.filePath, [sym]);
-    } else {
-      arr.push(sym);
-    }
-  }
-
-  // Symbols radiate outward from their parent file in a tight arc.  FA2 then pulls the
-  // whole cluster together, keeping related symbols visually near their file node.
-  const SYM_RING = 0.55;
-  const symIndexInFile = new Map<string, number>();
-  let orphanIndex = 0;
-  for (const sym of symbolNodes) {
-    const filePos = filePosByPath.get(sym.filePath);
-    const bucket = symsByFile.get(sym.filePath)!;
-    const si = symIndexInFile.get(sym.filePath) ?? 0;
-    symIndexInFile.set(sym.filePath, si + 1);
-
-    if (filePos !== undefined) {
-      const angle = (si / Math.max(bucket.length, 1)) * Math.PI * 2;
-      positions.set(sym.id, {
-        x: filePos.x + Math.cos(angle) * SYM_RING,
-        y: filePos.y + Math.sin(angle) * SYM_RING,
-      });
-    } else {
-      // Orphaned symbol (no matching file node) — place in inner ring.
-      const angle = (orphanIndex / Math.max(symbolNodes.length, 1)) * Math.PI * 2;
-      positions.set(sym.id, { x: Math.cos(angle) * 0.8, y: Math.sin(angle) * 0.8 });
-      orphanIndex++;
-    }
-  }
-
-  return positions;
-}
-
-const FILE_SIZE_RANGE = { min: 14, max: 28, base: 16 } as const;
-const SYMBOL_SIZE_RANGE = { min: 5, max: 15, base: 7 } as const;
-const METHOD_SIZE_RANGE = { min: 3, max: 9, base: 4 } as const;
-
-/**
- * Mix an edge color at `ratio` opacity against a background color to produce
- * a faint-but-solid hex color that looks "dotted/ghost" without relying on
- * WebGL per-pixel alpha blending (which Sigma 3 uses premultiplied mode for,
- * making naive rgba() colors appear brighter rather than transparent).
- */
-function mixWithBackground(color: string, bgColor: string, ratio: number): string {
-  const parseHexColor = (c: string): [number, number, number] | null => {
-    const m = c.match(/^#([0-9a-f]{6})$/i);
-    if (m === null) return null;
-    const h = m[1] as string;
-    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-  };
-  const src = parseHexColor(color);
-  const bg = parseHexColor(bgColor);
-  if (src === null || bg === null) return color;
-  const r = Math.round(src[0] * ratio + bg[0] * (1 - ratio));
-  const g = Math.round(src[1] * ratio + bg[1] * (1 - ratio));
-  const b = Math.round(src[2] * ratio + bg[2] * (1 - ratio));
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-}
-
-function computeSizeBounds(nodes: GraphNode[]): { min: number; max: number } {
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-
-  for (const node of nodes) {
-    if (typeof node.importance !== "number" || !Number.isFinite(node.importance)) {
-      continue;
-    }
-
-    if (node.importance < min) {
-      min = node.importance;
-    }
-
-    if (node.importance > max) {
-      max = node.importance;
-    }
-  }
-
-  return { min, max };
-}
-
-function sizeForNode(node: GraphNode, bounds: { min: number; max: number }): number {
-  const range =
-    node.type === "file"
-      ? FILE_SIZE_RANGE
-      : node.symbolKind === "method"
-        ? METHOD_SIZE_RANGE
-        : SYMBOL_SIZE_RANGE;
-
-  if (
-    typeof node.importance !== "number" ||
-    !Number.isFinite(node.importance) ||
-    bounds.max <= bounds.min
-  ) {
-    return range.base;
-  }
-
-  const t = (node.importance - bounds.min) / (bounds.max - bounds.min);
-  return range.min + t * (range.max - range.min);
-}
-
-function buildGraph(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-  colors: ThemeColors,
-): MultiDirectedGraph {
-  const graph = new MultiDirectedGraph();
-  const seenNodeIds = new Set<string>();
-  const seenEdgeIds = new Set<string>();
-  const importanceBounds = computeSizeBounds(nodes);
-  let generatedEdgeIndex = 0;
-
-  // Pre-compute clustered initial positions (symbols near their parent file).
-  const initialPositions = buildInitialPositions(nodes);
-
-  for (const node of nodes) {
-    if (node.id.trim() === "" || seenNodeIds.has(node.id)) {
-      continue;
-    }
-
-    const position = initialPositions.get(node.id) ?? { x: 0, y: 0 };
-    const color = symbolColor(node, colors);
-    const size = sizeForNode(node, importanceBounds);
-    seenNodeIds.add(node.id);
-
-    // Entry styling applies only to symbol nodes — guards against payload
-    // drift across the host-webview boundary where the upstream contract
-    // (file nodes never carry entry/layer classification) could regress.
-    const isSymbol = node.type === "symbol";
-    const visual = entryVisualState(isSymbol ? node.entryKind : undefined);
-
-    graph.addNode(node.id, {
-      label: node.label.trim() || node.filePath.split("/").pop() || node.id,
-      filePath: node.filePath,
-      startLine: Number.isFinite(node.startLine) ? node.startLine : 1,
-      nodeKind: node.type,
-      symbolKind: node.symbolKind,
-      x: position.x,
-      y: position.y,
-      size,
-      baseSize: size,
-      color,
-      baseColor: color,
-      ...(isSymbol && node.entryKind !== undefined ? { entryKind: node.entryKind } : {}),
-      ...(isSymbol && node.archLayer !== undefined ? { archLayer: node.archLayer } : {}),
-      ...(visual.usesEntryBorder
-        ? { type: "entry" as const, entryBorderColor: colors.entryBorderColor }
-        : {}),
-    } satisfies GraphNodeAttributes);
-  }
-
-  for (const edge of edges) {
-    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
-      continue;
-    }
-
-    const edgeId =
-      edge.id.trim() !== "" && !seenEdgeIds.has(edge.id)
-        ? edge.id
-        : `${edge.kind}:${edge.source}:${edge.target}:${generatedEdgeIndex++}`;
-
-    seenEdgeIds.add(edgeId);
-
-    try {
-      const rawColor = edgeColor(edge.kind, colors);
-      // IMPORTS (file→file): mix at 72% against background — visible file-to-file arcs
-      // without competing with DEFINES/CALLS edges in the foreground.
-      const color =
-        edge.kind === "IMPORTS"
-          ? mixWithBackground(rawColor, colors.backgroundColor, 0.72)
-          : rawColor;
-      const size = edgeSize(edge.kind);
-      graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
-        edgeKind: edge.kind,
-        color,
-        baseColor: rawColor,
-        size,
-        baseSize: size,
-      } satisfies GraphEdgeAttributes);
-    } catch {
-      continue;
-    }
-  }
-
-  return graph;
-}
-
-function stabilizeFileAnchors(graph: MultiDirectedGraph): void {
-  const fileNodes: string[] = [];
-  let centroidX = 0;
-  let centroidY = 0;
-  let count = 0;
-
-  graph.forEachNode((node, attributes) => {
-    centroidX += Number(attributes.x);
-    centroidY += Number(attributes.y);
-    count += 1;
-
-    if ((attributes as GraphNodeAttributes).nodeKind === "file") {
-      fileNodes.push(node);
-    }
-  });
-
-  if (count === 0 || fileNodes.length === 0) {
-    return;
-  }
-
-  centroidX /= count;
-  centroidY /= count;
-
-  for (const nodeId of fileNodes) {
-    const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
-    const dx = Number(attributes.x) - centroidX;
-    const dy = Number(attributes.y) - centroidY;
-    const magnitude = Math.max(Math.hypot(dx, dy), 0.01);
-    const radius = magnitude * 1.14 + 0.2;
-
-    graph.mergeNodeAttributes(nodeId, {
-      x: centroidX + (dx / magnitude) * radius,
-      y: centroidY + (dy / magnitude) * radius,
-    });
-  }
-}
-
-function snapshotGraph(graph: MultiDirectedGraph): FallbackGraph {
-  const nodes = graph.nodes().map((nodeId) => {
-    const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
-
-    return {
-      id: nodeId,
-      label: attributes.label,
-      filePath: attributes.filePath,
-      startLine: attributes.startLine,
-      x: Number.isFinite(attributes.x) ? attributes.x : 0,
-      y: Number.isFinite(attributes.y) ? attributes.y : 0,
-      color: attributes.baseColor,
-      type: attributes.nodeKind,
-    };
-  });
-
-  const minX = Math.min(...nodes.map((node) => node.x), 0);
-  const maxX = Math.max(...nodes.map((node) => node.x), 1);
-  const minY = Math.min(...nodes.map((node) => node.y), 0);
-  const maxY = Math.max(...nodes.map((node) => node.y), 1);
-  const spanX = Math.max(maxX - minX, 1);
-  const spanY = Math.max(maxY - minY, 1);
-
-  const positionedNodes = nodes.map((node) => ({
-    ...node,
-    x: 12 + ((node.x - minX) / spanX) * 76,
-    y: 16 + ((node.y - minY) / spanY) * 68,
-  }));
-
-  const edges = graph.edges().map((edgeId) => ({
-    id: edgeId,
-    source: graph.source(edgeId),
-    target: graph.target(edgeId),
-    color: String(graph.getEdgeAttribute(edgeId, "baseColor")),
-    kind: graph.getEdgeAttribute(edgeId, "edgeKind") as GraphEdge["kind"],
-  }));
-
-  return {
-    nodes: positionedNodes,
-    edges,
-  };
-}
-
-function fallbackNodeLabel(node: FallbackNode): string {
-  if (node.type === "file") {
-    return node.filePath.split("/").pop() || node.label;
-  }
-
-  return node.label;
-}
-
-function fallbackNodeTitle(node: FallbackNode): string {
-  if (node.type === "file") {
-    return node.filePath;
-  }
-
-  return `${node.label} · ${node.filePath}:${node.startLine}`;
-}
-
-function edgeEndpointLabel(nodeId: string, nodesById: Map<string, FallbackNode>): string {
-  const node = nodesById.get(nodeId);
-
-  if (node === undefined) {
-    return nodeId;
-  }
-
-  return fallbackNodeLabel(node);
-}
-
-function handleFallbackKeyDown(
-  event: KeyboardEvent<SVGGElement>,
-  node: FallbackNode,
-  onNavigate: (filePath: string, line: number) => void,
-): void {
-  if (event.key !== "Enter" && event.key !== " ") {
-    return;
-  }
-
-  event.preventDefault();
-  onNavigate(node.filePath, node.startLine);
-}
-
-function StaticGraphFallback({
-  fallbackGraph,
-  onNavigate,
-}: {
-  fallbackGraph: FallbackGraph;
-  onNavigate: (filePath: string, line: number) => void;
-}) {
-  const nodesById = new Map(fallbackGraph.nodes.map((node) => [node.id, node]));
-
-  return (
-    <div className="dxt-fallback-graph dxt-graph-stage" data-testid="graph-view-fallback">
-      <div className="dxt-fallback-layout">
-        <div className="dxt-fallback-surface">
-          <svg
-            className="dxt-fallback-canvas"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            role="img"
-            aria-label="Symbol graph"
-          >
-            {fallbackGraph.edges.map((edge) => {
-              const source = nodesById.get(edge.source);
-              const target = nodesById.get(edge.target);
-
-              if (source === undefined || target === undefined) {
-                return null;
-              }
-
-              return (
-                <line
-                  key={edge.id}
-                  className="dxt-fallback-edge"
-                  x1={source.x}
-                  y1={source.y}
-                  x2={target.x}
-                  y2={target.y}
-                  stroke={edge.color}
-                />
-              );
-            })}
-
-            {fallbackGraph.nodes.map((node) => (
-              <g
-                key={node.id}
-                className={`dxt-fallback-node dxt-fallback-node-${node.type}`}
-                transform={`translate(${node.x} ${node.y})`}
-                color={node.color}
-                role="button"
-                tabIndex={0}
-                aria-label={node.label}
-                onClick={() => onNavigate(node.filePath, node.startLine)}
-                onKeyDown={(event) => handleFallbackKeyDown(event, node, onNavigate)}
-              >
-                <title>{fallbackNodeTitle(node)}</title>
-                {node.type === "file" ? (
-                  <rect
-                    className="dxt-fallback-node-shape"
-                    x="-4.25"
-                    y="-2.6"
-                    width="8.5"
-                    height="5.2"
-                    rx="2.6"
-                    ry="2.6"
-                  />
-                ) : (
-                  <circle className="dxt-fallback-node-shape" r="2.35" />
-                )}
-                <text className="dxt-fallback-node-label" x="4.8" y="0.9">
-                  {fallbackNodeLabel(node)}
-                </text>
-              </g>
-            ))}
-          </svg>
-        </div>
-
-        <div className="dxt-fallback-relations" aria-label="Graph relations">
-          <div className="dxt-fallback-relations-title">Relations</div>
-          <ul className="dxt-fallback-relation-list">
-            {fallbackGraph.edges.map((edge) => (
-              <li key={edge.id} className="dxt-fallback-relation-item">
-                <button
-                  type="button"
-                  className="dxt-fallback-relation-node"
-                  aria-label={`Open source ${edgeEndpointLabel(edge.source, nodesById)}`}
-                  onClick={() => {
-                    const source = nodesById.get(edge.source);
-                    if (source !== undefined) {
-                      onNavigate(source.filePath, source.startLine);
-                    }
-                  }}
-                >
-                  {edgeEndpointLabel(edge.source, nodesById)}
-                </button>
-                <span
-                  className={`dxt-fallback-edge-pill dxt-fallback-edge-pill-${edge.kind.toLowerCase()}`}
-                >
-                  {edge.kind}
-                </span>
-                <button
-                  type="button"
-                  className="dxt-fallback-relation-node"
-                  aria-label={`Open target ${edgeEndpointLabel(edge.target, nodesById)}`}
-                  onClick={() => {
-                    const target = nodesById.get(edge.target);
-                    if (target !== undefined) {
-                      onNavigate(target.filePath, target.startLine);
-                    }
-                  }}
-                >
-                  {edgeEndpointLabel(edge.target, nodesById)}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function computeSelection(
-  graph: MultiDirectedGraph,
-  selectedNodeId: string | null,
-  maxDepth: number,
-): SelectionTraversal | null {
-  if (selectedNodeId === null || !graph.hasNode(selectedNodeId)) {
-    return null;
-  }
-
-  const nodeIds = new Set<string>([selectedNodeId]);
-  // Group visited nodes by depth so we can walk outbound edges layer-by-layer below.
-  const nodesByDepth = new Map<number, string[]>([[0, [selectedNodeId]]]);
-
-  bfsFromNode(
-    graph,
-    selectedNodeId,
-    (node, _attrs, depth) => {
-      // bfsFromNode invokes the callback for the start node at depth 0 too.
-      if (node !== selectedNodeId) {
-        nodeIds.add(node);
-        const layer = nodesByDepth.get(depth);
-        if (layer === undefined) {
-          nodesByDepth.set(depth, [node]);
-        } else {
-          layer.push(node);
-        }
-      }
-      // Returning true prunes further traversal beyond this node. We prune when
-      // we've reached maxDepth so the next layer is never expanded.
-      return depth >= maxDepth;
-    },
-    { mode: "outbound" },
-  );
-
-  // Walk outbound edges per BFS layer to reproduce hopLayers / orderedEdgeIds
-  // exactly as the legacy implementation produced them. The DEFINES quirk
-  // (re-adding the source node when the edge is DEFINES) is preserved.
-  const edgeIds = new Set<string>();
-  const orderedEdgeIds: string[] = [];
-  const hopLayers: string[][] = [];
-
-  for (let depth = 0; depth < maxDepth; depth++) {
-    const frontier = nodesByDepth.get(depth);
-    if (frontier === undefined) {
-      break;
-    }
-    const layerEdges: string[] = [];
-    for (const currentNodeId of frontier) {
-      graph.forEachOutboundEdge(currentNodeId, (edge, attributes, _source, target) => {
-        edgeIds.add(edge);
-        orderedEdgeIds.push(edge);
-        layerEdges.push(edge);
-
-        // Ensure all reachable targets at depth+1 are in nodeIds even if BFS
-        // pruned them (e.g. when an edge crosses to a node already visited at
-        // the same or lower depth).
-        nodeIds.add(target);
-
-        if ((attributes as GraphEdgeAttributes).edgeKind === "DEFINES") {
-          nodeIds.add(currentNodeId);
-        }
-      });
-    }
-    if (layerEdges.length > 0) {
-      hopLayers.push(layerEdges);
-    }
-  }
-
-  return {
-    selectedNodeId,
-    nodeIds,
-    edgeIds,
-    orderedEdgeIds,
-    hopLayers,
-    maxDepth,
-  };
-}
-
-/**
- * Derive a TracePath summary from the trace state for the right-rail
- * TraceInspector (slice 023). Returns null when the path is empty.
- * `layersCrossed` is currently always empty because `arch_layer` is a
- * slice 026 column; we render gracefully when absent per spec CC-003.
- */
-function computeTracePath(graph: MultiDirectedGraph, state: TraceState): TracePath | null {
-  if (state.pathNodeIds.length === 0 || state.startNodeId === null || state.endNodeId === null) {
-    return null;
-  }
-
-  const filePaths = new Set<string>();
-  const frameworks = new Set<string>();
-  for (const nodeId of state.pathNodeIds) {
-    if (!graph.hasNode(nodeId)) {
-      continue;
-    }
-    const filePath = graph.getNodeAttribute(nodeId, "filePath") as string | undefined;
-    if (typeof filePath === "string" && filePath.length > 0) {
-      filePaths.add(filePath);
-    }
-    const framework = graph.getNodeAttribute(nodeId, "framework") as string | undefined;
-    if (typeof framework === "string" && framework.length > 0) {
-      frameworks.add(framework);
-    }
-  }
-
-  return {
-    startNodeId: state.startNodeId,
-    endNodeId: state.endNodeId,
-    hopCount: state.pathEdgeIds.length,
-    fileCount: filePaths.size,
-    layersCrossed: [],
-    crossesFrameworkBoundary: frameworks.size > 1,
-    nodeIds: state.pathNodeIds,
-    edgeIds: state.pathEdgeIds,
-  };
-}
-
 function createOverlaySegments(
   graph: MultiDirectedGraph,
   sigma: Sigma,
@@ -898,200 +274,6 @@ function createOverlaySegments(
   }
 
   return segments;
-}
-
-function convexHull(points: { x: number; y: number }[]): { x: number; y: number }[] {
-  if (points.length < 3) return points;
-  let start = 0;
-  for (let i = 1; i < points.length; i++) {
-    if (points[i]!.x < points[start]!.x) start = i;
-  }
-  const hull: { x: number; y: number }[] = [];
-  let current = start;
-  do {
-    hull.push(points[current]!);
-    let next = (current + 1) % points.length;
-    for (let i = 0; i < points.length; i++) {
-      const cross =
-        (points[next]!.x - points[current]!.x) * (points[i]!.y - points[current]!.y) -
-        (points[next]!.y - points[current]!.y) * (points[i]!.x - points[current]!.x);
-      if (cross < 0) next = i;
-    }
-    current = next;
-  } while (current !== start && hull.length <= points.length);
-  return hull;
-}
-
-function colorWithAlpha(hex: string, alpha: number): string {
-  const m = hex.match(/^#([0-9a-f]{6})$/i);
-  if (m === null) return `rgba(128,128,128,${alpha})`;
-  const h = m[1] as string;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-function drawClusterHulls(
-  graph: MultiDirectedGraph,
-  sigma: Sigma,
-  canvas: HTMLCanvasElement,
-  hoveredFilePath: string | null,
-  selectedFilePath: string | null,
-): void {
-  const ctx = canvas.getContext("2d");
-  if (ctx === null) return;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Group symbol nodes by filePath, collect viewport coordinates.
-  // sigma.graphToViewport takes graph-space {x,y} coords — NOT a node ID.
-  const fileGroups = new Map<string, Array<{ x: number; y: number }>>();
-  const fileColors = new Map<string, string>();
-
-  graph.forEachNode((_nodeId, attrs) => {
-    const a = attrs as GraphNodeAttributes;
-    if (a.nodeKind === "file") {
-      fileColors.set(String(a.filePath), String(a.baseColor ?? a.color));
-      return;
-    }
-    const gx = Number(a.x);
-    const gy = Number(a.y);
-    if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
-    const vp = sigma.graphToViewport({ x: gx, y: gy });
-    const fp = String(a.filePath);
-    let group = fileGroups.get(fp);
-    if (group === undefined) {
-      group = [];
-      fileGroups.set(fp, group);
-    }
-    group.push({ x: vp.x, y: vp.y });
-  });
-
-  for (const [fp, points] of fileGroups.entries()) {
-    if (points.length < 3) continue;
-    const hull = convexHull(points);
-    if (hull.length < 3) continue;
-
-    // Compute centroid
-    let cx = 0;
-    let cy = 0;
-    for (const p of hull) {
-      cx += p.x;
-      cy += p.y;
-    }
-    cx /= hull.length;
-    cy /= hull.length;
-
-    // Expand hull outward by 14px from centroid
-    const expanded = hull.map((p) => {
-      const dx = p.x - cx;
-      const dy = p.y - cy;
-      const dist = Math.max(Math.hypot(dx, dy), 0.01);
-      return { x: cx + (dx / dist) * (dist + 14), y: cy + (dy / dist) * (dist + 14) };
-    });
-
-    const isActive = fp === hoveredFilePath || fp === selectedFilePath;
-    const isDimmed = (hoveredFilePath !== null || selectedFilePath !== null) && !isActive;
-    const fillAlpha = isActive ? 0.14 : isDimmed ? 0.03 : 0.08;
-    const strokeAlpha = isActive ? 0.5 : isDimmed ? 0.1 : 0.28;
-    const baseColor = fileColors.get(fp) ?? "#808080";
-
-    ctx.beginPath();
-    ctx.moveTo(expanded[0]!.x, expanded[0]!.y);
-    for (let i = 1; i < expanded.length; i++) {
-      ctx.lineTo(expanded[i]!.x, expanded[i]!.y);
-    }
-    ctx.closePath();
-    ctx.fillStyle = colorWithAlpha(baseColor, fillAlpha);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(expanded[0]!.x, expanded[0]!.y);
-    for (let i = 1; i < expanded.length; i++) {
-      ctx.lineTo(expanded[i]!.x, expanded[i]!.y);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = colorWithAlpha(baseColor, strokeAlpha);
-    ctx.setLineDash([4, 6]);
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-}
-
-function drawMinimap(
-  graph: MultiDirectedGraph,
-  sigma: Sigma,
-  canvas: HTMLCanvasElement,
-  _container: HTMLDivElement,
-): void {
-  const ctx = canvas.getContext("2d");
-  if (ctx === null) return;
-
-  const W = canvas.width;
-  const H = canvas.height;
-
-  const nodePoints: Array<{ x: number; y: number; color: string; isFile: boolean }> = [];
-  let minX = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-
-  graph.forEachNode((_nodeId, attrs) => {
-    const a = attrs as GraphNodeAttributes;
-    const x = Number(a.x);
-    const y = Number(a.y);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    nodePoints.push({
-      x,
-      y,
-      color: String(a.baseColor ?? a.color),
-      isFile: a.nodeKind === "file",
-    });
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  });
-
-  if (nodePoints.length <= 1 || minX >= maxX || minY >= maxY) return;
-
-  const pad = 6;
-  const scaleX = (W - 2 * pad) / (maxX - minX);
-  const scaleY = (H - 2 * pad) / (maxY - minY);
-
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.beginPath();
-  ctx.rect(0, 0, W, H);
-  ctx.fill();
-
-  for (const pt of nodePoints) {
-    const pcx = pad + (pt.x - minX) * scaleX;
-    const pcy = pad + (pt.y - minY) * scaleY;
-    ctx.beginPath();
-    ctx.arc(pcx, pcy, pt.isFile ? 2 : 1, 0, Math.PI * 2);
-    ctx.fillStyle = pt.color;
-    ctx.fill();
-  }
-
-  // Draw camera crosshair
-  const sigmaPlus = sigma as SigmaWithExtras;
-  const cameraState = sigmaPlus.getCamera?.()?.getState?.();
-  if (cameraState !== undefined) {
-    const camX = Number(cameraState.x);
-    const camY = Number(cameraState.y);
-    if (Number.isFinite(camX) && Number.isFinite(camY)) {
-      const ccx = pad + (camX - minX) * scaleX;
-      const ccy = pad + (camY - minY) * scaleY;
-      ctx.beginPath();
-      ctx.arc(ccx, ccy, 4, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-  }
 }
 
 function applySigmaSetting(sigma: Sigma, key: string, value: unknown): void {
@@ -1190,6 +372,16 @@ export function GraphView({
   const hoveredNodeIdRef = useRef<string | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const reducedMotion = useReducedMotionPreference();
+  // Single source of truth for the view-membership primitives. The imperative
+  // Sigma reducers read these via `graphViewStoreRef.current.getState()` (they
+  // cannot subscribe to React re-renders); the React state below remains the
+  // panel-facing copy and is mirrored into this store on change.
+  const graphViewStoreRef = useRef(
+    createGraphViewStore({
+      hiddenNodeKinds: new Set(DEFAULT_HIDDEN_NODE_KINDS),
+      hiddenEdgeKinds: new Set(DEFAULT_HIDDEN_EDGE_KINDS),
+    }),
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -1285,11 +477,9 @@ export function GraphView({
     }, 6000);
     return () => window.clearTimeout(handle);
   }, [layoutSelection.notice]);
-  const hiddenEdgeKindsRef = useRef<Set<GraphEdge["kind"]>>(new Set());
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(
     () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
   );
-  const hiddenNodeKindsRef = useRef<Set<string>>(new Set());
   // Slice 031 US3 — set of node IDs that carry the "decorator-backed" flag,
   // so the Sigma node reducer can hide them when the Decorator chip is off.
   const decoratorBackedNodeIdsRef = useRef<Set<string>>(new Set());
@@ -1832,19 +1022,20 @@ export function GraphView({
           entry: NodeEntryProgram,
         },
         nodeReducer: (node, data) => {
+          // View-membership inputs come from the store (single source of truth);
+          // the imperative reducer reads them live via getState() each call.
+          const hiddenNodeKinds = graphViewStoreRef.current.getState().hiddenNodeKinds;
+
           // 1. Node-kind filter (applied first — hides node before hover/focus logic runs)
           const attrs = data as GraphNodeAttributes;
           const kindKey = attrs.nodeKind === "file" ? "file" : (attrs.symbolKind ?? "function");
-          if (hiddenNodeKindsRef.current.has(kindKey)) {
+          if (hiddenNodeKinds.has(kindKey)) {
             return { ...data, hidden: true };
           }
           // Slice 031 US3 — Decorator chip semantics. When the user clicks the
           // Decorator chip off, decorator-backed nodes are hidden the same way
           // any other node-kind filter hides nodes.
-          if (
-            hiddenNodeKindsRef.current.has("decorator") &&
-            decoratorBackedNodeIdsRef.current.has(node)
-          ) {
+          if (hiddenNodeKinds.has("decorator") && decoratorBackedNodeIdsRef.current.has(node)) {
             return { ...data, hidden: true };
           }
 
@@ -1928,8 +1119,9 @@ export function GraphView({
           const selection = selectionRef.current;
           const edgeAttrs = data as GraphEdgeAttributes;
 
-          // Hide edges whose kind is toggled off by the filter bar.
-          if (hiddenEdgeKindsRef.current.has(edgeAttrs.edgeKind)) {
+          // Hide edges whose kind is toggled off by the filter bar. Read from
+          // the store (single source of truth) live on each reducer call.
+          if (graphViewStoreRef.current.getState().hiddenEdgeKinds.has(edgeAttrs.edgeKind)) {
             return { ...data, hidden: true };
           }
 
@@ -2150,19 +1342,21 @@ export function GraphView({
     setOverlaySegments(createOverlaySegments(graph, sigma, selectionRef.current));
   }, [selectedNodeId]);
 
-  // Sync hidden-edge-kinds ref so the edgeReducer (created once in the Sigma effect) can
-  // read the current filter without being recreated.  Then refresh Sigma to re-run reducers.
+  // Mirror hidden-edge-kinds into the store so the edgeReducer (created once in
+  // the Sigma effect) reads the current filter via getState() without being
+  // recreated. Then refresh Sigma to re-run reducers.
   useEffect(() => {
-    hiddenEdgeKindsRef.current = hiddenEdgeKinds;
+    graphViewStoreRef.current.getState().setHiddenEdgeKinds(hiddenEdgeKinds);
     const sigma = sigmaRef.current;
     if (sigma !== null) {
       refreshSigma(sigma);
     }
   }, [hiddenEdgeKinds]);
 
-  // Sync hidden-node-kinds ref so the nodeReducer (created once) can read current filter.
+  // Mirror hidden-node-kinds into the store so the nodeReducer reads the current
+  // filter via getState() without being recreated.
   useEffect(() => {
-    hiddenNodeKindsRef.current = hiddenNodeKinds;
+    graphViewStoreRef.current.getState().setHiddenNodeKinds(hiddenNodeKinds);
     const sigma = sigmaRef.current;
     if (sigma !== null) {
       refreshSigma(sigma);

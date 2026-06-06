@@ -69,5 +69,17 @@ export default [
       ],
     },
   },
+  {
+    // Non-component webview modules are `.ts` but run in the browser, so they
+    // need DOM globals (HTMLCanvasElement, etc.) like their `.tsx` siblings —
+    // unlike core/extension-host `.ts`, which stay Node-only above.
+    files: ["packages/extension/src/webview/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        acquireVsCodeApi: "readonly",
+      },
+    },
+  },
   prettier,
 ];

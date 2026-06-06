@@ -202,7 +202,7 @@ If you're not Claude Code, follow the same shape conceptually: plan first, imple
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **dextree** (3048 symbols, 5124 relationships, 166 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **dextree** (4257 symbols, 7229 relationships, 201 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
