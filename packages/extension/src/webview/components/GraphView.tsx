@@ -6,16 +6,12 @@ import {
   type LensId,
   type RankableLensId,
 } from "@dextree/core/lenses";
-import { createNodeBorderProgram } from "@sigma/node-border";
-import { NodeSquareProgram } from "@sigma/node-square";
 import { MultiDirectedGraph } from "graphology";
-import forceAtlas2 from "graphology-layout-forceatlas2";
 import { edgePathFromNodePath } from "graphology-shortest-path";
 import { bidirectional } from "graphology-shortest-path/unweighted";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Sigma from "sigma";
-import { NodeCircleProgram } from "sigma/rendering";
+import type Sigma from "sigma";
 
 import {
   applyLayoutPreset,
@@ -52,7 +48,6 @@ import {
   edgeColor,
   mixWithBackground,
   snapshotGraph,
-  stabilizeFileAnchors,
   symbolColor,
 } from "./graphBuild.js";
 import { createGraphViewStore } from "../state/graphViewStore.js";
@@ -72,7 +67,6 @@ import {
   type TraceState,
 } from "./graphViewTypes.js";
 
-const SINGLE_CLICK_DELAY_MS = 180;
 const CAMERA_CENTER_DURATION_MS = 380;
 // Target camera ratio when flying to a search result — small enough to read
 // the node clearly. Clamped so we only ever zoom in, never out.
@@ -99,23 +93,9 @@ const DEFAULT_HIDDEN_EDGE_KINDS: ReadonlyArray<GraphEdge["kind"]> = [
   "INSTANTIATES",
 ];
 
-// 2px is the smallest border that stays visible at the smallest rendered
-// symbol-node size (5px). Fallback hex is muted gold; the live color comes
-// from the `--vscode-charts-yellow` theme token via `readThemeColors`, so
-// custom VS Code themes drive the entry styling and theme switches refresh
-// it on the next render.
+// Fallback entry-border colour for `readThemeColors` when the
+// `--vscode-charts-yellow` token is absent; muted gold survives all themes.
 const ENTRY_BORDER_COLOR_FALLBACK = "#d4af37";
-const ENTRY_BORDER_PIXELS = 2;
-
-const NodeEntryProgram = createNodeBorderProgram({
-  borders: [
-    {
-      color: { attribute: "entryBorderColor", defaultValue: ENTRY_BORDER_COLOR_FALLBACK },
-      size: { value: ENTRY_BORDER_PIXELS, mode: "pixels" },
-    },
-    { color: { attribute: "color" }, size: { fill: true } },
-  ],
-});
 
 type SigmaWithExtras = Sigma & {
   getNodeDisplayData?: (node: string) => SigmaNodeDisplayData | undefined;
@@ -363,10 +343,6 @@ export function GraphView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MultiDirectedGraph | null>(null);
   const sigmaRef = useRef<Sigma | null>(null);
-  const clickTimeoutRef = useRef<number | null>(null);
-  // Tracks last single-click for manual double-click detection on nodes.
-  // Sigma 3's "doubleClickNode" can miss if WebGL picking fails on rapid 2nd click.
-  const lastClickRef = useRef<{ node: string; time: number } | null>(null);
   const clusterCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const reducedMotion = useReducedMotionPreference();
@@ -853,7 +829,6 @@ export function GraphView({
     // no-op before mount (no graph yet) and clears hover after.
     controllerRef.current?.setSelection(null);
     controllerRef.current?.setHover(null);
-    lastClickRef.current = null;
     setOverlaySegments([]);
   }, [edges, nodes]);
 
@@ -867,7 +842,6 @@ export function GraphView({
 
     const colors = readThemeColors();
     const graph = buildGraph(nodes, edges, colors);
-    const canceledRef = { current: false };
 
     // Degree-based size boost: hub nodes (high connectivity) render larger so
     // important call-sites and widely-imported files stand out visually.
@@ -882,253 +856,101 @@ export function GraphView({
 
     graphRef.current = graph;
 
-    const buildFallbackGraph = () => snapshotGraph(graph);
     const updateOverlay = (): void => {
-      const activeGraph = graphRef.current;
       const sigma = sigmaRef.current;
-
-      if (activeGraph === null || sigma === null) {
+      if (sigma === null) {
         setOverlaySegments([]);
         return;
       }
-
-      setOverlaySegments(
-        createOverlaySegments(activeGraph, sigma, controllerRef.current?.currentSelection ?? null),
-      );
+      setOverlaySegments(createOverlaySegments(graph, sigma, controller.currentSelection));
     };
 
-    let sigma: Sigma | null = null;
-    let observer: MutationObserver | null = null;
-    let resizeObserver: ResizeObserver | null = null;
-
-    const enterNodeListener = (event: { node: string }): void => {
-      controllerRef.current?.setHover(event.node);
-    };
-
-    const leaveNodeListener = (): void => {
-      controllerRef.current?.setHover(null);
-    };
-
-    const navigateToNode = (nodeId: string): void => {
-      const attributes = graph.getNodeAttributes(nodeId) as GraphNodeAttributes;
-      onNavigate(attributes.filePath, attributes.startLine);
-    };
-
-    const selectNode = (nodeId: string): void => {
-      // React stays authoritative for the Inspector; the controller owns the
-      // selection traversal the reducers read + the overlay. Selecting does NOT
-      // recenter the camera — an auto-pan on every click makes the graph jump.
-      setSelectedNodeId(nodeId);
-      controllerRef.current?.setSelection(nodeId);
-    };
-
-    const clearSelection = (): void => {
-      if (clickTimeoutRef.current !== null) {
-        window.clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
+    const drawAfterRender = (): void => {
+      const sigma = sigmaRef.current;
+      if (sigma === null) return;
+      try {
+        const cc = clusterCanvasRef.current;
+        if (cc !== null) {
+          if (!showClusterHullsRef.current) {
+            cc.getContext("2d")?.clearRect(0, 0, cc.width, cc.height);
+          } else {
+            const hoveredNodeId = controller.hoveredNode;
+            const activeSelection = controller.currentSelection;
+            const hoveredFilePath =
+              hoveredNodeId !== null && graph.hasNode(hoveredNodeId)
+                ? String((graph.getNodeAttributes(hoveredNodeId) as GraphNodeAttributes).filePath)
+                : null;
+            const selectedFilePath =
+              activeSelection !== null && graph.hasNode(activeSelection.selectedNodeId)
+                ? String(
+                    (graph.getNodeAttributes(activeSelection.selectedNodeId) as GraphNodeAttributes)
+                      .filePath,
+                  )
+                : null;
+            drawClusterHulls(graph, sigma, cc, hoveredFilePath, selectedFilePath);
+          }
+        }
+        if (minimapCanvasRef.current !== null && controller.shouldDrawMinimap()) {
+          drawMinimap(graph, sigma, minimapCanvasRef.current, container);
+        }
+      } catch (err) {
+        console.error("Dextree cluster/minimap draw failed", err);
       }
-
-      setSelectedNodeId(null);
-      controllerRef.current?.setSelection(null);
     };
 
     if (!canUseWebGL()) {
       sigmaRef.current = null;
-      if (canceledRef.current) return;
-      if (canceledRef.current) return;
       setError(null);
-      setFallbackGraph(buildFallbackGraph());
+      setFallbackGraph(snapshotGraph(graph));
       return () => {
         graphRef.current = null;
       };
     }
 
     try {
-      if (graph.order > 0) {
-        try {
-          forceAtlas2.assign(graph, {
-            iterations: 200,
-            settings: {
-              gravity: 1.8,
-              scalingRatio: 6,
-              slowDown: 3,
-              barnesHutOptimize: true,
-              barnesHutTheta: 0.5,
-              linLogMode: true,
-            },
-          });
-          stabilizeFileAnchors(graph);
-        } catch (layoutError) {
-          console.error("Dextree graph layout failed", layoutError);
-        }
-      }
-
-      sigma = new Sigma(graph, container, {
-        allowInvalidContainer: true,
-        renderLabels: true,
-        renderEdgeLabels: false,
-        // Labels are hidden for tiny/distant nodes and revealed as the user zooms in.
-        // File nodes (size 14-32) remain labelled at all zoom levels; small symbol
-        // nodes (size 5-15) only show labels once they appear ≥ 4 screen-pixels wide.
-        labelRenderedSizeThreshold: 4,
-        defaultNodeType: "circle",
-        defaultEdgeType: "line",
-        defaultEdgeColor: colors.definesEdgeColor,
-        enableEdgeEvents: true,
-        // Prevent built-in double-click zoom — navigation is handled manually via clickNode.
-        doubleClickZoomingRatio: 1,
-        // Explicitly include circle (replacing nodeProgramClasses overrides the
-        // default mapping in Sigma 3). Square is registered for upcoming
-        // architectural-layer differentiation in later slices; entry is the
-        // gold-bordered classification treatment from slice 026.
-        nodeProgramClasses: {
-          circle: NodeCircleProgram,
-          square: NodeSquareProgram,
-          entry: NodeEntryProgram,
+      const sigma = controller.mount(container, graph, {
+        onNavigate,
+        onSelect: (nodeId) => {
+          // React stays authoritative for the Inspector; the controller owns the
+          // selection traversal + overlay. Selecting does NOT recenter the camera.
+          setSelectedNodeId(nodeId);
+          controller.setSelection(nodeId);
         },
-        nodeReducer: controller.nodeReducer,
-        edgeReducer: controller.edgeReducer,
-      });
-
-      sigmaRef.current = sigma;
-      controllerRef.current?.adopt(sigma, graph, container);
-      controllerRef.current?.setColors(applyTheme(graph, sigma, container));
-      if (canceledRef.current) {
-        sigma.kill();
-        sigmaRef.current = null;
-        controllerRef.current?.dispose();
-        return;
-      }
-      setFallbackGraph(null);
-      setOverlaySegments([]);
-
-      resizeObserver = new ResizeObserver(() => {
-        const w = container.clientWidth;
-        const h = container.clientHeight;
-        const cc = clusterCanvasRef.current;
-        if (cc !== null) {
-          cc.width = w;
-          cc.height = h;
-        }
-        if (sigma !== null) {
-          refreshSigma(sigma);
-          updateOverlay();
-        }
-      });
-      resizeObserver.observe(container);
-
-      sigma.on("clickNode", (event) => {
-        // Trace mode takes priority over normal selection (slice 023). When a
-        // trace phase is waiting for a node pick, route the click to the
-        // trace state machine and short-circuit normal selection.
-        const tracePhase = controllerRef.current?.tracePhaseState;
-        if (tracePhase === "picking-start" || tracePhase === "picking-end") {
-          handleTraceNodeClick(event.node);
-          return;
-        }
-        // Queue single-click selection; doubleClickNode cancels this if a double-click fires.
-        if (clickTimeoutRef.current !== null) {
-          window.clearTimeout(clickTimeoutRef.current);
-        }
-        lastClickRef.current = { node: event.node, time: Date.now() };
-        clickTimeoutRef.current = window.setTimeout(() => {
-          clickTimeoutRef.current = null;
-          lastClickRef.current = null;
-          selectNode(event.node);
-        }, SINGLE_CLICK_DELAY_MS);
-      });
-
-      // doubleClickNode is the reliable Sigma 3 event for actual double-clicks.
-      // We prevent the built-in zoom and navigate to the node instead.
-      sigma.on("doubleClickNode", (event) => {
-        // Cancel the pending single-click selection
-        if (clickTimeoutRef.current !== null) {
-          window.clearTimeout(clickTimeoutRef.current);
-          clickTimeoutRef.current = null;
-        }
-        lastClickRef.current = null;
-
-        // Prevent Sigma's built-in double-click zoom
-        const preventable = event as unknown as { preventSigmaDefault?: () => void };
-        preventable.preventSigmaDefault?.();
-
-        navigateToNode(event.node);
-      });
-
-      sigma.on("clickStage", () => {
-        clearSelection();
-      });
-
-      sigma.on("enterNode", enterNodeListener);
-      sigma.on("leaveNode", leaveNodeListener);
-
-      sigma.on("afterRender", () => {
-        try {
+        onClear: () => {
+          setSelectedNodeId(null);
+          controller.setSelection(null);
+        },
+        onTracePick: (nodeId) => handleTraceNodeClick(nodeId),
+        // mount() sets the controller's instance before invoking this, so read
+        // it from the controller rather than the not-yet-assigned `sigma` const.
+        applyTheme: () => {
+          const instance = controller.instance;
+          return instance === null ? readThemeColors() : applyTheme(graph, instance, container);
+        },
+        updateOverlay,
+        onResize: () => {
           const cc = clusterCanvasRef.current;
           if (cc !== null) {
-            if (!showClusterHullsRef.current) {
-              cc.getContext("2d")?.clearRect(0, 0, cc.width, cc.height);
-            } else {
-              const hoveredNodeId = controllerRef.current?.hoveredNode ?? null;
-              const activeSelection = controllerRef.current?.currentSelection ?? null;
-              const hoveredFilePath =
-                hoveredNodeId !== null && graph.hasNode(hoveredNodeId)
-                  ? String((graph.getNodeAttributes(hoveredNodeId) as GraphNodeAttributes).filePath)
-                  : null;
-              const selectedFilePath =
-                activeSelection !== null && graph.hasNode(activeSelection.selectedNodeId)
-                  ? String(
-                      (
-                        graph.getNodeAttributes(
-                          activeSelection.selectedNodeId,
-                        ) as GraphNodeAttributes
-                      ).filePath,
-                    )
-                  : null;
-              drawClusterHulls(graph, sigma!, cc, hoveredFilePath, selectedFilePath);
-            }
+            cc.width = container.clientWidth;
+            cc.height = container.clientHeight;
           }
-          if (minimapCanvasRef.current !== null && graph.order > 20) {
-            drawMinimap(graph, sigma!, minimapCanvasRef.current, container);
-          }
-        } catch (err) {
-          console.error("Dextree cluster/minimap draw failed", err);
-        }
+        },
+        onAfterRender: drawAfterRender,
       });
-
-      observer = new MutationObserver(() => {
-        if (sigma !== null) {
-          controllerRef.current?.setColors(applyTheme(graph, sigma, container));
-          updateOverlay();
-        }
-      });
-      observer.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["class"],
-      });
-
+      sigmaRef.current = sigma;
+      setFallbackGraph(null);
+      setOverlaySegments([]);
       setError(null);
     } catch (err) {
       console.error("Dextree graph renderer failed", err);
+      controller.dispose();
       sigmaRef.current = null;
-      if (canceledRef.current) return;
       setError(err instanceof Error ? err.message : "Could not initialize graph renderer.");
-      setFallbackGraph(buildFallbackGraph());
+      setFallbackGraph(snapshotGraph(graph));
     }
 
     return () => {
-      canceledRef.current = true;
-      if (clickTimeoutRef.current !== null) {
-        window.clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
-
-      observer?.disconnect();
-      resizeObserver?.disconnect();
-      // dispose() kills the Sigma instance the controller adopted and clears its
-      // hover/selection render mirror, so we do not also call
-      // sigmaRef.current.kill() — double-kill throws on real Sigma.
-      controllerRef.current?.dispose();
+      controller.dispose();
       sigmaRef.current = null;
       graphRef.current = null;
     };

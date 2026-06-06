@@ -2,6 +2,33 @@ import { MultiDirectedGraph } from "graphology";
 import type Sigma from "sigma";
 import { describe, expect, it, vi } from "vitest";
 
+// The real sigma + sigma/rendering modules read WebGL2RenderingContext at import
+// time, which jsdom does not expose. Stub the constructor + program classes; the
+// lifecycle/camera/reducer tests drive the controller via adopt() with a stub
+// Sigma, so the real renderer is never needed.
+vi.mock("sigma", () => ({
+  default: vi.fn(function SigmaCtor() {
+    return { on: vi.fn(), kill: vi.fn(), refresh: vi.fn() };
+  }),
+}));
+vi.mock("sigma/rendering", () => ({ NodeCircleProgram: class {} }));
+vi.mock("@sigma/node-square", () => ({ NodeSquareProgram: class {} }));
+vi.mock("@sigma/node-border", () => ({ createNodeBorderProgram: vi.fn(() => class {}) }));
+
+// jsdom does not provide these observers; mount() constructs them. Minimal
+// no-op stubs are enough — the tests assert listener wiring + teardown, not
+// observation callbacks.
+class NoopObserver {
+  observe(): void {}
+  disconnect(): void {}
+  unobserve(): void {}
+  takeRecords(): unknown[] {
+    return [];
+  }
+}
+globalThis.ResizeObserver ??= NoopObserver as unknown as typeof ResizeObserver;
+globalThis.MutationObserver ??= NoopObserver as unknown as typeof MutationObserver;
+
 import { SigmaController, type SigmaControllerOptions } from "./SigmaController.js";
 import { createGraphViewStore, type GraphViewStore } from "../state/graphViewStore.js";
 import type { ThemeColors } from "./graphViewTypes.js";
@@ -98,6 +125,50 @@ describe("SigmaController — lifecycle", () => {
     controller.adopt(sigma, new MultiDirectedGraph(), stubContainer());
     controller.refresh();
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("mount() constructs Sigma, applies theme, wires listeners, and exposes the instance", () => {
+    const controller = new SigmaController(freshStore(), options());
+    const applyTheme = vi.fn(() => REDUCER_THEME);
+    const sigma = controller.mount(stubContainer(), triadGraph(), {
+      onNavigate: vi.fn(),
+      onSelect: vi.fn(),
+      onClear: vi.fn(),
+      onTracePick: vi.fn(),
+      applyTheme,
+      updateOverlay: vi.fn(),
+      onResize: vi.fn(),
+      onAfterRender: vi.fn(),
+    });
+    expect(sigma).not.toBeNull();
+    expect(controller.instance).toBe(sigma);
+    expect(applyTheme).toHaveBeenCalled();
+    // clickNode/doubleClickNode/clickStage/enterNode/leaveNode/afterRender wired.
+    expect((sigma as unknown as { on: ReturnType<typeof vi.fn> }).on).toHaveBeenCalled();
+  });
+
+  it("dispose() after mount kills Sigma and disconnects observers", () => {
+    const controller = new SigmaController(freshStore(), options());
+    const sigma = controller.mount(stubContainer(), triadGraph(), {
+      onNavigate: vi.fn(),
+      onSelect: vi.fn(),
+      onClear: vi.fn(),
+      onTracePick: vi.fn(),
+      applyTheme: () => REDUCER_THEME,
+      updateOverlay: vi.fn(),
+      onResize: vi.fn(),
+      onAfterRender: vi.fn(),
+    });
+    const kill = (sigma as unknown as { kill: ReturnType<typeof vi.fn> }).kill;
+    controller.dispose();
+    expect(kill).toHaveBeenCalledTimes(1);
+    expect(controller.instance).toBeNull();
+  });
+
+  it("shouldDrawMinimap reflects graph order", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    expect(controller.shouldDrawMinimap()).toBe(false); // 3 nodes < threshold
   });
 });
 

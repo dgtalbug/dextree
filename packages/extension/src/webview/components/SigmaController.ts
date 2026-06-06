@@ -1,10 +1,14 @@
+import { createNodeBorderProgram } from "@sigma/node-border";
+import { NodeSquareProgram } from "@sigma/node-square";
 import type { Attributes } from "graphology-types";
 import type { MultiDirectedGraph } from "graphology";
-import type Sigma from "sigma";
+import forceAtlas2 from "graphology-layout-forceatlas2";
+import Sigma from "sigma";
+import { NodeCircleProgram } from "sigma/rendering";
 import type { EdgeDisplayData, NodeDisplayData } from "sigma/types";
 
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
-import { toFadedColor } from "./graphBuild.js";
+import { stabilizeFileAnchors, toFadedColor } from "./graphBuild.js";
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { computeSelection } from "./graphTraversal.js";
 import { dimColor } from "./lensColor.js";
@@ -16,6 +20,24 @@ import type {
   ThemeColors,
   TracePhase,
 } from "./graphViewTypes.js";
+
+// Border-program for entry-classified nodes — the gold-bordered treatment from
+// slice 026. Identical config to the inline GraphView definition it replaces.
+const ENTRY_BORDER_COLOR_FALLBACK = "#d4af37";
+const ENTRY_BORDER_PIXELS = 2;
+const NodeEntryProgram = createNodeBorderProgram({
+  borders: [
+    {
+      color: { attribute: "entryBorderColor", defaultValue: ENTRY_BORDER_COLOR_FALLBACK },
+      size: { value: ENTRY_BORDER_PIXELS, mode: "pixels" },
+    },
+    { color: { attribute: "color" }, size: { fill: true } },
+  ],
+});
+
+const SINGLE_CLICK_DELAY_MS = 180;
+const FORCE_ATLAS2_ITERATIONS = 200;
+const MINIMAP_MIN_NODES = 20;
 
 // Camera tunables — identical to the values the inline GraphView handlers used,
 // kept here so the controller's camera math is self-contained and testable.
@@ -60,6 +82,31 @@ export interface SigmaControllerOptions {
 }
 
 /**
+ * React-side glue the controller invokes from the Sigma event listeners and
+ * render hooks it owns. Keeps DOM/React concerns (navigation, the canvas
+ * overlays read from React refs, theme application that also touches container
+ * style) in the component while the controller owns the Sigma lifecycle.
+ */
+export interface SigmaMountCallbacks {
+  /** Open the editor at a node's source location (double-click). */
+  onNavigate: (filePath: string, startLine: number) => void;
+  /** A single click committed selection — React updates the Inspector. */
+  onSelect: (nodeId: string) => void;
+  /** The stage was clicked — clear selection. */
+  onClear: () => void;
+  /** A node was clicked while a trace phase awaits a pick. */
+  onTracePick: (nodeId: string) => void;
+  /** Apply theme to the graph + container and return the resolved colors. */
+  applyTheme: () => ThemeColors;
+  /** Rebuild the React SVG overlay from the controller's current selection. */
+  updateOverlay: () => void;
+  /** Resize the cluster canvas to the container (called from the ResizeObserver). */
+  onResize: () => void;
+  /** Draw the cluster hulls + minimap (afterRender) using React-held canvas refs. */
+  onAfterRender: () => void;
+}
+
+/**
  * Owns the imperative Sigma layer that resisted mechanical extraction during
  * `visibleview-foundation`: the Sigma instance, the graphology graph handle, and
  * the transient interaction state (hover/selection neighbourhoods, the trace
@@ -83,6 +130,10 @@ export class SigmaController {
   private sigma: Sigma | null = null;
   private graph: MultiDirectedGraph | null = null;
   private container: HTMLDivElement | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private themeObserver: MutationObserver | null = null;
+  // Pending single-click selection, cancelled if a double-click fires first.
+  private clickTimeout: number | null = null;
 
   // Transient interaction state — momentary appearance, not view membership.
   // These mirror the component refs the reducers read today; they migrate onto
@@ -479,10 +530,147 @@ export class SigmaController {
   };
 
   /**
+   * Construct and mount the Sigma renderer onto a container for a prepared graph,
+   * wiring layout, theme, the node/edge reducers, interaction listeners, the
+   * resize + theme observers, and the afterRender overlay draw. The component
+   * keeps graph construction and the WebGL/fallback decision; this owns the
+   * imperative Sigma lifecycle. Throws if Sigma construction fails (the caller
+   * renders the static fallback). Returns the live instance.
+   */
+  mount(
+    container: HTMLDivElement,
+    graph: MultiDirectedGraph,
+    callbacks: SigmaMountCallbacks,
+  ): Sigma {
+    // Run the force-directed layout before constructing Sigma so the first paint
+    // is already settled. Layout failure is non-fatal — render the raw positions.
+    if (graph.order > 0) {
+      try {
+        forceAtlas2.assign(graph, {
+          iterations: FORCE_ATLAS2_ITERATIONS,
+          settings: {
+            gravity: 1.8,
+            scalingRatio: 6,
+            slowDown: 3,
+            barnesHutOptimize: true,
+            barnesHutTheta: 0.5,
+            linLogMode: true,
+          },
+        });
+        stabilizeFileAnchors(graph);
+      } catch (layoutError) {
+        console.error("Dextree graph layout failed", layoutError);
+      }
+    }
+
+    const sigma = new Sigma(graph, container, {
+      allowInvalidContainer: true,
+      renderLabels: true,
+      renderEdgeLabels: false,
+      // Labels hidden for tiny/distant nodes, revealed on zoom-in. File nodes
+      // stay labelled at all zoom levels; small symbol nodes appear ≥ 4px wide.
+      labelRenderedSizeThreshold: 4,
+      defaultNodeType: "circle",
+      defaultEdgeType: "line",
+      defaultEdgeColor: this.options.readThemeColors().definesEdgeColor,
+      enableEdgeEvents: true,
+      // Prevent built-in double-click zoom — navigation is manual via clickNode.
+      doubleClickZoomingRatio: 1,
+      // Explicitly include circle (replacing nodeProgramClasses overrides the
+      // default mapping in Sigma 3). Square is for architectural-layer
+      // differentiation; entry is the gold-bordered classification treatment.
+      nodeProgramClasses: {
+        circle: NodeCircleProgram,
+        square: NodeSquareProgram,
+        entry: NodeEntryProgram,
+      },
+      nodeReducer: this.nodeReducer,
+      edgeReducer: this.edgeReducer,
+    });
+
+    this.sigma = sigma;
+    this.graph = graph;
+    this.container = container;
+    this.colors = callbacks.applyTheme();
+
+    this.resizeObserver = new ResizeObserver(() => {
+      callbacks.onResize();
+      this.refresh();
+      callbacks.updateOverlay();
+    });
+    this.resizeObserver.observe(container);
+
+    sigma.on("clickNode", (event) => {
+      // Trace mode takes priority over normal selection. When a trace phase
+      // awaits a pick, route the click to the state machine and short-circuit.
+      if (this.tracePhase === "picking-start" || this.tracePhase === "picking-end") {
+        callbacks.onTracePick(event.node);
+        return;
+      }
+      // Queue single-click selection; doubleClickNode cancels it on a real
+      // double-click.
+      if (this.clickTimeout !== null) {
+        window.clearTimeout(this.clickTimeout);
+      }
+      this.clickTimeout = window.setTimeout(() => {
+        this.clickTimeout = null;
+        callbacks.onSelect(event.node);
+      }, SINGLE_CLICK_DELAY_MS);
+    });
+
+    sigma.on("doubleClickNode", (event) => {
+      if (this.clickTimeout !== null) {
+        window.clearTimeout(this.clickTimeout);
+        this.clickTimeout = null;
+      }
+      const preventable = event as unknown as { preventSigmaDefault?: () => void };
+      preventable.preventSigmaDefault?.();
+      const attrs = graph.getNodeAttributes(event.node) as GraphNodeAttributes;
+      callbacks.onNavigate(attrs.filePath, attrs.startLine);
+    });
+
+    sigma.on("clickStage", () => {
+      if (this.clickTimeout !== null) {
+        window.clearTimeout(this.clickTimeout);
+        this.clickTimeout = null;
+      }
+      callbacks.onClear();
+    });
+
+    sigma.on("enterNode", (event) => this.setHover(event.node));
+    sigma.on("leaveNode", () => this.setHover(null));
+    sigma.on("afterRender", () => callbacks.onAfterRender());
+
+    this.themeObserver = new MutationObserver(() => {
+      this.colors = callbacks.applyTheme();
+      callbacks.updateOverlay();
+    });
+    this.themeObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return sigma;
+  }
+
+  /** Whether the minimap should draw given the current graph order. */
+  shouldDrawMinimap(): boolean {
+    return this.graph !== null && this.graph.order > MINIMAP_MIN_NODES;
+  }
+
+  /**
    * Tear down the Sigma instance and drop all imperative state. Idempotent: safe
    * to call without a prior mount and safe to call more than once.
    */
   dispose(): void {
+    if (this.clickTimeout !== null) {
+      window.clearTimeout(this.clickTimeout);
+      this.clickTimeout = null;
+    }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.themeObserver?.disconnect();
+    this.themeObserver = null;
     this.sigma?.kill();
     this.sigma = null;
     this.graph = null;
