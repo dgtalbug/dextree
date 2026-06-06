@@ -358,10 +358,19 @@ export const WebviewPanelManager = {
         }
 
         // Slice 030 US3 — webview requests a current-view Mermaid export.
+        // The serialized VisibleView membership rides along so the host can
+        // export exactly the rendered subgraph (the `visible` scope).
         if (record["type"] === "exportCurrentView") {
           const viewId = record["viewId"];
           if (typeof viewId === "string" && viewId.length > 0) {
-            void vscode.commands.executeCommand("dextree.exportCurrentView", viewId);
+            const nodeIds = Array.isArray(record["nodeIds"]) ? record["nodeIds"] : [];
+            const edgeIds = Array.isArray(record["edgeIds"]) ? record["edgeIds"] : [];
+            void vscode.commands.executeCommand(
+              "dextree.exportCurrentView",
+              viewId,
+              nodeIds,
+              edgeIds,
+            );
           }
           return;
         }

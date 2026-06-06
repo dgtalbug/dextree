@@ -140,6 +140,94 @@ describe("extractMermaidScope — file", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Visible scope — exports an explicit node/edge id set (the rendered VisibleView)
+// ---------------------------------------------------------------------------
+
+describe("extractMermaidScope — visible", () => {
+  it("extracts exactly the given node ids", () => {
+    const result = extractMermaidScope(WORKSPACE, {
+      kind: "visible",
+      nodeIds: ["sym-a", "sym-b"],
+      edgeIds: ["e-calls"],
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      const ids = result.subgraph.nodes.map((n) => n.id).sort();
+      expect(ids).toEqual(["sym-a", "sym-b"]);
+    }
+  });
+
+  it("keeps only edges whose endpoints are both in the node set", () => {
+    // Request sym-a + sym-b but no DEFINES edges (their file endpoints are
+    // excluded). The CALLS edge survives; DEFINES edges are dropped because
+    // file-a / file-b are not in the visible node set.
+    const result = extractMermaidScope(WORKSPACE, {
+      kind: "visible",
+      nodeIds: ["sym-a", "sym-b"],
+      edgeIds: ["e-calls", "e-def-a", "e-def-b"],
+    });
+    if (result.status === "ok") {
+      expect(result.subgraph.edges.map((e) => e.id)).toEqual(["e-calls"]);
+    }
+  });
+
+  it("drops nodes outside the visible set", () => {
+    const result = extractMermaidScope(WORKSPACE, {
+      kind: "visible",
+      nodeIds: ["file-a", "sym-a"],
+      edgeIds: ["e-def-a"],
+    });
+    if (result.status === "ok") {
+      const ids = result.subgraph.nodes.map((n) => n.id).sort();
+      expect(ids).toEqual(["file-a", "sym-a"]);
+      expect(result.subgraph.edges.map((e) => e.id)).toEqual(["e-def-a"]);
+    }
+  });
+
+  it("preserves the workspace's frameworks list", () => {
+    const sgWithFrameworks: WorkspaceSubgraph = {
+      ...WORKSPACE,
+      frameworks: [{ name: "react", detectionSource: "manifest", confidence: 1 }],
+    };
+    const result = extractMermaidScope(sgWithFrameworks, {
+      kind: "visible",
+      nodeIds: ["sym-a"],
+      edgeIds: [],
+    });
+    if (result.status === "ok") {
+      expect(result.subgraph.frameworks).toEqual([
+        { name: "react", detectionSource: "manifest", confidence: 1 },
+      ]);
+    }
+  });
+
+  it("returns an empty subgraph for an empty visible set (no throw)", () => {
+    const result = extractMermaidScope(WORKSPACE, {
+      kind: "visible",
+      nodeIds: [],
+      edgeIds: [],
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.subgraph.nodes).toEqual([]);
+      expect(result.subgraph.edges).toEqual([]);
+    }
+  });
+
+  it("ignores node ids not present in the workspace graph", () => {
+    const result = extractMermaidScope(WORKSPACE, {
+      kind: "visible",
+      nodeIds: ["sym-a", "ghost-node"],
+      edgeIds: [],
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.subgraph.nodes.map((n) => n.id)).toEqual(["sym-a"]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Forward-compatibility seam — symbol scopes return unsupported until a
 // later slice implements BFS-based extraction
 // ---------------------------------------------------------------------------

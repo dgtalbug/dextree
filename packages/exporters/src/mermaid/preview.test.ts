@@ -107,6 +107,21 @@ describe("generateMermaidPreview — flowchart routing (slice 029 PR-A)", () => 
     }
   });
 
+  it("title labels the visible scope with the rendered node count", () => {
+    const sg = subgraph([
+      { ...fileNode("f-1", "src/a.ts"), filePath: "/workspace/src/a.ts" },
+      { ...symbolNode("s-1", "foo"), filePath: "/workspace/src/a.ts" },
+    ]);
+    const result = generateMermaidPreview(sg, {
+      ...FLOWCHART_DEFAULTS,
+      scope: { kind: "visible", nodeIds: ["f-1", "s-1"], edgeIds: [] },
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.title).toContain("Current view · 2 nodes");
+    }
+  });
+
   it("is pure — same (subgraph, options) yields the same source across calls", () => {
     const sg = subgraph(
       [fileNode("f-1", "src/a.ts"), symbolNode("s-1", "foo")],

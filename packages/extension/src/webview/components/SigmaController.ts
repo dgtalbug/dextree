@@ -13,6 +13,7 @@ import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.j
 import { computeSelection } from "./graphTraversal.js";
 import { dimColor } from "./lensColor.js";
 import type { GraphViewStore } from "../state/graphViewStore.js";
+import type { VisibleView } from "../state/visibleView.js";
 import type {
   GraphEdgeAttributes,
   GraphNodeAttributes,
@@ -146,6 +147,11 @@ export class SigmaController {
   private pathNodeIds: Set<string> = new Set();
   private pathEdgeIds: Set<string> = new Set();
   private depthVisibleNodeIds: Set<string> | null = null;
+  // Node focus: when set, the view collapses to this node's BFS neighbourhood
+  // expanded to the current depth. The focus set is the precomputed membership;
+  // null means not focused. Owned here so render + export read one source.
+  private focusNodeId: string | null = null;
+  private focusVisibleNodeIds: Set<string> | null = null;
   private decoratorBackedNodeIds: Set<string> = new Set();
   private matchedNodeIds: ReadonlySet<string> = new Set();
   private lensMatchSet: ReadonlySet<string> | null = null;
@@ -349,6 +355,42 @@ export class SigmaController {
     this.refresh();
   }
 
+  /** The node currently focused, or null when not in focus mode. */
+  get focusedNode(): string | null {
+    return this.focusNodeId;
+  }
+
+  /**
+   * Enter or exit node focus. With a node id, the view collapses to that node's
+   * BFS neighbourhood expanded to `depth` (computed from the live graph the same
+   * way selection neighbourhoods are). A node with no neighbours focuses to just
+   * itself; a missing node clears focus. Passing null exits focus. Refreshes so
+   * the reducer re-runs over the focused membership.
+   */
+  setFocus(nodeId: string | null, depth: number): void {
+    const graph = this.graph;
+    if (nodeId === null || graph === null || !graph.hasNode(nodeId)) {
+      this.focusNodeId = null;
+      this.focusVisibleNodeIds = null;
+    } else {
+      this.focusNodeId = nodeId;
+      const traversal = computeSelection(graph, nodeId, depth);
+      const ids = new Set<string>([nodeId]);
+      if (traversal !== null) {
+        for (const id of traversal.nodeIds) {
+          ids.add(id);
+        }
+      }
+      this.focusVisibleNodeIds = ids;
+    }
+    this.refresh();
+  }
+
+  /** The focused-neighbourhood node id set, or null when not focused. */
+  get focusVisibleSet(): ReadonlySet<string> | null {
+    return this.focusVisibleNodeIds;
+  }
+
   /** Search-matched node ids (non-matches dim when the set is non-empty). */
   setMatchedNodeIds(ids: ReadonlySet<string>): void {
     this.matchedNodeIds = ids;
@@ -403,12 +445,25 @@ export class SigmaController {
       return { ...data, hidden: true };
     }
 
-    // 2. Depth filter — hide nodes outside the depth-N neighbourhood.
+    // 2. Lens subject scoping — when a match lens is active it is the primary
+    // subject: nodes outside its match set are not members (the node/edge
+    // filters above already narrowed *within* this subject). Recolour lenses
+    // (architecture) have no match set and do not scope.
+    if (this.lensMatchSet !== null && !this.lensMatchSet.has(node)) {
+      return { ...data, hidden: true };
+    }
+
+    // 3. Focus — when focused, hide everything outside the focus neighbourhood.
+    if (this.focusVisibleNodeIds !== null && !this.focusVisibleNodeIds.has(node)) {
+      return { ...data, hidden: true };
+    }
+
+    // 4. Depth filter — hide nodes outside the depth-N neighbourhood.
     if (this.depthVisibleNodeIds !== null && !this.depthVisibleNodeIds.has(node)) {
       return { ...data, hidden: true };
     }
 
-    // 3. Trace dimming — off-path nodes dim; trace wins over search/lens.
+    // 4. Trace dimming — off-path nodes dim; trace wins over search/lens.
     if (this.tracePhase === "path-active" && this.pathNodeIds.size > 0) {
       if (!this.pathNodeIds.has(node)) {
         return { ...data, color: dimColor(String(data.color)), label: "" };
@@ -425,13 +480,11 @@ export class SigmaController {
         return { ...data, size: Number(data.baseSize ?? data.size) * 1.28, zIndex: 2 };
       }
 
-      // No hover/selection focus — search dimming first, then lens dimming.
+      // No hover/selection focus — search dimming first (lens subject scoping is
+      // handled above as membership, not dimming).
       if (activeFocus === null) {
         if (this.matchedNodeIds.size > 0 && !this.matchedNodeIds.has(node)) {
           return { ...data, color: dimColor(String(data.color)), label: "" };
-        }
-        if (this.lensMatchSet !== null && !this.lensMatchSet.has(node)) {
-          return { ...data, color: dimColor(String(data.color)) };
         }
         // Architecture (recolour) lens — recolour by layer; null keeps base.
         if (this.lensColorOf !== null) {
@@ -659,6 +712,70 @@ export class SigmaController {
   }
 
   /**
+   * Derive the rendered `VisibleView` membership — the node/edge id sets the
+   * node/edge reducers would NOT hide, using the controller's own state (the
+   * store's hidden-kind sets, the decorator-backed set, the depth-visible set).
+   * This is the single source the current-view export reads, so an export always
+   * matches exactly what is on screen. Empty graph → empty view.
+   *
+   * Mirrors the reducer hide order: node-kind filter, Decorator chip, depth
+   * window. An edge is a member iff its kind is not hidden and both endpoints are
+   * members. Transient emphasis (hover/selection/trace) is appearance, not
+   * membership, so it is intentionally excluded.
+   */
+  getVisibleView(): VisibleView {
+    const state = this.store.getState();
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    const graph = this.graph;
+
+    if (graph !== null) {
+      graph.forEachNode((nodeId, attributes) => {
+        const attrs = attributes as GraphNodeAttributes;
+        const kindKey = attrs.nodeKind === "file" ? "file" : (attrs.symbolKind ?? "function");
+        if (state.hiddenNodeKinds.has(kindKey)) {
+          return;
+        }
+        if (state.hiddenNodeKinds.has("decorator") && this.decoratorBackedNodeIds.has(nodeId)) {
+          return;
+        }
+        // Lens subject scoping: a match lens narrows membership to its subject.
+        if (this.lensMatchSet !== null && !this.lensMatchSet.has(nodeId)) {
+          return;
+        }
+        if (this.focusVisibleNodeIds !== null && !this.focusVisibleNodeIds.has(nodeId)) {
+          return;
+        }
+        if (this.depthVisibleNodeIds !== null && !this.depthVisibleNodeIds.has(nodeId)) {
+          return;
+        }
+        nodeIds.add(nodeId);
+      });
+
+      graph.forEachEdge((edgeId, attributes, source, target) => {
+        const edgeAttrs = attributes as GraphEdgeAttributes;
+        if (state.hiddenEdgeKinds.has(edgeAttrs.edgeKind)) {
+          return;
+        }
+        if (!nodeIds.has(source) || !nodeIds.has(target)) {
+          return;
+        }
+        edgeIds.add(edgeId);
+      });
+    }
+
+    return {
+      nodeIds,
+      edgeIds,
+      activeLensId: state.activeLensId,
+      hiddenNodeKinds: state.hiddenNodeKinds,
+      hiddenEdgeKinds: state.hiddenEdgeKinds,
+      depth: state.depth,
+      focusNodeId: this.focusNodeId,
+    };
+  }
+
+  /**
    * Tear down the Sigma instance and drop all imperative state. Idempotent: safe
    * to call without a prior mount and safe to call more than once.
    */
@@ -683,6 +800,8 @@ export class SigmaController {
     this.pathNodeIds = new Set();
     this.pathEdgeIds = new Set();
     this.depthVisibleNodeIds = null;
+    this.focusNodeId = null;
+    this.focusVisibleNodeIds = null;
     this.decoratorBackedNodeIds = new Set();
     this.matchedNodeIds = new Set();
     this.lensMatchSet = null;

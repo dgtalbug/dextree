@@ -172,6 +172,115 @@ describe("SigmaController — lifecycle", () => {
   });
 });
 
+describe("SigmaController — getVisibleView", () => {
+  function attributedGraph(): MultiDirectedGraph {
+    const graph = new MultiDirectedGraph();
+    graph.addNode("fn-1", { nodeKind: "symbol", symbolKind: "function" });
+    graph.addNode("fn-2", { nodeKind: "symbol", symbolKind: "function" });
+    graph.addNode("file-1", { nodeKind: "file" });
+    graph.addEdge("fn-1", "fn-2", { edgeKind: "CALLS" });
+    graph.addDirectedEdge("file-1", "fn-1", { edgeKind: "DEFINES" });
+    return graph;
+  }
+
+  function controllerOn(hiddenNodeKinds: Set<string>, hiddenEdgeKinds: Set<string>) {
+    const store = createGraphViewStore({
+      hiddenNodeKinds,
+      hiddenEdgeKinds: hiddenEdgeKinds as Set<never>,
+    });
+    const controller = new SigmaController(store, options());
+    controller.adopt(stubSigma().sigma, attributedGraph(), stubContainer());
+    return controller;
+  }
+
+  it("includes all nodes/edges when nothing is hidden", () => {
+    const view = controllerOn(new Set(), new Set()).getVisibleView();
+    expect([...view.nodeIds].sort()).toEqual(["file-1", "fn-1", "fn-2"]);
+    expect(view.edgeIds.size).toBe(2);
+  });
+
+  it("excludes nodes whose kind is hidden, and edges touching them", () => {
+    const view = controllerOn(new Set(["file"]), new Set()).getVisibleView();
+    expect(view.nodeIds.has("file-1")).toBe(false);
+    // The DEFINES edge (file-1 → fn-1) drops because an endpoint is hidden; the
+    // CALLS edge between two visible functions survives.
+    expect(view.edgeIds.size).toBe(1);
+  });
+
+  it("excludes edges whose kind is hidden even when endpoints are visible", () => {
+    const view = controllerOn(new Set(), new Set(["CALLS"])).getVisibleView();
+    expect(view.nodeIds.size).toBe(3);
+    expect(view.edgeIds.size).toBe(1); // only DEFINES remains
+  });
+
+  it("respects the depth-visible set", () => {
+    const controller = controllerOn(new Set(), new Set());
+    controller.setDepthVisibleNodeIds(new Set(["fn-1"]));
+    const view = controller.getVisibleView();
+    expect([...view.nodeIds]).toEqual(["fn-1"]);
+    expect(view.edgeIds.size).toBe(0);
+  });
+
+  it("returns an empty view before mount", () => {
+    const view = new SigmaController(freshStore(), options()).getVisibleView();
+    expect(view.nodeIds.size).toBe(0);
+    expect(view.edgeIds.size).toBe(0);
+  });
+});
+
+describe("SigmaController — focus", () => {
+  it("collapses the view to the focus node's neighbourhood", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setFocus("a", 1); // a → b within depth 1
+    const view = controller.getVisibleView();
+    expect(view.focusNodeId).toBe("a");
+    expect(view.nodeIds.has("a")).toBe(true);
+    expect(view.nodeIds.has("b")).toBe(true);
+    // c is 2 hops from a; outside depth 1.
+    expect(view.nodeIds.has("c")).toBe(false);
+  });
+
+  it("focuses to just the node when it has no neighbours", () => {
+    const graph = new MultiDirectedGraph();
+    graph.addNode("lonely", { nodeKind: "symbol", symbolKind: "function" });
+    const controller = new SigmaController(
+      createGraphViewStore({ hiddenNodeKinds: new Set(), hiddenEdgeKinds: new Set() }),
+      options(),
+    );
+    controller.adopt(stubSigma().sigma, graph, stubContainer());
+    controller.setFocus("lonely", 3);
+    const view = controller.getVisibleView();
+    expect([...view.nodeIds]).toEqual(["lonely"]);
+  });
+
+  it("clearing focus restores the full view", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setFocus("a", 1);
+    controller.setFocus(null, 1);
+    expect(controller.focusedNode).toBeNull();
+    expect(controller.getVisibleView().nodeIds.size).toBe(3);
+  });
+
+  it("focusing a missing node is a safe no-op (no throw, no focus)", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    expect(() => controller.setFocus("ghost", 2)).not.toThrow();
+    expect(controller.focusedNode).toBeNull();
+    expect(controller.getVisibleView().nodeIds.size).toBe(3);
+  });
+
+  it("dispose clears focus", () => {
+    const controller = new SigmaController(freshStore(), options());
+    controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+    controller.setFocus("a", 1);
+    controller.dispose();
+    expect(controller.focusedNode).toBeNull();
+    expect(controller.focusVisibleSet).toBeNull();
+  });
+});
+
 describe("SigmaController — camera operations", () => {
   it("zoomIn multiplies the ratio by 0.7 at the current centre", () => {
     const controller = new SigmaController(freshStore(), options());
@@ -491,11 +600,45 @@ describe("SigmaController — node reducer branches", () => {
     expect(out.color).not.toBe("#abcabc");
   });
 
-  it("dims non-matches when a match lens is active", () => {
+  it("scopes membership to the lens subject: non-matches are hidden, not dimmed", () => {
     const controller = reducerController();
     controller.setLensMatchSet(new Set(["b"]));
-    const out = controller.nodeReducer("a", nodeAttrs() as never);
-    expect(out.color).not.toBe("#abcabc");
+    // A node outside the lens subject is hidden (membership), not merely dimmed.
+    expect(controller.nodeReducer("a", nodeAttrs() as never).hidden).toBe(true);
+    // A node inside the subject stays a full member.
+    expect(controller.nodeReducer("b", nodeAttrs() as never).hidden).toBeUndefined();
+  });
+
+  it("node-kind filter narrows WITHIN the lens subject (does not reveal non-subject nodes)", () => {
+    // Lens subject = {b, c}. Hiding the "function" kind narrows within the
+    // subject; it must not surface "a" (outside the subject).
+    const store = createGraphViewStore({
+      hiddenNodeKinds: new Set(["function"]),
+      hiddenEdgeKinds: new Set(),
+    });
+    const controller = reducerController(store);
+    controller.setLensMatchSet(new Set(["b", "c"]));
+    // "a": outside subject AND a function — hidden.
+    expect(controller.nodeReducer("a", nodeAttrs({ symbolKind: "function" }) as never).hidden).toBe(
+      true,
+    );
+    // "b": in subject but a function (hidden kind) — hidden within the subject.
+    expect(controller.nodeReducer("b", nodeAttrs({ symbolKind: "function" }) as never).hidden).toBe(
+      true,
+    );
+    // "c": in subject and a class (not hidden) — visible.
+    expect(
+      controller.nodeReducer("c", nodeAttrs({ symbolKind: "class" }) as never).hidden,
+    ).toBeUndefined();
+  });
+
+  it("deactivating the lens restores whole-graph filtering", () => {
+    const controller = reducerController();
+    controller.setLensMatchSet(new Set(["b"]));
+    expect(controller.nodeReducer("a", nodeAttrs() as never).hidden).toBe(true);
+    controller.setLensMatchSet(null);
+    // With no lens, "a" is a member again (whole-graph filtering).
+    expect(controller.nodeReducer("a", nodeAttrs() as never).hidden).toBeUndefined();
   });
 
   it("recolours by layer when a recolour lens is active", () => {

@@ -158,6 +158,40 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       gap: 2px;
     }
 
+    /* Focus mode chip: shows the focused node + an exit button while the view
+       is collapsed to a node's neighbourhood. */
+    .dxt-focus-chip {
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px 4px 10px;
+      color: var(--vscode-foreground);
+      font-size: 12px;
+    }
+    .dxt-focus-chip__label {
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Lens-first hierarchy hint: communicates that the node/edge filters refine
+       the active lens subject rather than operating on the whole graph. */
+    .dxt-lens-refine-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      border-left: 2px solid var(--vscode-focusBorder);
+      background: var(--vscode-editorWidget-background);
+    }
+
     /* Icon button used by the canvas overlays (mirrors GraphToolbar's .iconBtn,
        but global so the overlay buttons in GraphView's JSX are styled). */
     .dxt-icon-btn {

@@ -27,18 +27,29 @@ describe("createExportCurrentViewCommand", () => {
     );
   });
 
-  it("delegates to exportInferred when called with a viewId", async () => {
+  it("delegates to exportInferred with the visible scope built from the view ids", async () => {
     const exportInferred = vi.fn().mockResolvedValue(undefined);
     const cmd = createExportCurrentViewCommand({ exportInferred });
-    await cmd("v1");
+    await cmd("v1", ["n1", "n2"], ["e1"]);
     expect(exportInferred).toHaveBeenCalledTimes(1);
     expect(exportInferred).toHaveBeenCalledWith({
       intent: "current-view",
       context: { kind: "current-view", viewId: "v1" },
-      scope: { kind: "workspace" },
+      scope: { kind: "visible", nodeIds: ["n1", "n2"], edgeIds: ["e1"] },
       diagram: "flowchart",
       direction: "auto",
     });
+  });
+
+  it("defaults to empty id arrays when the command receives no view ids", async () => {
+    const exportInferred = vi.fn().mockResolvedValue(undefined);
+    const cmd = createExportCurrentViewCommand({ exportInferred });
+    await cmd("v1");
+    expect(exportInferred).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: { kind: "visible", nodeIds: [], edgeIds: [] },
+      }),
+    );
   });
 });
 

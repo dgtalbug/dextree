@@ -996,7 +996,7 @@ describe("GraphView", () => {
       expect(out.color).toBe("#808080");
     });
 
-    it("dims a non-entry node under the entry-points lens", () => {
+    it("scopes membership to the lens subject under the entry-points lens", () => {
       render(
         <GraphView
           nodes={layeredNodes}
@@ -1010,11 +1010,13 @@ describe("GraphView", () => {
       fireEvent.click(screen.getByTestId("lens-row-entry-points"));
 
       const nodeReducer = getNodeReducer();
-      // symbol-unknown is unclassified → not an entry point → dimmed.
-      const dimmed = nodeReducer("symbol-unknown", { color: "rgb(128, 128, 128)", size: 6 });
-      expect(String(dimmed.color)).toMatch(/rgba?\([^)]*0\.35\)/);
-      // symbol-pres is a handler → matches → keeps base colour.
+      // Lens-first hierarchy: the lens is the subject. symbol-unknown is not an
+      // entry point → outside the subject → hidden (membership, not dimming).
+      const hidden = nodeReducer("symbol-unknown", { color: "rgb(128, 128, 128)", size: 6 });
+      expect(hidden.hidden).toBe(true);
+      // symbol-pres is a handler → in the subject → a full member.
       const kept = nodeReducer("symbol-pres", { color: "rgb(128, 128, 128)", size: 6 });
+      expect(kept.hidden).toBeUndefined();
       expect(kept.color).toBe("rgb(128, 128, 128)");
     });
 
@@ -1031,6 +1033,29 @@ describe("GraphView", () => {
 
       fireEvent.click(screen.getByTestId("lens-row-entry-points"));
       expect(screen.queryByTestId("lens-layer-legend")).toBeNull();
+    });
+
+    it("shows the lens-first hierarchy hint only while a lens is active", () => {
+      render(
+        <GraphView
+          nodes={layeredNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // No hint before a lens is active.
+      expect(screen.queryByTestId("lens-refine-hint")).toBeNull();
+
+      fireEvent.click(screen.getByTestId("lens-row-entry-points"));
+      const hint = screen.getByTestId("lens-refine-hint");
+      expect(hint.textContent).toMatch(/refine/i);
+
+      // Deactivating the lens removes the hint (filters return to whole-graph).
+      fireEvent.click(screen.getByTestId("lens-row-entry-points"));
+      expect(screen.queryByTestId("lens-refine-hint")).toBeNull();
     });
   });
 
@@ -1274,6 +1299,76 @@ describe("GraphView", () => {
       // standard Node Types filter is no longer shown there.
       expect(screen.getByTestId("trace-left-rail")).toBeTruthy();
       expect(screen.queryByTestId("node-filter-panel")).toBeNull();
+    });
+
+    it("refuses a trace whose endpoint is filtered out of the visible view (T-bounded)", async () => {
+      mockSigma.getNodeDisplayData = vi.fn(() => ({ x: 10, y: 10 }));
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // Hide the "class" node kind so symbol-2 (a class) leaves the VisibleView.
+      const classToggle = screen.getByRole("checkbox", { name: "Hide Class nodes" });
+      fireEvent.click(classToggle);
+
+      const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+      // Trace from the still-visible function to the now-hidden class. The path
+      // must not run through the filtered-out node: a no-path notice appears.
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      clickNodeHandler?.({ node: "symbol-1" });
+      clickNodeHandler?.({ node: "symbol-2" });
+      await act(async () => {
+        await Promise.resolve();
+        vi.runOnlyPendingTimers();
+      });
+
+      // The trace resolves to "no path" rather than tracing through the hidden
+      // node: the inspector shows the no-path status notice and the left-rail
+      // Path group has zero hops.
+      const noPathNotice = screen
+        .getAllByRole("status")
+        .find((el) => /no path found/i.test(el.textContent ?? ""));
+      expect(noPathNotice).toBeTruthy();
+      expect(screen.getByText(/Path \(0 hops\)/)).toBeTruthy();
+    });
+  });
+
+  describe("node focus", () => {
+    it("focuses a selected node and shows the exit chip, then restores on exit", () => {
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // Select a node so the Inspector populates with its actions.
+      const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+      clickNodeHandler?.({ node: "symbol-1" });
+      act(() => {
+        vi.runAllTimers();
+      });
+
+      // No focus chip before focusing.
+      expect(screen.queryByTestId("focus-chip")).toBeNull();
+
+      // Enter focus from the Inspector.
+      fireEvent.click(screen.getByTestId("focus-node"));
+      expect(screen.getByTestId("focus-chip")).toBeTruthy();
+
+      // Exit focus restores the non-focused view (chip gone).
+      fireEvent.click(screen.getByTestId("focus-exit"));
+      expect(screen.queryByTestId("focus-chip")).toBeNull();
     });
   });
 

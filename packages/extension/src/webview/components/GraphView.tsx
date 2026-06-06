@@ -328,7 +328,7 @@ export function GraphView({
   edges,
   onNavigate,
   onExportMermaid,
-  onExportCurrentView: _onExportCurrentView,
+  onExportCurrentView,
   onExportTraceSequence,
   workspaceName,
   workspaceFrameworks,
@@ -481,6 +481,9 @@ export function GraphView({
   const [searchFocusedIndex, setSearchFocusedIndex] = useState<number>(0);
   // Depth slider state (slice 022). Default 3 per spec FR-005.
   const [depth, setDepth] = useState<number>(3);
+  // Node focus: the focused node id, or null when not focused. React tracks it
+  // for the exit affordance; the controller owns the focus membership.
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   // Trace state (slice 023). React owns the trace state machine for the banner /
   // rails / inspector; the controller holds the phase + path id sets the Sigma
   // reducers read, kept in sync via setTracePhase (eager) + setTracePath.
@@ -696,6 +699,16 @@ export function GraphView({
     controllerRef.current?.zoomReset();
   }, []);
 
+  // Export exactly the rendered view: derive the current VisibleView membership
+  // from the controller (same hide logic as the reducers) and hand the id arrays
+  // up so the host exports the `visible` scope. No-op before the controller is
+  // mounted (nothing rendered yet to export).
+  const handleExportCurrentView = useCallback((): void => {
+    const view = controllerRef.current?.getVisibleView();
+    if (view === undefined) return;
+    onExportCurrentView([...view.nodeIds], [...view.edgeIds]);
+  }, [onExportCurrentView]);
+
   // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
   // Sigma node/edge reducers via their refs; these handlers expose the toggle
   // to the left/right rail filter panels. A toggle that adds the kind hides
@@ -730,8 +743,19 @@ export function GraphView({
     if (graph === null || !graph.hasNode(startId) || !graph.hasNode(endId)) {
       return;
     }
-    const nodePath = bidirectional(graph, startId, endId);
-    if (nodePath === null) {
+
+    // Bound the trace to the VisibleView: a path must not run through nodes the
+    // user has filtered out. If either endpoint is outside the visible set, or
+    // the shortest path crosses a hidden node, report "no path" (the existing
+    // non-blocking notice) rather than tracing through hidden nodes.
+    const view = controllerRef.current?.getVisibleView();
+    const visibleNodeIds = view?.nodeIds ?? null;
+    const inView = (id: string): boolean => visibleNodeIds === null || visibleNodeIds.has(id);
+
+    const nodePath = inView(startId) && inView(endId) ? bidirectional(graph, startId, endId) : null;
+    const pathWithinView = nodePath !== null && nodePath.every(inView);
+
+    if (!pathWithinView) {
       controllerRef.current?.setTracePhase("path-active");
       setTraceState({
         phase: "path-active",
@@ -801,6 +825,27 @@ export function GraphView({
     });
   }, []);
 
+  // Node focus (new capability): collapse the view to a node's neighbourhood at
+  // the current depth. Focus is additive — it narrows membership without
+  // touching lens/filters/depth — so exiting simply clears it and the prior view
+  // is intact. React tracks the focused id for the exit affordance; the
+  // controller owns the focus membership the reducer + export read.
+  const handleFocusNode = useCallback(
+    (nodeId: string): void => {
+      controllerRef.current?.setFocus(nodeId, depth);
+      setFocusNodeId(nodeId);
+      // Re-frame the camera onto the focused neighbourhood for readability.
+      controllerRef.current?.zoomFit();
+    },
+    [depth],
+  );
+
+  const handleExitFocus = useCallback((): void => {
+    controllerRef.current?.setFocus(null, depth);
+    setFocusNodeId(null);
+    controllerRef.current?.zoomFit();
+  }, [depth]);
+
   /** Animate the Sigma camera to the given node (slice 023 trace-step click). */
   const handleTraceStepClick = useCallback((nodeId: string): void => {
     const sigma = sigmaRef.current;
@@ -829,6 +874,9 @@ export function GraphView({
     // no-op before mount (no graph yet) and clears hover after.
     controllerRef.current?.setSelection(null);
     controllerRef.current?.setHover(null);
+    // setFocus(null) clears focus; the depth arg is unused when exiting.
+    controllerRef.current?.setFocus(null, 0);
+    setFocusNodeId(null);
     setOverlaySegments([]);
   }, [edges, nodes]);
 
@@ -1012,9 +1060,14 @@ export function GraphView({
     controllerRef.current?.setMatchedNodeIds(matchedNodeIds);
   }, [matchedNodeIds]);
 
-  // Slice 022 — depth-visible set: the union of (selected-node depth
-  // neighbourhood) ∪ (each matched-node depth neighbourhood). null means the
-  // depth filter is inactive (show all). Synced onto the controller.
+  // Depth-visible set: the union of (selected-node depth neighbourhood) ∪ (each
+  // matched-node depth neighbourhood). null means the depth filter is inactive
+  // (show all). This set is membership, not just dimming: the node reducer hides
+  // out-of-window nodes (Sigma does not draw hidden nodes) and getVisibleView
+  // excludes them, so depth scopes both the render and the export/trace. Nodes
+  // are kept in the graphology graph (hidden, not removed) to preserve layout
+  // coordinates across depth changes; physically pruning the graph for very
+  // large reduced sets is a perf optimization left as a follow-up.
   useEffect(() => {
     const graph = graphRef.current;
     if (!depthEnabled || graph === null) {
@@ -1033,6 +1086,15 @@ export function GraphView({
     }
     controllerRef.current?.setDepthVisibleNodeIds(visible);
   }, [depthEnabled, matchedNodeIds, selectedNodeId, depth]);
+
+  // Keep the focus neighbourhood tracking the current depth: when focused and
+  // depth changes, recompute the focus set so the collapsed view expands or
+  // contracts with the slider. No-op when not focused.
+  useEffect(() => {
+    if (focusNodeId !== null) {
+      controllerRef.current?.setFocus(focusNodeId, depth);
+    }
+  }, [focusNodeId, depth]);
 
   // Sync the trace render mirror onto the controller so the node/edge reducers
   // apply the path-active dimming/highlight. React owns traceState (banner /
@@ -1222,6 +1284,7 @@ export function GraphView({
       <div className={shellStyles.toolbarArea}>
         <GraphToolbar
           onExportMermaid={onExportMermaid}
+          onExportCurrentView={handleExportCurrentView}
           showMinimap={showMinimap}
           onToggleMinimap={onToggleMinimap}
           showClusterHulls={showClusterHulls}
@@ -1343,6 +1406,12 @@ export function GraphView({
               selectedNodeId={selectedNodeId}
               onSelectRow={selectAndFlyToNode}
             />
+          )}
+          {activeLensId !== null && (
+            <p className="dxt-lens-refine-hint" role="note" data-testid="lens-refine-hint">
+              <span className="codicon codicon-filter" aria-hidden="true" />
+              Filters below refine the <strong>{LENS_REGISTRY[activeLensId].title}</strong> subject
+            </p>
           )}
           <NodeFilterPanel
             entries={nodeFilterEntries}
@@ -1483,6 +1552,25 @@ export function GraphView({
           </div>
         </div>
 
+        {focusNodeId !== null && (
+          <div className="dxt-floating dxt-focus-chip" role="status" data-testid="focus-chip">
+            <span className="codicon codicon-eye" aria-hidden="true" />
+            <span className="dxt-focus-chip__label">
+              Focused: {nodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId}
+            </span>
+            <button
+              type="button"
+              className="dxt-icon-btn"
+              onClick={handleExitFocus}
+              title="Exit focus"
+              aria-label="Exit focus"
+              data-testid="focus-exit"
+            >
+              <span className="codicon codicon-close" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         <div className="dxt-canvas-help" data-testid="canvas-help">
           <span>
             <kbd>Click</kbd> isolate
@@ -1588,6 +1676,7 @@ export function GraphView({
               selectedNodeId === null ? null : (nodes.find((n) => n.id === selectedNodeId) ?? null)
             }
             onTraceFromHere={traceState.phase === "idle" ? handleTraceFromHere : undefined}
+            onFocusNode={traceState.phase === "idle" ? handleFocusNode : undefined}
             neighbors={inspectorNeighbors}
             onNeighborClick={(id) => {
               const target = nodes.find((n) => n.id === id);
