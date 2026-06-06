@@ -221,6 +221,26 @@ describe("SigmaController — getVisibleView", () => {
     expect(view.edgeIds.size).toBe(0);
   });
 
+  it("scopes the export view to the active lens subject", () => {
+    // With a lens active, getVisibleView (the export scope) is the lens match
+    // set narrowed by the other filters — so an export honors the lens.
+    const controller = controllerOn(new Set(), new Set());
+    controller.setLensMatchSet(new Set(["fn-1"]));
+    const view = controller.getVisibleView();
+    expect([...view.nodeIds]).toEqual(["fn-1"]);
+    // fn-2 / file-1 are outside the lens subject → excluded from the export.
+    expect(view.nodeIds.has("fn-2")).toBe(false);
+    expect(view.nodeIds.has("file-1")).toBe(false);
+  });
+
+  it("node-kind filter narrows within the lens subject (export view)", () => {
+    // lens subject = {fn-1, file-1}; hiding "file" narrows within it, leaving fn-1.
+    const controller = controllerOn(new Set(["file"]), new Set());
+    controller.setLensMatchSet(new Set(["fn-1", "file-1"]));
+    const view = controller.getVisibleView();
+    expect([...view.nodeIds]).toEqual(["fn-1"]);
+  });
+
   it("returns an empty view before mount", () => {
     const view = new SigmaController(freshStore(), options()).getVisibleView();
     expect(view.nodeIds.size).toBe(0);

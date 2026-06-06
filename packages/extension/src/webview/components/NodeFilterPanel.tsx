@@ -17,7 +17,7 @@ export interface NodeFilterEntry {
 function codiconForKey(key: string): string {
   switch (key) {
     case "file":
-      return "folder";
+      return "file";
     case "class":
       return "symbol-class";
     case "interface":
@@ -42,7 +42,7 @@ function codiconForKey(key: string): string {
 }
 
 export const CANONICAL_NODE_FILTER_LIST: Readonly<Omit<NodeFilterEntry, "count">[]> = [
-  { key: "file", label: "Folder" },
+  { key: "file", label: "File" },
   { key: "class", label: "Class" },
   { key: "interface", label: "Interface" },
   { key: "function", label: "Function" },

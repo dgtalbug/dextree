@@ -97,13 +97,13 @@ export interface GraphViewProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   onNavigate: (filePath: string, line: number) => void;
-  onExportMermaid: () => void;
   /**
-   * Request a Mermaid export of exactly the rendered view. GraphView derives the
-   * current `VisibleView` membership and passes the node/edge id arrays so the
-   * host exports the `visible` scope (what the user sees), not the whole graph.
+   * Request a Mermaid export. GraphView passes the current `VisibleView`
+   * membership (node/edge id arrays) so the host can offer "current view" vs
+   * "whole workspace" and export the chosen scope. Empty arrays mean nothing is
+   * rendered yet (the host falls back to whole-workspace).
    */
-  onExportCurrentView: (nodeIds: string[], edgeIds: string[]) => void;
+  onExportMermaid: (nodeIds: string[], edgeIds: string[]) => void;
   /**
    * Slice 031 (US1) — request a trace sequence export. Called only when a
    * trace path is active. GraphView builds the snapshot from its internal

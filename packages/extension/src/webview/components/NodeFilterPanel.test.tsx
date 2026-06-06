@@ -139,12 +139,12 @@ describe("NodeFilterPanel", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("renders Folder as label for file key", () => {
-    const entries: NodeFilterEntry[] = [{ key: "file", label: "Folder", count: 4 }];
+  it("renders File as label for file key", () => {
+    const entries: NodeFilterEntry[] = [{ key: "file", label: "File", count: 4 }];
 
     render(<NodeFilterPanel entries={entries} hiddenKinds={new Set()} onToggle={vi.fn()} />);
 
-    expect(screen.getByText("Folder")).toBeTruthy();
+    expect(screen.getByText("File")).toBeTruthy();
   });
 
   it("zera-count entry still renders", () => {

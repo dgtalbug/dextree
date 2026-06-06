@@ -102,7 +102,7 @@ describe("GraphToolbar", () => {
   it("calls onExportMermaid when the export button is clicked", () => {
     const { onExportMermaid } = renderToolbar();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Mermaid preview export" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export to Mermaid" }));
 
     expect(onExportMermaid).toHaveBeenCalledTimes(1);
   });

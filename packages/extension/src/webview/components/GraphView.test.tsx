@@ -210,7 +210,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -228,14 +227,13 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
     expect(container.querySelector(".dxt-minimap-canvas--hidden")).toBeTruthy();
   });
 
-  it("calls onExportMermaid from the toolbar export button", () => {
+  it("calls onExportMermaid with the visible view ids from the toolbar export button", () => {
     const onExportMermaid = vi.fn();
 
     render(
@@ -244,13 +242,14 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={onExportMermaid}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Mermaid preview export" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export to Mermaid" }));
 
+    // Carries the (visible) node + edge id arrays so the host can offer scope.
     expect(onExportMermaid).toHaveBeenCalledTimes(1);
+    expect(onExportMermaid).toHaveBeenCalledWith(expect.any(Array), expect.any(Array));
   });
 
   it("toggles the minimap visibility from the toolbar button", () => {
@@ -260,7 +259,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -282,7 +280,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -304,7 +301,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -323,7 +319,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -352,7 +347,6 @@ describe("GraphView", () => {
           edges={[customEdge]}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
     }).not.toThrow();
@@ -371,7 +365,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -400,7 +393,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -421,7 +413,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -446,7 +437,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -473,7 +463,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
     mockSigma.setSetting.mockClear();
@@ -499,7 +488,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -523,7 +511,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -556,7 +543,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -577,7 +563,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -593,7 +578,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -617,7 +601,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -640,7 +623,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -658,7 +640,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -697,7 +678,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -735,7 +715,6 @@ describe("GraphView", () => {
         edges={baseEdges}
         onNavigate={vi.fn()}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -805,7 +784,6 @@ describe("GraphView", () => {
         edges={toolbarEdges}
         onNavigate={onNavigate}
         onExportMermaid={vi.fn()}
-        onExportCurrentView={vi.fn()}
       />,
     );
 
@@ -838,7 +816,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -862,7 +839,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -886,7 +862,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -911,7 +886,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -961,7 +935,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -985,7 +958,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1007,7 +979,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1031,7 +1002,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1046,7 +1016,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1071,7 +1040,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1086,7 +1054,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1101,7 +1068,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1124,7 +1090,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       expect(screen.getByRole("button", { name: "Toggle trace route mode" })).toBeTruthy();
@@ -1137,7 +1102,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       expect(screen.queryByTestId("trace-banner")).toBeNull();
@@ -1155,7 +1119,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       const toggle = screen.getByRole("button", { name: "Toggle trace route mode" });
@@ -1172,7 +1135,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       expect(screen.queryByRole("button", { name: "Exit trace mode" })).toBeNull();
@@ -1187,7 +1149,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
@@ -1203,7 +1164,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
@@ -1219,7 +1179,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       const searchInput = screen.getByRole("combobox", {
@@ -1242,7 +1201,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
       const toggle = screen.getByRole("button", { name: "Toggle trace route mode" });
@@ -1263,7 +1221,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
           onExportTraceSequence={vi.fn()}
         />,
       );
@@ -1280,7 +1237,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1305,7 +1261,7 @@ describe("GraphView", () => {
       expect(screen.queryByTestId("node-filter-panel")).toBeNull();
     });
 
-    it("refuses a trace whose endpoint is filtered out of the visible view (T-bounded)", async () => {
+    it("traces the real path on the full graph even when a node kind is hidden", async () => {
       mockSigma.getNodeDisplayData = vi.fn(() => ({ x: 10, y: 10 }));
       render(
         <GraphView
@@ -1313,18 +1269,19 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
-      // Hide the "class" node kind so symbol-2 (a class) leaves the VisibleView.
+      // Hide the "class" node kind: this affects what the canvas renders, but the
+      // trace must still find the actual call route (it operates on the full
+      // graph — bounding it to the visible set wrongly collapsed every default
+      // trace to "no path", since the default filters hide several node kinds).
       const classToggle = screen.getByRole("checkbox", { name: "Hide Class nodes" });
       fireEvent.click(classToggle);
 
       const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
 
-      // Trace from the still-visible function to the now-hidden class. The path
-      // must not run through the filtered-out node: a no-path notice appears.
+      // Trace symbol-1 → symbol-2 (connected by a CALLS edge in baseEdges).
       fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
       clickNodeHandler?.({ node: "symbol-1" });
       clickNodeHandler?.({ node: "symbol-2" });
@@ -1333,14 +1290,14 @@ describe("GraphView", () => {
         vi.runOnlyPendingTimers();
       });
 
-      // The trace resolves to "no path" rather than tracing through the hidden
-      // node: the inspector shows the no-path status notice and the left-rail
-      // Path group has zero hops.
+      // The real path is found and rendered: no "no path" notice, and the path
+      // includes the endpoint that belongs to the hidden kind.
       const noPathNotice = screen
         .getAllByRole("status")
         .find((el) => /no path found/i.test(el.textContent ?? ""));
-      expect(noPathNotice).toBeTruthy();
-      expect(screen.getByText(/Path \(0 hops\)/)).toBeTruthy();
+      expect(noPathNotice).toBeUndefined();
+      // symbol-2 renders in the trace path (appears in the End + Path rows).
+      expect(screen.getAllByTestId("trace-left-step-symbol-2").length).toBeGreaterThan(0);
     });
   });
 
@@ -1352,7 +1309,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1384,7 +1340,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1399,7 +1354,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1418,7 +1372,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1444,7 +1397,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1471,7 +1423,6 @@ describe("GraphView", () => {
           edges={pass1Edges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1494,7 +1445,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1519,7 +1469,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1543,7 +1492,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1582,7 +1530,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1613,7 +1560,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1647,7 +1593,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1699,7 +1644,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
         />,
       );
 
@@ -1723,7 +1667,6 @@ describe("GraphView", () => {
           edges={baseEdges}
           onNavigate={vi.fn()}
           onExportMermaid={vi.fn()}
-          onExportCurrentView={vi.fn()}
           workspaceName="dextree"
           workspaceFrameworks={["react"]}
         />,

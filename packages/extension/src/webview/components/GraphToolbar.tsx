@@ -5,9 +5,8 @@ import { LAYOUT_PRESET_OPTIONS } from "./graphLayoutPresets.js";
 import styles from "./GraphToolbar.module.css";
 
 export interface GraphToolbarProps {
+  /** Open the Mermaid export — the host then offers current-view vs whole-workspace. */
   onExportMermaid: () => void;
-  /** Export exactly the rendered view (the `visible` scope). */
-  onExportCurrentView: () => void;
   showMinimap: boolean;
   onToggleMinimap: () => void;
   showClusterHulls: boolean;
@@ -50,7 +49,6 @@ export interface GraphToolbarProps {
 
 export function GraphToolbar({
   onExportMermaid,
-  onExportCurrentView,
   showMinimap,
   onToggleMinimap,
   showClusterHulls,
@@ -323,22 +321,12 @@ export function GraphToolbar({
           type="button"
           className={styles.accentBtn}
           onClick={onExportMermaid}
-          title="Open Mermaid preview"
-          aria-label="Open Mermaid preview export"
+          title="Export to Mermaid — choose current view or whole workspace"
+          aria-label="Export to Mermaid"
           data-testid="export-accent"
         >
           <span className="codicon codicon-export" aria-hidden="true" />
           Export
-        </button>
-        <button
-          type="button"
-          className={styles.iconBtn}
-          onClick={onExportCurrentView}
-          title="Export current view (only what is shown)"
-          aria-label="Export current view as Mermaid"
-          data-testid="export-current-view"
-        >
-          <span className="codicon codicon-eye" aria-hidden="true" />
         </button>
       </div>
     </header>
