@@ -47,6 +47,7 @@ import { dimColor, layerColor } from "./lensColor.js";
 import { drawClusterHulls, drawMinimap } from "./graphOverlay.js";
 import { computeSelection, computeTracePath } from "./graphTraversal.js";
 import { StaticGraphFallback } from "./StaticGraphFallback.js";
+import { SigmaController } from "./SigmaController.js";
 import {
   buildGraph,
   edgeColor,
@@ -382,6 +383,13 @@ export function GraphView({
       hiddenEdgeKinds: new Set(DEFAULT_HIDDEN_EDGE_KINDS),
     }),
   );
+  // Owns the imperative Sigma layer. Constructed once and adopted into the mount
+  // effect; the strangler migration moves operations onto it phase by phase so
+  // the ~460-line effect can collapse to construct/adopt/dispose.
+  const controllerRef = useRef<SigmaController | null>(null);
+  if (controllerRef.current === null) {
+    controllerRef.current = new SigmaController(graphViewStoreRef.current, { readThemeColors });
+  }
 
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -692,37 +700,22 @@ export function GraphView({
     setTraceState(TRACE_STATE_IDLE);
   }, []);
 
-  // Zoom handlers (slice 033 US3).
+  // Zoom handlers (slice 033 US3). Delegate to the controller, which owns the
+  // Sigma instance + camera math.
   const handleZoomIn = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const camera = (sigma as SigmaWithExtras).getCamera?.();
-    const state = camera?.getState?.();
-    if (camera?.animate !== undefined && state !== undefined) {
-      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 0.7 }, { duration: 200 });
-    }
+    controllerRef.current?.zoomIn();
   }, []);
 
   const handleZoomOut = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const camera = (sigma as SigmaWithExtras).getCamera?.();
-    const state = camera?.getState?.();
-    if (camera?.animate !== undefined && state !== undefined) {
-      camera.animate({ x: state.x, y: state.y, ratio: state.ratio * 1.4 }, { duration: 200 });
-    }
+    controllerRef.current?.zoomOut();
   }, []);
 
   const handleZoomFit = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const container = containerRef.current;
-    const g = graphRef.current;
-    if (sigma === null || container === null || g === null) return;
-    fitCameraToNodes(sigma as SigmaWithExtras, container, g as unknown as NodeBoundsGraph);
+    controllerRef.current?.zoomFit();
   }, []);
 
   const handleZoomReset = useCallback((): void => {
-    const sigma = sigmaRef.current;
-    const camera = (sigma as SigmaWithExtras).getCamera?.();
-    camera?.animate?.({ x: 0.5, y: 0.5, ratio: 1 }, { duration: 300 });
+    controllerRef.current?.zoomReset();
   }, []);
 
   // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
@@ -1183,10 +1176,12 @@ export function GraphView({
       });
 
       sigmaRef.current = sigma;
+      controllerRef.current?.adopt(sigma, graph, container);
       applyTheme(graph, sigma, container);
       if (canceledRef.current) {
         sigma.kill();
         sigmaRef.current = null;
+        controllerRef.current?.dispose();
         return;
       }
       setFallbackGraph(null);
@@ -1317,7 +1312,9 @@ export function GraphView({
       resizeObserver?.disconnect();
       hoverRef.current = null;
       selectionRef.current = null;
-      sigmaRef.current?.kill();
+      // dispose() kills the Sigma instance the controller adopted, so we do not
+      // also call sigmaRef.current.kill() — double-kill throws on real Sigma.
+      controllerRef.current?.dispose();
       sigmaRef.current = null;
       graphRef.current = null;
     };
