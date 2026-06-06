@@ -600,11 +600,45 @@ describe("SigmaController — node reducer branches", () => {
     expect(out.color).not.toBe("#abcabc");
   });
 
-  it("dims non-matches when a match lens is active", () => {
+  it("scopes membership to the lens subject: non-matches are hidden, not dimmed", () => {
     const controller = reducerController();
     controller.setLensMatchSet(new Set(["b"]));
-    const out = controller.nodeReducer("a", nodeAttrs() as never);
-    expect(out.color).not.toBe("#abcabc");
+    // A node outside the lens subject is hidden (membership), not merely dimmed.
+    expect(controller.nodeReducer("a", nodeAttrs() as never).hidden).toBe(true);
+    // A node inside the subject stays a full member.
+    expect(controller.nodeReducer("b", nodeAttrs() as never).hidden).toBeUndefined();
+  });
+
+  it("node-kind filter narrows WITHIN the lens subject (does not reveal non-subject nodes)", () => {
+    // Lens subject = {b, c}. Hiding the "function" kind narrows within the
+    // subject; it must not surface "a" (outside the subject).
+    const store = createGraphViewStore({
+      hiddenNodeKinds: new Set(["function"]),
+      hiddenEdgeKinds: new Set(),
+    });
+    const controller = reducerController(store);
+    controller.setLensMatchSet(new Set(["b", "c"]));
+    // "a": outside subject AND a function — hidden.
+    expect(controller.nodeReducer("a", nodeAttrs({ symbolKind: "function" }) as never).hidden).toBe(
+      true,
+    );
+    // "b": in subject but a function (hidden kind) — hidden within the subject.
+    expect(controller.nodeReducer("b", nodeAttrs({ symbolKind: "function" }) as never).hidden).toBe(
+      true,
+    );
+    // "c": in subject and a class (not hidden) — visible.
+    expect(
+      controller.nodeReducer("c", nodeAttrs({ symbolKind: "class" }) as never).hidden,
+    ).toBeUndefined();
+  });
+
+  it("deactivating the lens restores whole-graph filtering", () => {
+    const controller = reducerController();
+    controller.setLensMatchSet(new Set(["b"]));
+    expect(controller.nodeReducer("a", nodeAttrs() as never).hidden).toBe(true);
+    controller.setLensMatchSet(null);
+    // With no lens, "a" is a member again (whole-graph filtering).
+    expect(controller.nodeReducer("a", nodeAttrs() as never).hidden).toBeUndefined();
   });
 
   it("recolours by layer when a recolour lens is active", () => {

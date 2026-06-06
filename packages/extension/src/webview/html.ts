@@ -178,6 +178,20 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       white-space: nowrap;
     }
 
+    /* Lens-first hierarchy hint: communicates that the node/edge filters refine
+       the active lens subject rather than operating on the whole graph. */
+    .dxt-lens-refine-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      border-left: 2px solid var(--vscode-focusBorder);
+      background: var(--vscode-editorWidget-background);
+    }
+
     /* Icon button used by the canvas overlays (mirrors GraphToolbar's .iconBtn,
        but global so the overlay buttons in GraphView's JSX are styled). */
     .dxt-icon-btn {

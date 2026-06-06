@@ -1407,6 +1407,12 @@ export function GraphView({
               onSelectRow={selectAndFlyToNode}
             />
           )}
+          {activeLensId !== null && (
+            <p className="dxt-lens-refine-hint" role="note" data-testid="lens-refine-hint">
+              <span className="codicon codicon-filter" aria-hidden="true" />
+              Filters below refine the <strong>{LENS_REGISTRY[activeLensId].title}</strong> subject
+            </p>
+          )}
           <NodeFilterPanel
             entries={nodeFilterEntries}
             hiddenKinds={hiddenNodeKinds}

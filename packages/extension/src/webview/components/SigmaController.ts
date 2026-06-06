@@ -445,12 +445,20 @@ export class SigmaController {
       return { ...data, hidden: true };
     }
 
-    // 2. Focus — when focused, hide everything outside the focus neighbourhood.
+    // 2. Lens subject scoping — when a match lens is active it is the primary
+    // subject: nodes outside its match set are not members (the node/edge
+    // filters above already narrowed *within* this subject). Recolour lenses
+    // (architecture) have no match set and do not scope.
+    if (this.lensMatchSet !== null && !this.lensMatchSet.has(node)) {
+      return { ...data, hidden: true };
+    }
+
+    // 3. Focus — when focused, hide everything outside the focus neighbourhood.
     if (this.focusVisibleNodeIds !== null && !this.focusVisibleNodeIds.has(node)) {
       return { ...data, hidden: true };
     }
 
-    // 3. Depth filter — hide nodes outside the depth-N neighbourhood.
+    // 4. Depth filter — hide nodes outside the depth-N neighbourhood.
     if (this.depthVisibleNodeIds !== null && !this.depthVisibleNodeIds.has(node)) {
       return { ...data, hidden: true };
     }
@@ -472,13 +480,11 @@ export class SigmaController {
         return { ...data, size: Number(data.baseSize ?? data.size) * 1.28, zIndex: 2 };
       }
 
-      // No hover/selection focus — search dimming first, then lens dimming.
+      // No hover/selection focus — search dimming first (lens subject scoping is
+      // handled above as membership, not dimming).
       if (activeFocus === null) {
         if (this.matchedNodeIds.size > 0 && !this.matchedNodeIds.has(node)) {
           return { ...data, color: dimColor(String(data.color)), label: "" };
-        }
-        if (this.lensMatchSet !== null && !this.lensMatchSet.has(node)) {
-          return { ...data, color: dimColor(String(data.color)) };
         }
         // Architecture (recolour) lens — recolour by layer; null keeps base.
         if (this.lensColorOf !== null) {
@@ -731,6 +737,10 @@ export class SigmaController {
           return;
         }
         if (state.hiddenNodeKinds.has("decorator") && this.decoratorBackedNodeIds.has(nodeId)) {
+          return;
+        }
+        // Lens subject scoping: a match lens narrows membership to its subject.
+        if (this.lensMatchSet !== null && !this.lensMatchSet.has(nodeId)) {
           return;
         }
         if (this.focusVisibleNodeIds !== null && !this.focusVisibleNodeIds.has(nodeId)) {
