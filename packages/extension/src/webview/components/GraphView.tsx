@@ -42,7 +42,7 @@ import {
 import shellStyles from "./GraphView.module.css";
 import { TraceBanner } from "./TraceBanner.js";
 import { TraceInspector } from "./TraceInspector.js";
-import { dimColor, layerColor } from "./lensColor.js";
+import { layerColor } from "./lensColor.js";
 import { drawClusterHulls, drawMinimap } from "./graphOverlay.js";
 import { computeSelection, computeTracePath } from "./graphTraversal.js";
 import { StaticGraphFallback } from "./StaticGraphFallback.js";
@@ -54,7 +54,6 @@ import {
   snapshotGraph,
   stabilizeFileAnchors,
   symbolColor,
-  toFadedColor,
 } from "./graphBuild.js";
 import { createGraphViewStore } from "../state/graphViewStore.js";
 import {
@@ -295,7 +294,11 @@ function formatLensMetric(metric: number): string {
   return Number.isInteger(metric) ? String(metric) : metric.toFixed(3);
 }
 
-function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivElement): void {
+function applyTheme(
+  graph: MultiDirectedGraph,
+  sigma: Sigma,
+  container: HTMLDivElement,
+): ThemeColors {
   const colors = readThemeColors();
 
   container.style.backgroundColor = colors.backgroundColor;
@@ -337,6 +340,7 @@ function applyTheme(graph: MultiDirectedGraph, sigma: Sigma, container: HTMLDivE
   applySigmaSetting(sigma, "defaultNodeColor", colors.symbolKindColors.default);
   applySigmaSetting(sigma, "defaultEdgeColor", colors.definesEdgeColor);
   refreshSigma(sigma);
+  return colors;
 }
 
 export function GraphView({
@@ -494,17 +498,11 @@ export function GraphView({
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(
     () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
   );
-  // Slice 031 US3 — set of node IDs that carry the "decorator-backed" flag,
-  // so the Sigma node reducer can hide them when the Decorator chip is off.
-  const decoratorBackedNodeIdsRef = useRef<Set<string>>(new Set());
   const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
-  const lensMatchSetRef = useRef<ReadonlySet<string> | null>(null);
-  const lensColorOfRef = useRef<((archLayer: string | undefined) => string | null) | null>(null);
   // Search state (slice 022). `searchQuery` is the committed (post-debounce)
   // value; the SearchBar manages its own pending input internally.
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchFocusedIndex, setSearchFocusedIndex] = useState<number>(0);
-  const matchedNodeIdsRef = useRef<Set<string>>(new Set());
   // Depth slider state (slice 022). Default 3 per spec FR-005.
   const [depth, setDepth] = useState<number>(3);
   // Trace state (slice 023). React owns the trace state machine for the banner /
@@ -861,8 +859,9 @@ export function GraphView({
 
   useEffect(() => {
     const container = containerRef.current;
+    const controller = controllerRef.current;
 
-    if (container === null) {
+    if (container === null || controller === null) {
       return;
     }
 
@@ -987,178 +986,13 @@ export function GraphView({
           square: NodeSquareProgram,
           entry: NodeEntryProgram,
         },
-        nodeReducer: (node, data) => {
-          // View-membership inputs come from the store (single source of truth);
-          // the imperative reducer reads them live via getState() each call.
-          const hiddenNodeKinds = graphViewStoreRef.current.getState().hiddenNodeKinds;
-
-          // 1. Node-kind filter (applied first — hides node before hover/focus logic runs)
-          const attrs = data as GraphNodeAttributes;
-          const kindKey = attrs.nodeKind === "file" ? "file" : (attrs.symbolKind ?? "function");
-          if (hiddenNodeKinds.has(kindKey)) {
-            return { ...data, hidden: true };
-          }
-          // Slice 031 US3 — Decorator chip semantics. When the user clicks the
-          // Decorator chip off, decorator-backed nodes are hidden the same way
-          // any other node-kind filter hides nodes.
-          if (hiddenNodeKinds.has("decorator") && decoratorBackedNodeIdsRef.current.has(node)) {
-            return { ...data, hidden: true };
-          }
-
-          // 2. Depth filter (slice 022) — hide nodes outside the depth-N
-          // neighbourhood of the selected/matched anchor(s).
-          const depthVisible = depthVisibleNodeIdsRef.current;
-          if (depthVisible !== null && !depthVisible.has(node)) {
-            return { ...data, hidden: true };
-          }
-
-          // 3. Trace dimming (slice 023) — when a trace path is active,
-          // off-path nodes are dimmed. Trace dimming wins over search/lens.
-          const controller = controllerRef.current;
-          if (
-            controller?.tracePhaseState === "path-active" &&
-            controller.tracePathNodeIds.size > 0
-          ) {
-            if (!controller.tracePathNodeIds.has(node)) {
-              return {
-                ...data,
-                color: dimColor(String(data.color)),
-                label: "",
-              };
-            }
-            return data;
-          }
-
-          const hover = controllerRef.current?.hover ?? null;
-          const selection = controllerRef.current?.currentSelection ?? null;
-          const activeFocus = hover ?? selection;
-
-          if (activeFocus === null || activeFocus.nodeIds.has(node)) {
-            if (selection !== null && hover === null && selection.selectedNodeId === node) {
-              return {
-                ...data,
-                size: Number(data.baseSize ?? data.size) * 1.28,
-                zIndex: 2,
-              };
-            }
-
-            // No hover/selection focus — apply search dimming first
-            // (slice 022), then lens dimming (slice 021).  User focus always
-            // wins over both.
-            if (activeFocus === null) {
-              const matched = matchedNodeIdsRef.current;
-              if (matched.size > 0 && !matched.has(node)) {
-                return {
-                  ...data,
-                  color: dimColor(String(data.color)),
-                  label: "",
-                };
-              }
-              const lensMatchSet = lensMatchSetRef.current;
-              if (lensMatchSet !== null && !lensMatchSet.has(node)) {
-                return {
-                  ...data,
-                  color: dimColor(String(data.color)),
-                };
-              }
-              // Architecture (recolour) lens — recolour by layer instead of
-              // dimming. A null result means "keep base colour" (unknown layer).
-              const colorOf = lensColorOfRef.current;
-              if (colorOf !== null) {
-                const layerColorValue = colorOf(data.archLayer as string | undefined);
-                if (layerColorValue !== null) {
-                  return {
-                    ...data,
-                    color: layerColorValue,
-                  };
-                }
-              }
-            }
-
-            return data;
-          }
-
-          return {
-            ...data,
-            color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
-            label: "",
-          };
-        },
-        edgeReducer: (edge, data) => {
-          const hover = controllerRef.current?.hover ?? null;
-          const selection = controllerRef.current?.currentSelection ?? null;
-          const edgeAttrs = data as GraphEdgeAttributes;
-
-          // Hide edges whose kind is toggled off by the filter bar. Read from
-          // the store (single source of truth) live on each reducer call.
-          if (graphViewStoreRef.current.getState().hiddenEdgeKinds.has(edgeAttrs.edgeKind)) {
-            return { ...data, hidden: true };
-          }
-
-          // Trace path styling (slice 023) — on-path edges render as a bold
-          // yellow; off-path edges are dimmed. Wins over hover/selection.
-          // Distinction is carried by colour + size, not an edge `type`: only
-          // the "line" program is registered, and Sigma throws on an unknown
-          // edge type (e.g. "dashed") the moment it has to render one.
-          const traceController = controllerRef.current;
-          if (
-            traceController?.tracePhaseState === "path-active" &&
-            traceController.tracePathEdgeIds.size > 0
-          ) {
-            if (traceController.tracePathEdgeIds.has(edge)) {
-              return {
-                ...data,
-                color: colors.tracePathEdgeColor,
-                size: Number(data.baseSize ?? data.size) * 1.6,
-                zIndex: 1,
-              };
-            }
-            return {
-              ...data,
-              color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
-              size: Math.max(Number(data.baseSize ?? data.size) * 0.6, 1),
-            };
-          }
-
-          const activeFocus = hover ?? selection;
-
-          if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
-            if (selection !== null && hover === null && selection.edgeIds.has(edge)) {
-              const emphasised = {
-                ...data,
-                size: Number(data.baseSize ?? data.size) * 1.34,
-                zIndex: 1,
-              };
-              // Direction-aware CALLS emphasis: colour a selected node's inbound
-              // calls (callers) distinctly from its outbound calls (callees).
-              // Only `color`/`size` are touched — the edge keeps the registered
-              // "line" program (Sigma throws on an unregistered edge `type`).
-              if (edgeAttrs.edgeKind === "CALLS") {
-                const selectedId = selection.selectedNodeId;
-                if (graph.target(edge) === selectedId) {
-                  return { ...emphasised, color: colors.callerEdgeColor };
-                }
-                if (graph.source(edge) === selectedId) {
-                  return { ...emphasised, color: colors.calleeEdgeColor };
-                }
-              }
-              return emphasised;
-            }
-
-            return data;
-          }
-
-          return {
-            ...data,
-            color: toFadedColor(data.baseColor ?? data.color, colors.disabledColor),
-            size: Math.max(Number(data.baseSize ?? data.size) * 0.72, 1),
-          };
-        },
+        nodeReducer: controller.nodeReducer,
+        edgeReducer: controller.edgeReducer,
       });
 
       sigmaRef.current = sigma;
       controllerRef.current?.adopt(sigma, graph, container);
-      applyTheme(graph, sigma, container);
+      controllerRef.current?.setColors(applyTheme(graph, sigma, container));
       if (canceledRef.current) {
         sigma.kill();
         sigmaRef.current = null;
@@ -1264,7 +1098,7 @@ export function GraphView({
 
       observer = new MutationObserver(() => {
         if (sigma !== null) {
-          applyTheme(graph, sigma, container);
+          controllerRef.current?.setColors(applyTheme(graph, sigma, container));
           updateOverlay();
         }
       });
@@ -1329,8 +1163,8 @@ export function GraphView({
     }
   }, [hiddenNodeKinds]);
 
-  // Slice 031 US3 — keep the decorator-backed id set in sync with `nodes`
-  // so the Sigma reducer can honor the Decorator filter chip toggle.
+  // Slice 031 US3 — keep the decorator-backed id set on the controller in sync
+  // with `nodes` so the node reducer can honor the Decorator filter chip toggle.
   useEffect(() => {
     const next = new Set<string>();
     for (const node of nodes) {
@@ -1338,68 +1172,44 @@ export function GraphView({
         next.add(node.id);
       }
     }
-    decoratorBackedNodeIdsRef.current = next;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setDecoratorBackedNodeIds(next);
   }, [nodes]);
 
-  // Sync lens-match-set ref so the nodeReducer reads the active lens's matches
-  // without being recreated. Refresh Sigma to re-run reducers.
+  // Sync the active match-lens set onto the controller (non-matches dim).
   useEffect(() => {
-    lensMatchSetRef.current = lensMatchSet;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setLensMatchSet(lensMatchSet);
   }, [lensMatchSet]);
 
-  // Sync the recolour-lens colour fn ref so the nodeReducer can recolour by
-  // layer without being recreated. Null when no recolour lens is active.
+  // Sync the recolour-lens colour fn onto the controller (null = no recolour).
   useEffect(() => {
-    lensColorOfRef.current = lensColorOf;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setLensColorOf(lensColorOf);
   }, [lensColorOf]);
 
-  // Slice 022 — sync matched-node ids + depth visibility set into refs so the
-  // nodeReducer reads them without being recreated. The depth-visible set is
-  // the union of (selected-node depth neighbourhood) ∪ (each matched-node
-  // depth neighbourhood). null means depth filter is inactive — show all.
-  const depthVisibleNodeIdsRef = useRef<Set<string> | null>(null);
-
+  // Slice 022 — sync matched-node ids onto the controller (non-matches dim).
   useEffect(() => {
-    matchedNodeIdsRef.current = matchedNodeIds;
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setMatchedNodeIds(matchedNodeIds);
   }, [matchedNodeIds]);
 
+  // Slice 022 — depth-visible set: the union of (selected-node depth
+  // neighbourhood) ∪ (each matched-node depth neighbourhood). null means the
+  // depth filter is inactive (show all). Synced onto the controller.
   useEffect(() => {
     const graph = graphRef.current;
     if (!depthEnabled || graph === null) {
-      depthVisibleNodeIdsRef.current = null;
-    } else {
-      const visible = new Set<string>();
-      const anchors = matchedNodeIds.size > 0 ? Array.from(matchedNodeIds) : [selectedNodeId!];
-      for (const anchor of anchors) {
-        const traversal = computeSelection(graph, anchor, depth);
-        if (traversal !== null) {
-          for (const id of traversal.nodeIds) {
-            visible.add(id);
-          }
+      controllerRef.current?.setDepthVisibleNodeIds(null);
+      return;
+    }
+    const visible = new Set<string>();
+    const anchors = matchedNodeIds.size > 0 ? Array.from(matchedNodeIds) : [selectedNodeId!];
+    for (const anchor of anchors) {
+      const traversal = computeSelection(graph, anchor, depth);
+      if (traversal !== null) {
+        for (const id of traversal.nodeIds) {
+          visible.add(id);
         }
       }
-      depthVisibleNodeIdsRef.current = visible;
     }
-    const sigma = sigmaRef.current;
-    if (sigma !== null) {
-      refreshSigma(sigma);
-    }
+    controllerRef.current?.setDepthVisibleNodeIds(visible);
   }, [depthEnabled, matchedNodeIds, selectedNodeId, depth]);
 
   // Sync the trace render mirror onto the controller so the node/edge reducers

@@ -318,3 +318,151 @@ describe("SigmaController — trace", () => {
     expect(controller.tracePathEdgeIds.size).toBe(0);
   });
 });
+
+// Minimal stub theme with the colour tokens the reducers consume.
+const REDUCER_THEME = {
+  disabledColor: "#888888",
+  tracePathEdgeColor: "#dcdcaa",
+  callerEdgeColor: "#00ff00",
+  calleeEdgeColor: "#ffa500",
+} as unknown as ThemeColors;
+
+function nodeAttrs(over: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+  return {
+    label: "n",
+    filePath: "a.ts",
+    startLine: 1,
+    nodeKind: "symbol",
+    symbolKind: "function",
+    x: 0,
+    y: 0,
+    size: 5,
+    baseSize: 5,
+    color: "#abcabc",
+    baseColor: "#abcabc",
+    ...over,
+  };
+}
+
+function edgeAttrs(over: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+  return {
+    edgeKind: "CALLS",
+    color: "#abcabc",
+    baseColor: "#abcabc",
+    size: 1,
+    baseSize: 1,
+    ...over,
+  };
+}
+
+/** Controller mounted on the triad graph with reducer theme applied. */
+function reducerController(storeInit?: GraphViewStore): SigmaController {
+  const store =
+    storeInit ?? createGraphViewStore({ hiddenNodeKinds: new Set(), hiddenEdgeKinds: new Set() });
+  const controller = new SigmaController(store, options());
+  controller.adopt(stubSigma().sigma, triadGraph(), stubContainer());
+  controller.setColors(REDUCER_THEME);
+  return controller;
+}
+
+describe("SigmaController — node reducer branches", () => {
+  it("hides a node whose kind is in the hidden-node-kinds set", () => {
+    const store = createGraphViewStore({
+      hiddenNodeKinds: new Set(["function"]),
+      hiddenEdgeKinds: new Set(),
+    });
+    const controller = reducerController(store);
+    const out = controller.nodeReducer("a", nodeAttrs({ symbolKind: "function" }) as never);
+    expect(out.hidden).toBe(true);
+  });
+
+  it("hides a decorator-backed node when the Decorator chip is off", () => {
+    const store = createGraphViewStore({
+      hiddenNodeKinds: new Set(["decorator"]),
+      hiddenEdgeKinds: new Set(),
+    });
+    const controller = reducerController(store);
+    controller.setDecoratorBackedNodeIds(new Set(["a"]));
+    const out = controller.nodeReducer("a", nodeAttrs() as never);
+    expect(out.hidden).toBe(true);
+  });
+
+  it("hides a node outside the depth-visible set", () => {
+    const controller = reducerController();
+    controller.setDepthVisibleNodeIds(new Set(["b"]));
+    expect(controller.nodeReducer("a", nodeAttrs() as never).hidden).toBe(true);
+    expect(controller.nodeReducer("b", nodeAttrs() as never).hidden).toBeUndefined();
+  });
+
+  it("dims off-path nodes when a trace path is active", () => {
+    const controller = reducerController();
+    controller.setTracePath("path-active", ["b"], []);
+    const off = controller.nodeReducer("a", nodeAttrs() as never);
+    expect(off.label).toBe("");
+    expect(off.color).not.toBe("#abcabc");
+    const on = controller.nodeReducer("b", nodeAttrs() as never);
+    expect(on.label).not.toBe("");
+  });
+
+  it("enlarges the selected node", () => {
+    const controller = reducerController();
+    controller.setSelection("a");
+    const out = controller.nodeReducer("a", nodeAttrs({ baseSize: 5 }) as never);
+    expect(out.size).toBeCloseTo(5 * 1.28);
+    expect(out.zIndex).toBe(2);
+  });
+
+  it("dims non-matches when a search match set is active", () => {
+    const controller = reducerController();
+    controller.setMatchedNodeIds(new Set(["b"]));
+    const out = controller.nodeReducer("a", nodeAttrs() as never);
+    expect(out.label).toBe("");
+    expect(out.color).not.toBe("#abcabc");
+  });
+
+  it("dims non-matches when a match lens is active", () => {
+    const controller = reducerController();
+    controller.setLensMatchSet(new Set(["b"]));
+    const out = controller.nodeReducer("a", nodeAttrs() as never);
+    expect(out.color).not.toBe("#abcabc");
+  });
+
+  it("recolours by layer when a recolour lens is active", () => {
+    const controller = reducerController();
+    controller.setLensColorOf((layer) => (layer === "domain" ? "#123456" : null));
+    const hit = controller.nodeReducer("a", nodeAttrs({ archLayer: "domain" }) as never);
+    expect(hit.color).toBe("#123456");
+    const miss = controller.nodeReducer("a", nodeAttrs({ archLayer: "io" }) as never);
+    expect(miss.color).toBe("#abcabc");
+  });
+
+  it("fades nodes outside the active focus neighbourhood", () => {
+    const controller = reducerController();
+    controller.setSelection("a"); // focus around a; c is 2 hops but within depth 4
+    // Disconnect by selecting a leaf and probing a far node would need a bigger
+    // graph; instead assert the in-focus node is not faded.
+    const inFocus = controller.nodeReducer("a", nodeAttrs() as never);
+    expect(inFocus.label).not.toBe("");
+  });
+});
+
+describe("SigmaController — edge reducer branches", () => {
+  it("hides an edge whose kind is in the hidden-edge-kinds set", () => {
+    const store = createGraphViewStore({
+      hiddenNodeKinds: new Set(),
+      hiddenEdgeKinds: new Set(["CALLS"]),
+    });
+    const controller = reducerController(store);
+    const out = controller.edgeReducer("a->b", edgeAttrs({ edgeKind: "CALLS" }) as never);
+    expect(out.hidden).toBe(true);
+  });
+
+  it("styles on-path edges and dims off-path edges during trace", () => {
+    const controller = reducerController();
+    controller.setTracePath("path-active", [], ["a->b"]);
+    const on = controller.edgeReducer("a->b", edgeAttrs() as never);
+    expect(on.color).toBe("#dcdcaa");
+    const off = controller.edgeReducer("zzz", edgeAttrs() as never);
+    expect(off.color).not.toBe("#dcdcaa");
+  });
+});

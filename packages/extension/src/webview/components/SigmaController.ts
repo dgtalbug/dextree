@@ -1,11 +1,21 @@
+import type { Attributes } from "graphology-types";
 import type { MultiDirectedGraph } from "graphology";
 import type Sigma from "sigma";
+import type { EdgeDisplayData, NodeDisplayData } from "sigma/types";
 
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
+import { toFadedColor } from "./graphBuild.js";
 import { computeHoverNeighborhood, type HoverNeighborhood } from "./graphHover.js";
 import { computeSelection } from "./graphTraversal.js";
+import { dimColor } from "./lensColor.js";
 import type { GraphViewStore } from "../state/graphViewStore.js";
-import type { SelectionTraversal, ThemeColors, TracePhase } from "./graphViewTypes.js";
+import type {
+  GraphEdgeAttributes,
+  GraphNodeAttributes,
+  SelectionTraversal,
+  ThemeColors,
+  TracePhase,
+} from "./graphViewTypes.js";
 
 // Camera tunables — identical to the values the inline GraphView handlers used,
 // kept here so the controller's camera math is self-contained and testable.
@@ -86,6 +96,12 @@ export class SigmaController {
   private pathEdgeIds: Set<string> = new Set();
   private depthVisibleNodeIds: Set<string> | null = null;
   private decoratorBackedNodeIds: Set<string> = new Set();
+  private matchedNodeIds: ReadonlySet<string> = new Set();
+  private lensMatchSet: ReadonlySet<string> | null = null;
+  private lensColorOf: ((archLayer: string | undefined) => string | null) | null = null;
+  // Theme colors the reducers read for dim/recolour/emphasis. Captured at
+  // applyTheme time (mirrors the inline reducers closing over `colors`).
+  private colors: ThemeColors | null = null;
 
   constructor(store: GraphViewStore, options: SigmaControllerOptions) {
     this.store = store;
@@ -262,6 +278,44 @@ export class SigmaController {
     this.refresh();
   }
 
+  /** Theme colors the reducers read. Captured each time the theme is applied. */
+  setColors(colors: ThemeColors): void {
+    this.colors = colors;
+  }
+
+  /** Node ids flagged decorator-backed (hidden when the Decorator chip is off). */
+  setDecoratorBackedNodeIds(ids: Set<string>): void {
+    this.decoratorBackedNodeIds = ids;
+    this.refresh();
+  }
+
+  /**
+   * The depth-visible node id set (union of anchor neighbourhoods), or null when
+   * the depth filter is inactive (show all). Refreshes so the reducer re-runs.
+   */
+  setDepthVisibleNodeIds(ids: Set<string> | null): void {
+    this.depthVisibleNodeIds = ids;
+    this.refresh();
+  }
+
+  /** Search-matched node ids (non-matches dim when the set is non-empty). */
+  setMatchedNodeIds(ids: ReadonlySet<string>): void {
+    this.matchedNodeIds = ids;
+    this.refresh();
+  }
+
+  /** Active match-lens id set (non-matches dim), or null when no match lens. */
+  setLensMatchSet(set: ReadonlySet<string> | null): void {
+    this.lensMatchSet = set;
+    this.refresh();
+  }
+
+  /** Active recolour-lens colour fn, or null when no recolour lens is active. */
+  setLensColorOf(colorOf: ((archLayer: string | undefined) => string | null) | null): void {
+    this.lensColorOf = colorOf;
+    this.refresh();
+  }
+
   setSelection(nodeId: string | null, opts: { updateOverlay?: boolean } = {}): void {
     const graph = this.graph;
     this.selection =
@@ -276,6 +330,153 @@ export class SigmaController {
       this.options.onOverlayUpdate(this.selection);
     }
   }
+
+  /**
+   * The Sigma node reducer. Bound as a field so it can be handed to `new Sigma`
+   * directly. Reads view-membership from the store and emphasis from the
+   * controller's own fields — a faithful move of the inline reducer, branch for
+   * branch, so behavior is preserved.
+   */
+  readonly nodeReducer = (node: string, raw: Attributes): Partial<NodeDisplayData> => {
+    const data = raw as GraphNodeAttributes;
+    const colors = this.colors;
+    const hiddenNodeKinds = this.store.getState().hiddenNodeKinds;
+
+    // 1. Node-kind filter (applied first — hides node before hover/focus logic).
+    const kindKey = data.nodeKind === "file" ? "file" : (data.symbolKind ?? "function");
+    if (hiddenNodeKinds.has(kindKey)) {
+      return { ...data, hidden: true };
+    }
+    // Decorator chip: decorator-backed nodes hide like any node-kind filter.
+    if (hiddenNodeKinds.has("decorator") && this.decoratorBackedNodeIds.has(node)) {
+      return { ...data, hidden: true };
+    }
+
+    // 2. Depth filter — hide nodes outside the depth-N neighbourhood.
+    if (this.depthVisibleNodeIds !== null && !this.depthVisibleNodeIds.has(node)) {
+      return { ...data, hidden: true };
+    }
+
+    // 3. Trace dimming — off-path nodes dim; trace wins over search/lens.
+    if (this.tracePhase === "path-active" && this.pathNodeIds.size > 0) {
+      if (!this.pathNodeIds.has(node)) {
+        return { ...data, color: dimColor(String(data.color)), label: "" };
+      }
+      return data;
+    }
+
+    const hover = this.hoverNeighborhood;
+    const selection = this.selection;
+    const activeFocus = hover ?? selection;
+
+    if (activeFocus === null || activeFocus.nodeIds.has(node)) {
+      if (selection !== null && hover === null && selection.selectedNodeId === node) {
+        return { ...data, size: Number(data.baseSize ?? data.size) * 1.28, zIndex: 2 };
+      }
+
+      // No hover/selection focus — search dimming first, then lens dimming.
+      if (activeFocus === null) {
+        if (this.matchedNodeIds.size > 0 && !this.matchedNodeIds.has(node)) {
+          return { ...data, color: dimColor(String(data.color)), label: "" };
+        }
+        if (this.lensMatchSet !== null && !this.lensMatchSet.has(node)) {
+          return { ...data, color: dimColor(String(data.color)) };
+        }
+        // Architecture (recolour) lens — recolour by layer; null keeps base.
+        if (this.lensColorOf !== null) {
+          const layerColorValue = this.lensColorOf(data.archLayer as string | undefined);
+          if (layerColorValue !== null) {
+            return { ...data, color: layerColorValue };
+          }
+        }
+      }
+
+      return data;
+    }
+
+    return {
+      ...data,
+      color: toFadedColor(
+        data.baseColor ?? data.color,
+        colors?.disabledColor ?? String(data.color),
+      ),
+      label: "",
+    };
+  };
+
+  /**
+   * The Sigma edge reducer. Bound field for the same reason as nodeReducer; a
+   * faithful move of the inline edge reducer reading the store + controller
+   * fields + graph (for direction-aware CALLS emphasis).
+   */
+  readonly edgeReducer = (edge: string, raw: Attributes): Partial<EdgeDisplayData> => {
+    const data = raw as GraphEdgeAttributes;
+    const colors = this.colors;
+    const graph = this.graph;
+    const hover = this.hoverNeighborhood;
+    const selection = this.selection;
+
+    // Hide edges whose kind is toggled off by the filter bar (store-backed).
+    if (this.store.getState().hiddenEdgeKinds.has(data.edgeKind)) {
+      return { ...data, hidden: true };
+    }
+
+    // Trace path styling — on-path edges bold yellow; off-path dim. Wins over
+    // hover/selection. Distinction is colour + size, never an edge `type`.
+    if (this.tracePhase === "path-active" && this.pathEdgeIds.size > 0) {
+      if (this.pathEdgeIds.has(edge)) {
+        return {
+          ...data,
+          color: colors?.tracePathEdgeColor ?? String(data.color),
+          size: Number(data.baseSize ?? data.size) * 1.6,
+          zIndex: 1,
+        };
+      }
+      return {
+        ...data,
+        color: toFadedColor(
+          data.baseColor ?? data.color,
+          colors?.disabledColor ?? String(data.color),
+        ),
+        size: Math.max(Number(data.baseSize ?? data.size) * 0.6, 1),
+      };
+    }
+
+    const activeFocus = hover ?? selection;
+
+    if (activeFocus === null || activeFocus.edgeIds.has(edge)) {
+      if (selection !== null && hover === null && selection.edgeIds.has(edge)) {
+        const emphasised = {
+          ...data,
+          size: Number(data.baseSize ?? data.size) * 1.34,
+          zIndex: 1,
+        };
+        // Direction-aware CALLS emphasis: colour a selected node's inbound calls
+        // (callers) distinctly from its outbound calls (callees).
+        if (data.edgeKind === "CALLS" && graph !== null && colors !== null) {
+          const selectedId = selection.selectedNodeId;
+          if (graph.target(edge) === selectedId) {
+            return { ...emphasised, color: colors.callerEdgeColor };
+          }
+          if (graph.source(edge) === selectedId) {
+            return { ...emphasised, color: colors.calleeEdgeColor };
+          }
+        }
+        return emphasised;
+      }
+
+      return data;
+    }
+
+    return {
+      ...data,
+      color: toFadedColor(
+        data.baseColor ?? data.color,
+        colors?.disabledColor ?? String(data.color),
+      ),
+      size: Math.max(Number(data.baseSize ?? data.size) * 0.72, 1),
+    };
+  };
 
   /**
    * Tear down the Sigma instance and drop all imperative state. Idempotent: safe
@@ -295,5 +496,9 @@ export class SigmaController {
     this.pathEdgeIds = new Set();
     this.depthVisibleNodeIds = null;
     this.decoratorBackedNodeIds = new Set();
+    this.matchedNodeIds = new Set();
+    this.lensMatchSet = null;
+    this.lensColorOf = null;
+    this.colors = null;
   }
 }
