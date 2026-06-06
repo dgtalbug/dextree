@@ -1,4 +1,6 @@
 import { createWorkspaceIgnore, type IndexResult, type Indexer } from "@dextree/core";
+
+import { readIgnoreOptions } from "./ignoreOptions.js";
 import * as vscode from "vscode";
 
 import { resolveCacheIdentity } from "../cache/resolveCacheIdentity.js";
@@ -79,7 +81,10 @@ export function createIndexFileCommand(
 
     const absolutePath = document.uri.fsPath;
 
-    const workspaceIgnore = await createWorkspaceIgnore(workspaceFolder.uri.fsPath);
+    const workspaceIgnore = await createWorkspaceIgnore(
+      workspaceFolder.uri.fsPath,
+      readIgnoreOptions(workspaceFolder.uri),
+    );
 
     if (workspaceIgnore.ignores(absolutePath)) {
       await vscode.window.showInformationMessage(

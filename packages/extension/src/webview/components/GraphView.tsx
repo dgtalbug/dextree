@@ -328,6 +328,8 @@ export function GraphView({
   edges,
   onNavigate,
   onExportMermaid,
+  initialShowClusterHulls,
+  onPersistClusterHulls,
   onExportTraceSequence,
   workspaceName,
   workspaceFrameworks,
@@ -382,8 +384,9 @@ export function GraphView({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(false);
-  const [showClusterHulls, setShowClusterHulls] = useState(true);
-  const showClusterHullsRef = useRef(true);
+  // Seed from the restored preference (VS Code state); default on when unset.
+  const [showClusterHulls, setShowClusterHulls] = useState(initialShowClusterHulls ?? true);
+  const showClusterHullsRef = useRef(initialShowClusterHulls ?? true);
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(
     () => new Set(DEFAULT_HIDDEN_EDGE_KINDS),
   );
@@ -495,6 +498,9 @@ export function GraphView({
   const onToggleClusterHulls = useCallback(() => {
     setShowClusterHulls((visible) => {
       showClusterHullsRef.current = !visible;
+      // Persist the new preference through the webview state so it survives a
+      // reload (VS Code getState/setState — never localStorage).
+      onPersistClusterHulls?.(!visible);
       return !visible;
     });
     const cc = clusterCanvasRef.current;
@@ -503,7 +509,7 @@ export function GraphView({
       if (!showClusterHullsRef.current) ctx?.clearRect(0, 0, cc.width, cc.height);
       else sigmaRef.current?.refresh();
     }
-  }, []);
+  }, [onPersistClusterHulls]);
 
   // Compute counts for all five lenses against the current subgraph. Stub
   // lenses (selector === null) contribute 0. Runs once per subgraph change.

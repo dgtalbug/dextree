@@ -97,6 +97,10 @@ export interface GraphViewProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   onNavigate: (filePath: string, line: number) => void;
+  /** Restored cluster-hull visibility preference; undefined → use the default. */
+  initialShowClusterHulls?: boolean;
+  /** Persist the cluster-hull visibility preference (VS Code state, not localStorage). */
+  onPersistClusterHulls?: (visible: boolean) => void;
   /**
    * Request a Mermaid export. GraphView passes the current `VisibleView`
    * membership (node/edge id arrays) so the host can offer "current view" vs

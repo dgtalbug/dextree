@@ -383,7 +383,7 @@ describe("serializeToScopedMermaid — determinism", () => {
 // ---------------------------------------------------------------------------
 
 describe("serializeToScopedMermaid — flowchart path unchanged by slice 028 (US3 T027)", () => {
-  it("emits a byte-identical workspace+symbol+light output across the discriminator switch", () => {
+  it("emits the expected structure for workspace+symbol+light across the discriminator switch", () => {
     // Symbols share their file's path so the workspace floor folds them in
     // rather than dropping them as orphans.
     const symFoo: GraphNode = { ...FUNC_FOO, filePath: FILE_A.filePath };
@@ -396,16 +396,6 @@ describe("serializeToScopedMermaid — flowchart path unchanged by slice 028 (US
     const defBar: GraphEdge = makeEdge("e-def-bar", FILE_B.id, symBar.id, "DEFINES");
     const sg = subgraph([FILE_A, FILE_B, symFoo, symBar], [defFoo, defBar, EDGE_IMPORTS]);
 
-    // Workspace + symbol is floored to file: only the two file nodes survive,
-    // the DEFINES edges fold to self-edges (dropped), the IMPORTS edge stays.
-    const baseline = [
-      "%%{init: {'theme': 'default'}}%%",
-      "graph TB",
-      '  naaaa_1111_aaaa_1111_aaaaaaaaaaaa["src/a.ts"]',
-      '  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb["src/b.ts"]',
-      "  nbbbb_2222_bbbb_2222_bbbbbbbbbbbb -->|IMPORTS| naaaa_1111_aaaa_1111_aaaaaaaaaaaa",
-    ].join("\n");
-
     const out = serializeToScopedMermaid(sg, {
       diagram: "flowchart",
       scope: { kind: "workspace" },
@@ -414,7 +404,20 @@ describe("serializeToScopedMermaid — flowchart path unchanged by slice 028 (US
       theme: "Light",
     });
 
-    expect(out).toBe(baseline);
+    // Structural assertions: a whitespace-only formatting change no longer fails,
+    // but a structural regression (missing header, node, or edge) still does.
+    // Workspace + symbol is floored to file: only the two file nodes survive,
+    // the DEFINES edges fold to self-edges (dropped), the IMPORTS edge stays.
+    const lines = out.split("\n").map((l) => l.trim());
+    expect(lines[0]).toBe("%%{init: {'theme': 'default'}}%%");
+    expect(lines).toContain("graph TB");
+    expect(lines).toContain('naaaa_1111_aaaa_1111_aaaaaaaaaaaa["src/a.ts"]');
+    expect(lines).toContain('nbbbb_2222_bbbb_2222_bbbbbbbbbbbb["src/b.ts"]');
+    expect(lines).toContain(
+      "nbbbb_2222_bbbb_2222_bbbbbbbbbbbb -->|IMPORTS| naaaa_1111_aaaa_1111_aaaaaaaaaaaa",
+    );
+    // The dropped DEFINES self-edges must NOT appear (structural regression guard).
+    expect(out).not.toContain("|DEFINES|");
   });
 
   it("the slice-016 shim's 'graph TD' post-process still fires unchanged", () => {

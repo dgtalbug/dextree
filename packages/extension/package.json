@@ -217,6 +217,16 @@
     "configuration": {
       "title": "Dextree",
       "properties": {
+        "dextree.ignoreDocumentation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Exclude documentation files (*.md) from indexing. Layered on top of .gitignore, .dextreeignore, and the default ignores (node_modules, dist, build, …)."
+        },
+        "dextree.ignoreTests": {
+          "type": "boolean",
+          "default": false,
+          "description": "Exclude test files (*.test.*, *.spec.*, __tests__/, test/) from indexing. Off by default."
+        },
         "dextree.watcher.verbose": {
           "type": "boolean",
           "default": false,
