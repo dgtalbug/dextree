@@ -1275,6 +1275,44 @@ describe("GraphView", () => {
       expect(screen.getByTestId("trace-left-rail")).toBeTruthy();
       expect(screen.queryByTestId("node-filter-panel")).toBeNull();
     });
+
+    it("refuses a trace whose endpoint is filtered out of the visible view (T-bounded)", async () => {
+      mockSigma.getNodeDisplayData = vi.fn(() => ({ x: 10, y: 10 }));
+      render(
+        <GraphView
+          nodes={baseNodes}
+          edges={baseEdges}
+          onNavigate={vi.fn()}
+          onExportMermaid={vi.fn()}
+          onExportCurrentView={vi.fn()}
+        />,
+      );
+
+      // Hide the "class" node kind so symbol-2 (a class) leaves the VisibleView.
+      const classToggle = screen.getByRole("checkbox", { name: "Hide Class nodes" });
+      fireEvent.click(classToggle);
+
+      const clickNodeHandler = mockSigma.on.mock.calls.find((call) => call[0] === "clickNode")?.[1];
+
+      // Trace from the still-visible function to the now-hidden class. The path
+      // must not run through the filtered-out node: a no-path notice appears.
+      fireEvent.click(screen.getByRole("button", { name: "Toggle trace route mode" }));
+      clickNodeHandler?.({ node: "symbol-1" });
+      clickNodeHandler?.({ node: "symbol-2" });
+      await act(async () => {
+        await Promise.resolve();
+        vi.runOnlyPendingTimers();
+      });
+
+      // The trace resolves to "no path" rather than tracing through the hidden
+      // node: the inspector shows the no-path status notice and the left-rail
+      // Path group has zero hops.
+      const noPathNotice = screen
+        .getAllByRole("status")
+        .find((el) => /no path found/i.test(el.textContent ?? ""));
+      expect(noPathNotice).toBeTruthy();
+      expect(screen.getByText(/Path \(0 hops\)/)).toBeTruthy();
+    });
   });
 
   describe("layout presets (slice 025 US1)", () => {

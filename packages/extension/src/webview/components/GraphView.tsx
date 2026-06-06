@@ -740,8 +740,19 @@ export function GraphView({
     if (graph === null || !graph.hasNode(startId) || !graph.hasNode(endId)) {
       return;
     }
-    const nodePath = bidirectional(graph, startId, endId);
-    if (nodePath === null) {
+
+    // Bound the trace to the VisibleView: a path must not run through nodes the
+    // user has filtered out. If either endpoint is outside the visible set, or
+    // the shortest path crosses a hidden node, report "no path" (the existing
+    // non-blocking notice) rather than tracing through hidden nodes.
+    const view = controllerRef.current?.getVisibleView();
+    const visibleNodeIds = view?.nodeIds ?? null;
+    const inView = (id: string): boolean => visibleNodeIds === null || visibleNodeIds.has(id);
+
+    const nodePath = inView(startId) && inView(endId) ? bidirectional(graph, startId, endId) : null;
+    const pathWithinView = nodePath !== null && nodePath.every(inView);
+
+    if (!pathWithinView) {
       controllerRef.current?.setTracePhase("path-active");
       setTraceState({
         phase: "path-active",
@@ -1022,9 +1033,14 @@ export function GraphView({
     controllerRef.current?.setMatchedNodeIds(matchedNodeIds);
   }, [matchedNodeIds]);
 
-  // Slice 022 — depth-visible set: the union of (selected-node depth
-  // neighbourhood) ∪ (each matched-node depth neighbourhood). null means the
-  // depth filter is inactive (show all). Synced onto the controller.
+  // Depth-visible set: the union of (selected-node depth neighbourhood) ∪ (each
+  // matched-node depth neighbourhood). null means the depth filter is inactive
+  // (show all). This set is membership, not just dimming: the node reducer hides
+  // out-of-window nodes (Sigma does not draw hidden nodes) and getVisibleView
+  // excludes them, so depth scopes both the render and the export/trace. Nodes
+  // are kept in the graphology graph (hidden, not removed) to preserve layout
+  // coordinates across depth changes; physically pruning the graph for very
+  // large reduced sets is a perf optimization left as a follow-up.
   useEffect(() => {
     const graph = graphRef.current;
     if (!depthEnabled || graph === null) {
