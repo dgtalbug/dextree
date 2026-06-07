@@ -3,6 +3,9 @@ import { NodeSquareProgram } from "@sigma/node-square";
 import type { Attributes } from "graphology-types";
 import type { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
+import FA2LayoutSupervisor from "graphology-layout-forceatlas2/worker";
+
+import { LiveLayout } from "./liveLayout.js";
 import Sigma from "sigma";
 import { NodeCircleProgram } from "sigma/rendering";
 import type { EdgeDisplayData, NodeDisplayData } from "sigma/types";
@@ -49,6 +52,17 @@ const NodeEntryProgram = createNodeBorderProgram({
 
 const SINGLE_CLICK_DELAY_MS = 180;
 const FORCE_ATLAS2_ITERATIONS = 200;
+/** Shared FA2 physics — used by both the seed `.assign` and the live supervisor. */
+const FORCE_ATLAS2_SETTINGS = {
+  gravity: 1.8,
+  scalingRatio: 6,
+  slowDown: 3,
+  barnesHutOptimize: true,
+  barnesHutTheta: 0.5,
+  linLogMode: true,
+} as const;
+/** How long the live settle runs on mount before it auto-stops (ms). */
+const LIVE_LAYOUT_MOUNT_RUN_MS = 2500;
 const MINIMAP_MIN_NODES = 20;
 
 // Camera tunables — identical to the values the inline GraphView handlers used,
@@ -143,6 +157,8 @@ export class SigmaController {
   private readonly options: SigmaControllerOptions;
 
   private sigma: Sigma | null = null;
+  /** The settle-then-idle live force simulation for the default layout. */
+  private liveLayout: LiveLayout | null = null;
   private graph: MultiDirectedGraph | null = null;
   private container: HTMLDivElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -209,6 +225,15 @@ export class SigmaController {
   refresh(): void {
     const maybeRefresh = this.sigma as unknown as { refresh?: () => void } | null;
     maybeRefresh?.refresh?.();
+  }
+
+  /**
+   * Re-run the live force settle — called when the user re-applies the
+   * ForceAtlas2 preset so the graph settles live again. No-op if the live layout
+   * is unavailable (worker couldn't start).
+   */
+  restartLiveLayout(): void {
+    this.liveLayout?.run();
   }
 
   /**
@@ -661,14 +686,7 @@ export class SigmaController {
         seedPositionsByCommunity(graph, this.communities);
         forceAtlas2.assign(graph, {
           iterations: FORCE_ATLAS2_ITERATIONS,
-          settings: {
-            gravity: 1.8,
-            scalingRatio: 6,
-            slowDown: 3,
-            barnesHutOptimize: true,
-            barnesHutTheta: 0.5,
-            linLogMode: true,
-          },
+          settings: FORCE_ATLAS2_SETTINGS,
         });
         stabilizeFileAnchors(graph);
       } catch (layoutError) {
@@ -770,7 +788,35 @@ export class SigmaController {
       attributeFilter: ["class"],
     });
 
+    // Settle-then-idle live layout: nodes drift into place after the seed assign,
+    // then auto-stop. The seed already produced a reasonable arrangement, so if
+    // the worker can't start (e.g. jsdom in tests) we simply skip the live settle.
+    this.startLiveLayout(graph);
+
     return sigma;
+  }
+
+  /**
+   * Start the live force simulation for the default layout. No-op (falls back to
+   * the already-applied seed positions) if the worker supervisor cannot be
+   * constructed — e.g. no Worker in the test environment.
+   */
+  private startLiveLayout(graph: MultiDirectedGraph): void {
+    if (graph.order === 0) return;
+    // The FA2 supervisor needs a Web Worker. In environments without one (e.g.
+    // jsdom under test) skip the live settle quietly — the seed layout stands.
+    if (typeof Worker === "undefined") return;
+    try {
+      this.liveLayout = new LiveLayout(
+        () => new FA2LayoutSupervisor(graph, { settings: FORCE_ATLAS2_SETTINGS }),
+        { maxRunMs: LIVE_LAYOUT_MOUNT_RUN_MS, nodeCount: graph.order },
+      );
+      this.liveLayout.run();
+    } catch (err) {
+      // Defensive: any other supervisor failure also degrades to the seed layout.
+      this.liveLayout = null;
+      console.debug(`[live-layout] supervisor unavailable: ${String(err)}`);
+    }
   }
 
   /** The community partition over the mounted graph (empty before mount). */
@@ -860,6 +906,10 @@ export class SigmaController {
     this.resizeObserver = null;
     this.themeObserver?.disconnect();
     this.themeObserver = null;
+    // Stop + kill the live force simulation before tearing down Sigma so its
+    // worker never ticks against a disposed graph.
+    this.liveLayout?.dispose();
+    this.liveLayout = null;
     this.sigma?.kill();
     this.sigma = null;
     this.graph = null;

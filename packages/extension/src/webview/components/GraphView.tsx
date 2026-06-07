@@ -436,6 +436,11 @@ export function GraphView({
         setLayoutSelection({ activePreset: result.preset, notice: null });
         const sigma = sigmaRef.current;
         sigma?.refresh();
+        // Re-running ForceAtlas2 → let it settle live again. Circular/Hierarchical
+        // are fixed structural layouts, so they don't get the live sim.
+        if (result.preset === "forceAtlas2") {
+          controllerRef.current?.restartLiveLayout();
+        }
         // A preset can move nodes into a coordinate range outside the current
         // camera view (Hierarchical's origin-centred layers, Circular's ring),
         // which would leave the canvas looking empty. Re-frame the new layout.
