@@ -134,6 +134,7 @@ describe("SigmaController — lifecycle", () => {
     const applyTheme = vi.fn(() => REDUCER_THEME);
     const sigma = controller.mount(stubContainer(), triadGraph(), {
       onNavigate: vi.fn(),
+      onFocus: vi.fn(),
       onSelect: vi.fn(),
       onClear: vi.fn(),
       onTracePick: vi.fn(),
@@ -153,6 +154,7 @@ describe("SigmaController — lifecycle", () => {
     const controller = new SigmaController(freshStore(), options());
     const sigma = controller.mount(stubContainer(), triadGraph(), {
       onNavigate: vi.fn(),
+      onFocus: vi.fn(),
       onSelect: vi.fn(),
       onClear: vi.fn(),
       onTracePick: vi.fn(),
@@ -713,6 +715,7 @@ describe("SigmaController — edge reducer branches", () => {
     // mount() runs community detection; use a stub sigma + the real graph.
     controller.mount(stubContainer(), graph, {
       onNavigate: vi.fn(),
+      onFocus: vi.fn(),
       onSelect: vi.fn(),
       onClear: vi.fn(),
       onTracePick: vi.fn(),

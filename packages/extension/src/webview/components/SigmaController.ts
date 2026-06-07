@@ -103,6 +103,8 @@ export interface SigmaControllerOptions {
 export interface SigmaMountCallbacks {
   /** Open the editor at a node's source location (double-click). */
   onNavigate: (filePath: string, startLine: number) => void;
+  /** Open the focused (boxed-card) view for a node (Alt/Cmd + double-click). */
+  onFocus: (nodeId: string) => void;
   /** A single click committed selection — React updates the Inspector. */
   onSelect: (nodeId: string) => void;
   /** The stage was clicked — clear selection. */
@@ -736,6 +738,13 @@ export class SigmaController {
       }
       const preventable = event as unknown as { preventSigmaDefault?: () => void };
       preventable.preventSigmaDefault?.();
+      // Alt/Cmd + double-click opens the focused card view; plain double-click
+      // keeps its existing go-to-source behaviour.
+      const original = event.event?.original as MouseEvent | undefined;
+      if (original?.altKey === true || original?.metaKey === true) {
+        callbacks.onFocus(event.node);
+        return;
+      }
       const attrs = graph.getNodeAttributes(event.node) as GraphNodeAttributes;
       callbacks.onNavigate(attrs.filePath, attrs.startLine);
     });

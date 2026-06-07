@@ -14,6 +14,7 @@ import {
   restoreNodePositions,
   snapshotNodePositions,
 } from "./graphLayoutPresets.js";
+import { LazyFocusedGraphView } from "../blast-radius/LazyFocusedGraphView.js";
 import { GraphToolbar } from "./GraphToolbar.js";
 import { EdgeTypesPanel, type EdgeTypeEntry } from "./EdgeTypesPanel.js";
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
@@ -587,6 +588,31 @@ export function GraphView({
     sigmaRef.current?.refresh();
   }, []);
 
+  // The focused (React Flow boxed-card) view's input traversal, or null when the
+  // overlay is closed. Opened by Alt/Cmd + double-click; the Sigma canvas stays
+  // mounted underneath so closing restores it with no rebuild.
+  const [focusedTraversal, setFocusedTraversal] = useState<SelectionTraversal | null>(null);
+
+  const openFocusedView = useCallback(
+    (nodeId: string): void => {
+      const graph = graphRef.current;
+      if (graph === null || !graph.hasNode(nodeId)) return;
+      // Honour the current depth control as the focused neighbourhood radius.
+      setFocusedTraversal(computeSelection(graph, nodeId, depth));
+    },
+    [depth],
+  );
+
+  const closeFocusedView = useCallback((): void => {
+    setFocusedTraversal(null);
+  }, []);
+
+  // The mount effect must not re-run when `depth` changes (it would rebuild
+  // Sigma). Route onFocus through a ref that always holds the latest
+  // depth-aware opener, so the mount callback stays stable.
+  const openFocusedViewRef = useRef(openFocusedView);
+  openFocusedViewRef.current = openFocusedView;
+
   // Select a node (highlight + neighbourhood + Inspector) the same way a canvas
   // single-click does, then fly the camera to it with a zoom so the move is
   // obvious. `selectNode` lives in the Sigma effect closure, so the state writes
@@ -948,6 +974,7 @@ export function GraphView({
     try {
       const sigma = controller.mount(container, graph, {
         onNavigate,
+        onFocus: (nodeId) => openFocusedViewRef.current(nodeId),
         onSelect: (nodeId) => {
           // React stays authoritative for the Inspector; the controller owns the
           // selection traversal + overlay. Selecting does NOT recenter the camera.
@@ -1724,6 +1751,25 @@ export function GraphView({
           {activeLayoutLabel}
         </span>
       </footer>
+
+      {focusedTraversal !== null ? (
+        <div className={shellStyles.focusedOverlay} data-testid="focused-view-overlay">
+          <button
+            type="button"
+            className={shellStyles.focusedCloseButton}
+            onClick={closeFocusedView}
+            aria-label="Close focused view"
+          >
+            <span className="codicon codicon-close" aria-hidden="true" /> Close
+          </button>
+          <LazyFocusedGraphView
+            graphNodes={nodes}
+            graphEdges={edges}
+            traversal={focusedTraversal}
+            colors={readThemeColors()}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

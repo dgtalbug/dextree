@@ -19,6 +19,8 @@
   height: 100%;
   width: 100%;
   min-height: 0;
+  /* Anchor for the focused-view overlay (position: absolute; inset: 0). */
+  position: relative;
   background: var(--vscode-editor-background);
 }
 
@@ -181,4 +183,33 @@
   .shell {
     grid-template-columns: 200px 1fr 240px;
   }
+}
+
+/* Focused (React Flow) view — full-canvas overlay above the Sigma graph. */
+.focusedOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--vscode-editor-background);
+}
+
+.focusedCloseButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 21;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 4px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.focusedCloseButton:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
 }
