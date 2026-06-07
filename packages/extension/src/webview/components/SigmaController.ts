@@ -51,18 +51,30 @@ const NodeEntryProgram = createNodeBorderProgram({
 });
 
 const SINGLE_CLICK_DELAY_MS = 180;
+/** Full pre-solve iterations — used only as the no-worker static fallback. */
 const FORCE_ATLAS2_ITERATIONS = 200;
+/**
+ * Light warm-up before the live worker takes over. Enough to roughly place
+ * communities (so the start isn't chaotic) but NOT enough to pre-settle — the
+ * user then watches the worker organize the rest (the "lively" settle). Keep
+ * this low: a high value pre-solves the layout and there's nothing left to
+ * animate, which reads as "moves a little but feels dead".
+ */
+const FORCE_ATLAS2_WARMUP_ITERATIONS = 8;
 /** Shared FA2 physics — used by both the seed `.assign` and the live supervisor. */
 const FORCE_ATLAS2_SETTINGS = {
   gravity: 1.8,
-  scalingRatio: 6,
-  slowDown: 3,
+  scalingRatio: 8,
+  // Lower slowDown = more energetic per-tick motion so the live settle is
+  // visibly lively (graphology divides forces by slowDown). The auto-stop ends
+  // it; we don't need heavy damping to converge.
+  slowDown: 1,
   barnesHutOptimize: true,
   barnesHutTheta: 0.5,
   linLogMode: true,
 } as const;
 /** How long the live settle runs on mount before it auto-stops (ms). */
-const LIVE_LAYOUT_MOUNT_RUN_MS = 2500;
+const LIVE_LAYOUT_MOUNT_RUN_MS = 3500;
 const MINIMAP_MIN_NODES = 20;
 
 // Camera tunables — identical to the values the inline GraphView handlers used,
@@ -676,16 +688,19 @@ export class SigmaController {
     // the edge reducer, and the per-community hull drawing.
     this.communities = detectCommunities(graph);
 
-    // Run the force-directed layout before constructing Sigma so the first paint
-    // is already settled. Layout failure is non-fatal — render the raw positions.
+    // Seed + force layout before constructing Sigma. Layout failure is non-fatal.
     if (graph.order > 0) {
       try {
-        // Seed members near their community centroid first so FA2 refines from a
-        // grouped, reproducible start: members attract into islands, distinct
-        // communities stay apart.
+        // Seed members near their community centroid: a grouped-but-loose start.
+        // Communities sit on a ring, members spiral near their centroid.
         seedPositionsByCommunity(graph, this.communities);
+        // When the live worker WILL run (worker available), only do a light
+        // warm-up here so the graph starts visibly loose and the user watches the
+        // worker ORGANIZE it (the "lively" settle). When there's no worker
+        // (fallback), pre-solve fully so the static first paint is already tidy.
+        const willRunLive = typeof Worker !== "undefined";
         forceAtlas2.assign(graph, {
-          iterations: FORCE_ATLAS2_ITERATIONS,
+          iterations: willRunLive ? FORCE_ATLAS2_WARMUP_ITERATIONS : FORCE_ATLAS2_ITERATIONS,
           settings: FORCE_ATLAS2_SETTINGS,
         });
         stabilizeFileAnchors(graph);

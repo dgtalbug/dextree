@@ -17,7 +17,13 @@ export interface XY {
 }
 
 /** Pixel radius of the first ring; each further ring steps out by this much. */
-export const FOCUSED_RING_SPACING = 220;
+export const FOCUSED_RING_SPACING = 280;
+/**
+ * Minimum perimeter (px) reserved per card on a ring. A card is up to ~220px
+ * wide; reserving more than that as arc keeps neighbouring cards from touching,
+ * so dense rings expand outward instead of overlapping.
+ */
+export const FOCUSED_MIN_ARC_PER_NODE = 260;
 
 /**
  * Assign an `{x,y}` to every focused node. Ring 0 (the focus node) goes to the
@@ -42,7 +48,12 @@ export function computeFocusedLayout(nodes: readonly FocusedNode[]): Map<string,
       for (const id of ids) positions.set(id, { x: 0, y: 0 });
       continue;
     }
-    const radius = ring * FOCUSED_RING_SPACING;
+    // Grow the ring radius with the node count so each card keeps a minimum arc
+    // of perimeter — otherwise a dense ring packs cards on top of each other
+    // (the opposite of "clean"). radius = max(ring spacing, perimeter need).
+    const minRadius = ring * FOCUSED_RING_SPACING;
+    const perimeterNeed = (ids.length * FOCUSED_MIN_ARC_PER_NODE) / (2 * Math.PI);
+    const radius = Math.max(minRadius, perimeterNeed);
     for (let i = 0; i < ids.length; i++) {
       const angle = (2 * Math.PI * i) / ids.length;
       positions.set(ids[i]!, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
