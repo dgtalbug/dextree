@@ -129,6 +129,14 @@ const TS_JS_TAGS = String.raw`
 
 (implements_clause (_) @name) @reference.implements
 
+; Dextree addition: type usage → REFERENCES ("where is this type used").
+(type_annotation (type_identifier) @name) @reference.type
+
+; Dextree addition: re-exports → RE_EXPORTS. An export-from statement names the
+; source module; the engine records a RE_EXPORTS edge to that module path.
+(export_statement
+  source: (string (string_fragment) @name)) @reference.reexport
+
 ; Dextree addition: top-level value bindings (const/let/var without a function
 ; value) are modelled as variable symbols for graph parity. Tree-sitter's stock
 ; tagset omits these (they're not navigation targets), but Dextree surfaces them.
@@ -167,6 +175,8 @@ const TS_CONFIG: ProviderConfig = {
     "reference.extends": "INHERITS",
     "reference.implements": "IMPLEMENTS",
     "reference.class": "INSTANTIATES",
+    "reference.type": "REFERENCES",
+    "reference.reexport": "RE_EXPORTS",
   },
 };
 

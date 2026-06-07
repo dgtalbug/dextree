@@ -334,7 +334,7 @@ function remapExtraEdges(
  * file targets are resolved immediately; cross-file targets remain null (pass-2).
  */
 async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: string): Promise<void> {
-  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS')`;
+  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES', 'RE_EXPORTS')`;
 
   // Step 1: source_id → actual symbol id, keyed by source_fqn (all kinds share this)
   await connection.run(
@@ -441,6 +441,27 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
     { file_id: fileId },
   );
 
+  // Step 2e (REFERENCES): target_id → same-file symbol by referenced_name
+  // (type usage etc.). Cross-file references resolve in the workspace pass.
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = COALESCE(
+        (
+          SELECT s.id FROM symbol s
+          WHERE s.file_id = $file_id
+            AND s.name = json_extract_string(edge.metadata, '$.referenced_name')
+          LIMIT 1
+        ),
+        target_id
+      )
+      WHERE kind = 'REFERENCES'
+        AND target_id IS NULL
+        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
+    `,
+    { file_id: fileId },
+  );
+
   await stampResolutionTier(connection);
 }
 
@@ -453,7 +474,9 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
  * tier field, never the target.
  */
 export async function stampResolutionTier(connection: DuckDBConnection): Promise<void> {
-  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS')`;
+  // RE_EXPORTS is path-based (resolved at query time like IMPORTS), so it is not
+  // tier-stamped here — it gets the 'structural' tier below.
+  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES')`;
   // Resolved → heuristic (unless already marked precise by a higher tier).
   await connection.run(
     `
@@ -480,8 +503,9 @@ export async function stampResolutionTier(connection: DuckDBConnection): Promise
         AND COALESCE(json_extract_string(metadata, '$.resolution'), '') NOT IN ('precise', 'heuristic')
     `,
   );
-  // Structural edges (DEFINES, CONTAINS) are always-resolved facts, not guesses —
-  // tag them 'structural' so coverage reporting has no 'unspecified' rows.
+  // Structural / path-resolved edges (DEFINES, CONTAINS, RE_EXPORTS) are facts
+  // resolved structurally or at query time, not heuristic guesses — tag them
+  // 'structural' so coverage reporting has no 'unspecified' rows.
   await connection.run(
     `
       UPDATE edge
@@ -489,7 +513,7 @@ export async function stampResolutionTier(connection: DuckDBConnection): Promise
         metadata,
         '{"resolution":"structural","confidence":1.0}'
       )
-      WHERE kind IN ('DEFINES', 'CONTAINS')
+      WHERE kind IN ('DEFINES', 'CONTAINS', 'RE_EXPORTS')
         AND COALESCE(json_extract_string(metadata, '$.resolution'), '') = ''
     `,
   );

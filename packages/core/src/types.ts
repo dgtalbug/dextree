@@ -88,7 +88,9 @@ export type GraphEdgeKind =
   | "CALLS"
   | "INHERITS"
   | "INSTANTIATES"
-  | "IMPLEMENTS";
+  | "IMPLEMENTS"
+  | "REFERENCES"
+  | "RE_EXPORTS";
 
 export interface SymbolRange {
   startLine: number;

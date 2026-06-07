@@ -104,6 +104,24 @@ describe("GenericTagsExtractor", () => {
     expect(instantiates?.metadata.class_name).toBe("Service");
   });
 
+  it("emits REFERENCES (type usage) and RE_EXPORTS edges", async () => {
+    const source = `
+      export * from "./other";
+      export { foo } from "./other";
+      export function use(v: MyType): number { return 1; }
+    `;
+    const result = await run(source, "src/f.ts", "typescript");
+    const kinds = result.edges.map((e) => e.kind);
+
+    expect(kinds).toContain("REFERENCES");
+    expect(kinds).toContain("RE_EXPORTS");
+
+    const ref = result.edges.find((e) => e.kind === "REFERENCES");
+    expect(ref?.metadata.referenced_name).toBe("MyType");
+    const reexport = result.edges.find((e) => e.kind === "RE_EXPORTS");
+    expect(reexport?.metadata.reexport_path).toBe("./other");
+  });
+
   it("is generic: the SAME engine extracts Python via its provider (data-only)", async () => {
     // Python provider is registered in Phase 2; this asserts the mechanism is
     // language-agnostic once a provider exists. Skipped until the provider lands.

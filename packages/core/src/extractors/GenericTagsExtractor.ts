@@ -204,10 +204,14 @@ function buildCallEdges(calls: CallSite[], symbols: StoredSymbol[], fileId: stri
 }
 
 // The target-name metadata key the resolution SQL expects, per edge kind.
+// REFERENCES resolves to a symbol by name; RE_EXPORTS names a module path
+// (resolved at query time like IMPORTS), so its key is distinct.
 const TARGET_NAME_KEY: Record<string, string> = {
   INHERITS: "parent_name",
   INSTANTIATES: "class_name",
   IMPLEMENTS: "interface_name",
+  REFERENCES: "referenced_name",
+  RE_EXPORTS: "reexport_path",
 };
 
 /**
