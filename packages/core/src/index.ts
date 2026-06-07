@@ -96,6 +96,8 @@ export type {
   NodeLocation,
   PreciseCallEdge,
   PreciseLocationResolver,
+  PreciseResolution,
+  UnresolvedCallSite,
 } from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 export type { ForeignGraphReader, GraphRepository } from "./storage/graphRepository.js";

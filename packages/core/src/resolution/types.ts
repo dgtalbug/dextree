@@ -64,3 +64,20 @@ export interface PreciseLocationResolver {
   readonly tier: "precise";
   resolve(node: NodeLocation, direction: "in" | "out"): Promise<readonly PreciseCallEdge[]>;
 }
+
+/**
+ * A persisted `CALLS` edge still at the heuristic/unresolved tier, paired with the
+ * location of its source symbol — the work-list item for the precise (pass-2)
+ * resolution pass. The pass queries the language server at `sourceLocation` and,
+ * on a match, upgrades this edge.
+ */
+export interface UnresolvedCallSite {
+  edgeId: string;
+  sourceLocation: NodeLocation;
+}
+
+/** A precise resolution to persist: an edge now points at a confirmed target symbol. */
+export interface PreciseResolution {
+  edgeId: string;
+  targetId: string;
+}

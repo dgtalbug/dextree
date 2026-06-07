@@ -1,4 +1,5 @@
 import type { EdgeRow } from "../extractors/types.js";
+import type { NodeLocation, PreciseResolution, UnresolvedCallSite } from "../resolution/types.js";
 import type {
   CoverageReport,
   ExtractedIndexData,
@@ -26,12 +27,32 @@ import type { WriteWorkspaceCacheSnapshotInput } from "./workspaceCache.js";
  * storage, clears) for round-trip tests. Analytics-heavy reads return valid
  * empty shapes — extend them in a test if a scenario needs richer behavior.
  */
+/** In-memory CALLS edge for the precise-resolution round-trip (test modelling). */
+interface FakeEdge {
+  edgeId: string;
+  source: NodeLocation;
+  targetId: string | null;
+  resolution: "heuristic" | "unresolved" | "precise";
+}
+
 export class FakeGraphRepository implements GraphRepository {
   /** relativePath → file */
   private readonly files = new Map<string, StoredFile>();
   /** relativePath → symbols */
   private readonly symbolsByFile = new Map<string, StoredSymbol[]>();
   private readonly cacheSnapshots = new Map<string, WriteWorkspaceCacheSnapshotInput>();
+  /** CALLS edges, for the precise-resolution contract tests. */
+  private readonly callEdges: FakeEdge[] = [];
+  /** `${filePath}:${startLine}` → symbol id, for findSymbolIdAt. */
+  private readonly symbolByLocation = new Map<string, string>();
+
+  /** Test helper: seed a CALLS edge + the target symbol's location, for precise tests. */
+  seedCallSite(edge: FakeEdge, target?: { filePath: string; line: number; id: string }): void {
+    this.callEdges.push(edge);
+    if (target !== undefined) {
+      this.symbolByLocation.set(`${target.filePath}:${target.line}`, target.id);
+    }
+  }
 
   async initializeSchema(): Promise<void> {}
 
@@ -65,6 +86,28 @@ export class FakeGraphRepository implements GraphRepository {
   async stampResolutionTier(): Promise<void> {}
 
   async synthesizeFolderTree(): Promise<void> {}
+
+  async getUnresolvedCallSites(_workspaceRoot: string): Promise<UnresolvedCallSite[]> {
+    return this.callEdges
+      .filter((e) => e.resolution !== "precise")
+      .map((e) => ({ edgeId: e.edgeId, sourceLocation: e.source }));
+  }
+
+  async findSymbolIdAt(filePath: string, line: number): Promise<string | null> {
+    return this.symbolByLocation.get(`${filePath}:${line}`) ?? null;
+  }
+
+  async persistPreciseEdges(resolutions: readonly PreciseResolution[]): Promise<number> {
+    let upgraded = 0;
+    for (const { edgeId, targetId } of resolutions) {
+      const edge = this.callEdges.find((e) => e.edgeId === edgeId);
+      if (edge === undefined) continue;
+      edge.targetId = targetId;
+      edge.resolution = "precise";
+      upgraded += 1;
+    }
+    return upgraded;
+  }
 
   async getWorkspaceSubgraph(): Promise<WorkspaceSubgraph> {
     return { nodes: [], edges: [], frameworks: [] };

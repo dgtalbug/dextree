@@ -1,4 +1,5 @@
 import type { EdgeRow } from "../extractors/types.js";
+import type { PreciseResolution, UnresolvedCallSite } from "../resolution/types.js";
 import type {
   CoverageReport,
   ExtractedIndexData,
@@ -49,6 +50,14 @@ export interface GraphRepository {
   resolveWorkspaceCrossFileEdges(workspaceRoot: string): Promise<void>;
   stampResolutionTier(): Promise<void>;
   synthesizeFolderTree(): Promise<void>;
+
+  // ---- precise (pass-2) resolution: persist LSP-resolved CALLS targets ----
+  /** `CALLS` edges still heuristic/unresolved, with their source symbol's location. */
+  getUnresolvedCallSites(workspaceRoot: string): Promise<UnresolvedCallSite[]>;
+  /** Map a language-server result location to a stored symbol id, or null on no/ambiguous match. */
+  findSymbolIdAt(filePath: string, line: number): Promise<string | null>;
+  /** Set target_id + stamp `metadata.resolution='precise'` for each resolution; returns the count upgraded. */
+  persistPreciseEdges(resolutions: readonly PreciseResolution[]): Promise<number>;
 
   // ---- reads (the query surface consumed by the app + UI) ----
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph>;
