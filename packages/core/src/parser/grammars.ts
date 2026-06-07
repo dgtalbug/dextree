@@ -47,6 +47,12 @@ const GRAMMARS: Readonly<Record<string, GrammarAsset>> = {
   java: { language: "java", dir: "tree-sitter-java", wasm: "tree-sitter-java.wasm" },
   ruby: { language: "ruby", dir: "tree-sitter-ruby", wasm: "tree-sitter-ruby.wasm" },
   rust: { language: "rust", dir: "tree-sitter-rust", wasm: "tree-sitter-rust.wasm" },
+  c: { language: "c", dir: "tree-sitter-c", wasm: "tree-sitter-c.wasm" },
+  cpp: { language: "cpp", dir: "tree-sitter-cpp", wasm: "tree-sitter-cpp.wasm" },
+  csharp: { language: "csharp", dir: "tree-sitter-c-sharp", wasm: "tree-sitter-c_sharp.wasm" },
+  php: { language: "php", dir: "tree-sitter-php", wasm: "tree-sitter-php.wasm" },
+  elixir: { language: "elixir", dir: "tree-sitter-elixir", wasm: "tree-sitter-elixir.wasm" },
+  scala: { language: "scala", dir: "tree-sitter-scala", wasm: "tree-sitter-scala.wasm" },
 };
 
 export function getGrammarAsset(language: string): GrammarAsset | undefined {

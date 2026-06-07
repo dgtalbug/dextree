@@ -19,6 +19,12 @@ const LANGUAGES = [
   { pkg: "tree-sitter-java", languages: ["java"] },
   { pkg: "tree-sitter-ruby", languages: ["ruby"] },
   { pkg: "tree-sitter-rust", languages: ["rust"] },
+  { pkg: "tree-sitter-c", languages: ["c"] },
+  { pkg: "tree-sitter-cpp", languages: ["cpp"] },
+  { pkg: "tree-sitter-c-sharp", languages: ["csharp"] },
+  { pkg: "tree-sitter-php", languages: ["php"] },
+  { pkg: "tree-sitter-elixir", languages: ["elixir"] },
+  { pkg: "tree-sitter-scala", languages: ["scala"] },
 ];
 
 // Standard tree-sitter tags `definition.<suffix>` → Dextree SymbolKind. Suffixes

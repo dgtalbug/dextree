@@ -65,6 +65,43 @@ const CASES = [
     source: "fn top_level() -> i32 { inner() }\n\nstruct Service;\n",
     expectSymbols: ["top_level"],
   },
+  {
+    language: "c",
+    path: "a.c",
+    source: "int add(int a, int b) { return a + b; }\n",
+    expectSymbols: ["add"],
+  },
+  {
+    language: "cpp",
+    path: "a.cpp",
+    source: "class Widget {\npublic:\n  int run() { return 1; }\n};\n",
+    expectSymbols: ["Widget"],
+  },
+  {
+    language: "csharp",
+    path: "A.cs",
+    source: "public class Svc {\n  public int Run() { return 1; }\n}\n",
+    expectSymbols: ["Svc"],
+  },
+  {
+    language: "php",
+    path: "a.php",
+    source:
+      "<?php\nfunction top() { return 1; }\nclass PhpSvc { public function run() { return 1; } }\n",
+    expectSymbols: ["top", "PhpSvc"],
+  },
+  {
+    language: "elixir",
+    path: "a.ex",
+    source: "defmodule M do\n  def top do\n    1\n  end\nend\n",
+    expectSymbols: ["top"],
+  },
+  {
+    language: "scala",
+    path: "a.scala",
+    source: "object Svc {\n  def run(): Int = 1\n}\n",
+    expectSymbols: ["run"],
+  },
 ];
 
 describe("multi-language extraction (data-only providers)", () => {
