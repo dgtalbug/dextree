@@ -165,6 +165,109 @@ function assignCircularPositions(
   }
 }
 
+/** Radius of the first concentric ring; outer rings step out by this much. */
+const RADIAL_RING_SPACING = 160;
+/** Concentric rings to place on select (center = ring 0). 2 hops → rings 1 and 2. */
+const RADIAL_MAX_RINGS = 2;
+
+/**
+ * Place a selected node's neighbourhood as concentric rings: the selected node
+ * at the origin, its direct neighbours evenly spaced on the inner ring, their
+ * neighbours on the next ring out. Built from the selection's pre-computed BFS
+ * `hopLayers` (layer 0 = the selected node), so no traversal is recomputed here.
+ *
+ * The inner ring (direct neighbours of a single centre) is a star — provably
+ * crossing-free. Outer rings can cross; we accept that for the added 2-hop
+ * context. Each ring's nodes are angularly anchored under their nearest
+ * inner-ring parent so an edge from ring N to ring N+1 stays roughly radial
+ * instead of sweeping across the circle.
+ *
+ * Only nodes within {@link RADIAL_MAX_RINGS} hops are repositioned; everything
+ * else keeps its prior coordinates (it is dimmed by the selection reducers).
+ * Returns the set of node ids that were moved.
+ */
+export function assignRadialPositions(
+  graph: MultiDirectedGraph,
+  hopLayers: readonly (readonly string[])[],
+): ReadonlySet<string> {
+  const moved = new Set<string>();
+  if (hopLayers.length === 0) return moved;
+
+  const center = hopLayers[0]?.[0];
+  if (center === undefined || !graph.hasNode(center)) return moved;
+  graph.setNodeAttribute(center, "x", 0);
+  graph.setNodeAttribute(center, "y", 0);
+  moved.add(center);
+
+  // Angle assigned to each placed node, so the next ring can anchor children
+  // near their parent's angle (keeps ring→ring edges radial, not chordal).
+  const angleOf = new Map<string, number>([[center, 0]]);
+
+  const lastRing = Math.min(RADIAL_MAX_RINGS, hopLayers.length - 1);
+  for (let ring = 1; ring <= lastRing; ring++) {
+    const layer = (hopLayers[ring] ?? []).filter((id) => graph.hasNode(id));
+    if (layer.length === 0) continue;
+    const radius = ring * RADIAL_RING_SPACING;
+
+    if (ring === 1) {
+      // Direct neighbours: spread evenly around the full circle.
+      for (let i = 0; i < layer.length; i++) {
+        const angle = (2 * Math.PI * i) / layer.length;
+        place(graph, layer[i]!, radius, angle, moved, angleOf);
+      }
+    } else {
+      // Outer ring: anchor each node near an inner-ring parent's angle so the
+      // connecting edge points outward. Falls back to even spread for orphans.
+      const byParentAngle = layer
+        .map((id) => ({ id, angle: nearestParentAngle(graph, id, angleOf) }))
+        .sort((a, b) => a.angle - b.angle);
+      // Nudge duplicates apart so co-anchored nodes don't stack.
+      for (let i = 0; i < byParentAngle.length; i++) {
+        const spread = (i - (byParentAngle.length - 1) / 2) * 0.18;
+        const base = byParentAngle[i]!.angle;
+        place(graph, byParentAngle[i]!.id, radius, base + spread, moved, angleOf);
+      }
+    }
+  }
+
+  return moved;
+}
+
+function place(
+  graph: MultiDirectedGraph,
+  id: string,
+  radius: number,
+  angle: number,
+  moved: Set<string>,
+  angleOf: Map<string, number>,
+): void {
+  graph.setNodeAttribute(id, "x", Math.cos(angle) * radius);
+  graph.setNodeAttribute(id, "y", Math.sin(angle) * radius);
+  moved.add(id);
+  angleOf.set(id, angle);
+}
+
+/** Average angle of an outer node's already-placed neighbours, or 0 if none. */
+function nearestParentAngle(
+  graph: MultiDirectedGraph,
+  id: string,
+  angleOf: Map<string, number>,
+): number {
+  let sumX = 0;
+  let sumY = 0;
+  let count = 0;
+  graph.forEachNeighbor(id, (neighbor) => {
+    const a = angleOf.get(neighbor);
+    if (a === undefined) return;
+    // Average on the unit circle to avoid wrap-around bias near ±π.
+    sumX += Math.cos(a);
+    sumY += Math.sin(a);
+    count += 1;
+  });
+  if (count === 0) return 0;
+  return Math.atan2(sumY, sumX);
+}
+
 /**
  * Anti-collision readability post-pass.
  *

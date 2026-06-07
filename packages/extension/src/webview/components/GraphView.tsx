@@ -9,6 +9,7 @@ import type Sigma from "sigma";
 
 import {
   applyLayoutPreset,
+  assignRadialPositions,
   LAYOUT_PRESET_OPTIONS,
   restoreNodePositions,
   snapshotNodePositions,
@@ -373,6 +374,9 @@ export function GraphView({
   const [retryCount, setRetryCount] = useState(0);
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Pre-radial node positions, captured when a selection begins so deselect can
+  // restore the exact prior layout. Null when no selection is repositioning.
+  const radialSnapshotRef = useRef<ReturnType<typeof snapshotNodePositions> | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(false);
   // Seed from the restored preference (VS Code state); default on when unset.
@@ -548,30 +552,59 @@ export function GraphView({
     setSearchFocusedIndex(0);
   }, []);
 
+  // Reposition the selected node's neighbourhood as concentric rings (center +
+  // 2 hops) so its edges fan out radially with minimal crossing. Snapshots the
+  // prior layout once per selection so deselect can restore it exactly.
+  const applyRadialOnSelect = useCallback((selection: { hopLayers: string[][] } | null): void => {
+    const graph = graphRef.current;
+    if (graph === null || selection === null || selection.hopLayers.length === 0) return;
+    if (radialSnapshotRef.current === null) {
+      radialSnapshotRef.current = snapshotNodePositions(graph);
+    }
+    assignRadialPositions(graph, selection.hopLayers);
+    sigmaRef.current?.refresh();
+  }, []);
+
+  // Restore the pre-radial layout (deselect / data change). No-op if nothing was
+  // repositioned.
+  const restoreFromRadial = useCallback((): void => {
+    const graph = graphRef.current;
+    const snapshot = radialSnapshotRef.current;
+    if (graph === null || snapshot === null) return;
+    restoreNodePositions(graph, snapshot);
+    radialSnapshotRef.current = null;
+    sigmaRef.current?.refresh();
+  }, []);
+
   // Select a node (highlight + neighbourhood + Inspector) the same way a canvas
   // single-click does, then fly the camera to it with a zoom so the move is
   // obvious. `selectNode` lives in the Sigma effect closure, so the state writes
   // are replicated here. Shared by search-result and lens-row selection.
-  const selectAndFlyToNode = useCallback((nodeId: string): void => {
-    const sigma = sigmaRef.current;
-    const graph = graphRef.current;
-    if (graph === null || !graph.hasNode(nodeId)) return;
-    setSelectedNodeId(nodeId);
-    // Historically this path set the selection + refreshed but did not touch the
-    // overlay (unlike a canvas click); preserve that by opting out.
-    controllerRef.current?.setSelection(nodeId, { updateOverlay: false });
+  const selectAndFlyToNode = useCallback(
+    (nodeId: string): void => {
+      const sigma = sigmaRef.current;
+      const graph = graphRef.current;
+      if (graph === null || !graph.hasNode(nodeId)) return;
+      setSelectedNodeId(nodeId);
+      // Historically this path set the selection + refreshed but did not touch the
+      // overlay (unlike a canvas click); preserve that by opting out.
+      controllerRef.current?.setSelection(nodeId, { updateOverlay: false });
+      // Radial repositions the selected node to the origin, so fly there.
+      applyRadialOnSelect(controllerRef.current?.currentSelection ?? null);
 
-    // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
-    // zoomed-out graph). Clamp so we only ever zoom in, never out.
-    const camera = (sigma as SigmaWithExtras | null)?.getCamera?.();
-    const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
-    const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
-    if (camera?.animate !== undefined && typeof x === "number" && typeof y === "number") {
-      const currentRatio = camera.getState?.().ratio ?? 1;
-      const ratio = Math.min(currentRatio, SEARCH_FLY_TO_RATIO);
-      camera.animate({ x, y, ratio }, { duration: CAMERA_CENTER_DURATION_MS });
-    }
-  }, []);
+      // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
+      // zoomed-out graph). Clamp so we only ever zoom in, never out.
+      const camera = (sigma as SigmaWithExtras | null)?.getCamera?.();
+      const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
+      const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+      if (camera?.animate !== undefined && typeof x === "number" && typeof y === "number") {
+        const currentRatio = camera.getState?.().ratio ?? 1;
+        const ratio = Math.min(currentRatio, SEARCH_FLY_TO_RATIO);
+        camera.animate({ x, y, ratio }, { duration: CAMERA_CENTER_DURATION_MS });
+      }
+    },
+    [applyRadialOnSelect],
+  );
 
   const handleSearchSelectResult = useCallback(
     (nodeId: string, index: number): void => {
@@ -804,6 +837,9 @@ export function GraphView({
 
   useEffect(() => {
     setSelectedNodeId(null);
+    // Graph data changed — drop any pending radial snapshot rather than restoring
+    // it: its node ids belong to the previous graph and the new layout is fresh.
+    radialSnapshotRef.current = null;
     // Clear the controller's selection/hover render mirror when the graph data
     // changes. setSelection(null) also clears the overlay; setHover(null) is a
     // no-op before mount (no graph yet) and clears hover after.
@@ -906,10 +942,12 @@ export function GraphView({
           // selection traversal + overlay. Selecting does NOT recenter the camera.
           setSelectedNodeId(nodeId);
           controller.setSelection(nodeId);
+          applyRadialOnSelect(controller.currentSelection);
         },
         onClear: () => {
           setSelectedNodeId(null);
           controller.setSelection(null);
+          restoreFromRadial();
         },
         onTracePick: (nodeId) => handleTraceNodeClick(nodeId),
         // mount() sets the controller's instance before invoking this, so read
