@@ -197,18 +197,30 @@ function emitMermaidLines(
  * non-ok status; callers that want graceful handling should call the
  * helpers themselves first.
  */
+/**
+ * Strategy contract for a Mermaid diagram type (RULE-ARCH-004). Each diagram is
+ * one serializer; the registry below maps the diagram discriminator to its
+ * strategy, so adding a diagram type is a registration, not a new switch arm.
+ */
+export interface SubgraphSerializer {
+  serialize(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string;
+}
+
+const SERIALIZERS: Readonly<Record<MermaidDiagram, SubgraphSerializer>> = {
+  flowchart: { serialize: serializeFlowchart },
+  classDiagram: { serialize: serializeToClassDiagram },
+  sequenceDiagram: { serialize: serializeSequence },
+};
+
 export function serializeToScopedMermaid(
   subgraph: WorkspaceSubgraph,
   options: ScopedMermaidOptions,
 ): string {
-  switch (options.diagram) {
-    case "flowchart":
-      return serializeFlowchart(subgraph, options);
-    case "classDiagram":
-      return serializeToClassDiagram(subgraph, options);
-    case "sequenceDiagram":
-      return serializeSequence(subgraph, options);
+  const serializer = SERIALIZERS[options.diagram];
+  if (serializer === undefined) {
+    throw new Error(`No Mermaid serializer registered for diagram type '${options.diagram}'`);
   }
+  return serializer.serialize(subgraph, options);
 }
 
 function serializeSequence(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {

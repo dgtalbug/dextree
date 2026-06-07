@@ -113,7 +113,14 @@ export type {
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 export { getCoverageReport } from "./query/coverage.js";
 export { neighborhood } from "./query/neighborhood.js";
-export type { CallResolver, ResolvedEdge, ResolutionTier } from "./resolution/types.js";
+export type {
+  CallResolver,
+  ResolvedEdge,
+  ResolutionTier,
+  NodeLocation,
+  PreciseCallEdge,
+  PreciseLocationResolver,
+} from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 

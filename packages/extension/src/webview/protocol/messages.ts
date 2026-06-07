@@ -7,7 +7,7 @@
  * Webview → Extension host: WebviewToHostMessage
  */
 
-import type { GraphEdge, GraphNode } from "@dextree/core";
+import type { GraphEdge, GraphNode, PreciseCallEdge } from "@dextree/core";
 import type {
   MermaidPreviewOptions,
   MermaidPreviewResult,
@@ -85,14 +85,12 @@ export interface MermaidPreviewMessage {
   preview: MermaidPreviewResult;
 }
 
-/** A precise caller/callee resolved by the user's language server (phase 4). */
-export interface PreciseCallEdgeResult {
-  name: string;
-  filePath: string;
-  line: number;
-  tier: "precise";
-  confidence: number;
-}
+/**
+ * A precise caller/callee resolved by the user's language server. Aliased to
+ * core's `PreciseCallEdge` so the host resolver, the message, and the webview all
+ * share one shape (RULE-ARCH-007 — no duplicated edge type).
+ */
+export type PreciseCallEdgeResult = PreciseCallEdge;
 
 /** Host → webview: precise callers/callees for a selected node (phase 4). */
 export interface PreciseCallsMessage {
