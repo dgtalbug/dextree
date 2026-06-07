@@ -69,6 +69,7 @@ interface CameraSurface {
     options?: { duration?: number },
   ) => void;
   getState?: () => { x: number; y: number; ratio: number };
+  animatedReset?: (options?: { duration?: number }) => unknown;
 }
 
 type SigmaWithCamera = Sigma & { getCamera?: () => CameraSurface };

@@ -64,10 +64,12 @@ function triadGraph(): MultiDirectedGraph {
  */
 function stubSigma(initial = { x: 0.4, y: 0.6, ratio: 2 }) {
   const animate = vi.fn();
+  const animatedReset = vi.fn();
   const kill = vi.fn();
   const refresh = vi.fn();
   const camera = {
     animate,
+    animatedReset,
     getState: () => initial,
   };
   const sigma = {
@@ -75,7 +77,7 @@ function stubSigma(initial = { x: 0.4, y: 0.6, ratio: 2 }) {
     refresh,
     getCamera: () => camera,
   } as unknown as Sigma;
-  return { sigma, animate, kill, refresh };
+  return { sigma, animate, animatedReset, kill, refresh };
 }
 
 function stubContainer(): HTMLDivElement {
@@ -328,21 +330,21 @@ describe("SigmaController — camera operations", () => {
 
   it("zoomFit frames the populated graph via the camera", () => {
     const controller = new SigmaController(freshStore(), options());
-    const { sigma, animate } = stubSigma();
+    const { sigma, animatedReset } = stubSigma();
     const graph = new MultiDirectedGraph();
     graph.addNode("a", { x: 0, y: 0 });
     graph.addNode("b", { x: 10, y: 10 });
     controller.adopt(sigma, graph, stubContainer());
     controller.zoomFit();
-    expect(animate).toHaveBeenCalledTimes(1);
+    expect(animatedReset).toHaveBeenCalledTimes(1);
   });
 
   it("zoomFit is a no-op on an empty graph", () => {
     const controller = new SigmaController(freshStore(), options());
-    const { sigma, animate } = stubSigma();
+    const { sigma, animatedReset } = stubSigma();
     controller.adopt(sigma, new MultiDirectedGraph(), stubContainer());
     controller.zoomFit();
-    expect(animate).not.toHaveBeenCalled();
+    expect(animatedReset).not.toHaveBeenCalled();
   });
 
   it("camera ops are no-ops before mount", () => {

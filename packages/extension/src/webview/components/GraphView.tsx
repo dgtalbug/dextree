@@ -103,7 +103,9 @@ type SigmaWithExtras = Sigma & {
       options?: { duration?: number },
     ) => void;
     getState?: () => { x: number; y: number; ratio: number };
+    animatedReset?: (options?: { duration?: number }) => unknown;
   };
+  refresh?: () => void;
 };
 
 function useReducedMotionPreference(): boolean {
