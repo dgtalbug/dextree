@@ -1,12 +1,6 @@
 import type { Logger, WorkspaceSubgraph } from "@dextree/core";
 
-import {
-  applyMermaidGranularity,
-  clampGranularityToScope,
-  extractMermaidScope,
-  serializeToScopedMermaid,
-  validateScopedMermaidExport,
-} from "./scopedSerializer.js";
+import { serializeScopedMermaidResult } from "./scopedSerializer.js";
 import type { MermaidDirection, MermaidGranularity, MermaidScope } from "./scopedSerializer.js";
 import { MERMAID_INIT_DIRECTIVE } from "./theme.js";
 
@@ -117,61 +111,39 @@ export function generateMermaidPreview(
     };
   }
 
-  try {
-    const source = serializeToScopedMermaid(subgraph, {
-      diagram: options.diagram,
-      scope: options.scope,
-      granularity: options.granularity,
-      direction: options.direction,
-      theme: SCOPED_THEME_BY_PREVIEW_THEME[options.theme],
-    });
-    return {
-      status: "ok",
-      options,
-      source,
-      title: titleForOptions(options),
-      ...(softCapWarning(subgraph, options) ?? {}),
-    };
-  } catch (err) {
-    logger?.error("generateMermaidPreview failed", err, {
+  // The serializer returns its validation as data, so status comes from the
+  // typed outcome (not a regex over a thrown Error message) and the soft-cap
+  // `warning` is read directly (no re-run of the extract→collapse→validate pipeline).
+  const { source, validation } = serializeScopedMermaidResult(subgraph, {
+    diagram: options.diagram,
+    scope: options.scope,
+    granularity: options.granularity,
+    direction: options.direction,
+    theme: SCOPED_THEME_BY_PREVIEW_THEME[options.theme],
+  });
+
+  if (source === null) {
+    const reason = "reason" in validation ? validation.reason : "Preview unavailable.";
+    // source === null only for blocking statuses; ok/warning always carry source.
+    const status: "empty" | "oversized" | "unsupported" =
+      validation.status === "empty" || validation.status === "oversized"
+        ? validation.status
+        : "unsupported";
+    logger?.error("generateMermaidPreview failed", new Error(reason), {
       options: options as unknown as Record<string, unknown>,
       nodeCount: subgraph.nodes.length,
       edgeCount: subgraph.edges.length,
     });
-    const reason = err instanceof Error ? err.message : String(err);
-    const status = classifyFailure(reason);
     return { status, options, reason };
   }
-}
 
-/**
- * Detect the soft-cap `warning` for a successful flowchart preview by re-running
- * the (pure) extract → collapse → validate pipeline. Returns `{ warning }` when
- * the export is above the soft cap (but within the hard cap, else it would have
- * thrown), or null otherwise. ClassDiagram has no node-cap path, so it never
- * warns here.
- */
-function softCapWarning(
-  subgraph: WorkspaceSubgraph,
-  options: MermaidPreviewOptions,
-): { warning: string } | null {
-  if (options.diagram !== "flowchart") {
-    return null;
-  }
-  const extracted = extractMermaidScope(subgraph, options.scope);
-  if (extracted.status !== "ok") {
-    return null;
-  }
-  const granularity = clampGranularityToScope(options.scope, options.granularity);
-  const collapsed = applyMermaidGranularity(extracted.subgraph, granularity);
-  const validation = validateScopedMermaidExport(collapsed, granularity);
-  return validation.status === "warning" ? { warning: validation.reason } : null;
-}
-
-function classifyFailure(reason: string): "empty" | "oversized" | "unsupported" {
-  if (/zero nodes|empty/i.test(reason)) return "empty";
-  if (/exceeds|oversized|cap/i.test(reason)) return "oversized";
-  return "unsupported";
+  return {
+    status: "ok",
+    options,
+    source,
+    title: titleForOptions(options),
+    ...(validation.status === "warning" ? { warning: validation.reason } : {}),
+  };
 }
 
 // Re-exported so consumers (the extension command + webview render path) can

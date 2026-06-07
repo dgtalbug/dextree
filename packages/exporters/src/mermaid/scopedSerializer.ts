@@ -223,6 +223,43 @@ export function serializeToScopedMermaid(
   return serializer.serialize(subgraph, options);
 }
 
+/**
+ * Typed, non-throwing variant of {@link serializeToScopedMermaid}. Returns the
+ * validation outcome as data alongside the source, so callers (the preview
+ * router) can branch on `validation.status` instead of catching an Error and
+ * regex-matching its message, and read the soft-cap `warning` without re-running
+ * the pipeline. `source` is non-null exactly when `validation.status` is `ok` or
+ * `warning`; it is null for `empty` / `oversized` / `unsupported`.
+ */
+export interface ScopedMermaidResult {
+  source: string | null;
+  validation: ScopedExportValidation;
+}
+
+export function serializeScopedMermaidResult(
+  subgraph: WorkspaceSubgraph,
+  options: ScopedMermaidOptions,
+): ScopedMermaidResult {
+  if (options.diagram === "flowchart") {
+    return serializeFlowchartResult(subgraph, options);
+  }
+  // classDiagram / sequenceDiagram have no soft-cap node path; surface their
+  // blocking failures as a typed validation rather than a thrown Error. Their
+  // failures are empty-scope or unsupported (both `{status, reason}` shapes) —
+  // never the cap-bearing `oversized`.
+  try {
+    return { source: SERIALIZERS[options.diagram].serialize(subgraph, options), validation: OK };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    const status: "empty" | "unsupported" = /zero nodes|empty/i.test(reason)
+      ? "empty"
+      : "unsupported";
+    return { source: null, validation: { status, reason } };
+  }
+}
+
+const OK: ScopedExportValidation = { status: "ok", nodeCount: 0, edgeCount: 0 };
+
 function serializeSequence(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {
   if (!options.trace) {
     throw new Error(
@@ -237,9 +274,26 @@ function serializeSequence(subgraph: WorkspaceSubgraph, options: ScopedMermaidOp
 }
 
 function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {
+  const result = serializeFlowchartResult(subgraph, options);
+  if (result.source === null) {
+    throw new Error(
+      "reason" in result.validation ? result.validation.reason : "flowchart export failed",
+    );
+  }
+  return result.source;
+}
+
+/**
+ * Flowchart serialization computing its validation once and returning it with the
+ * source. The throwing {@link serializeFlowchart} is a thin wrapper over this.
+ */
+function serializeFlowchartResult(
+  subgraph: WorkspaceSubgraph,
+  options: ScopedMermaidOptions,
+): ScopedMermaidResult {
   const extracted = extractMermaidScope(subgraph, options.scope);
   if (extracted.status === "unsupported") {
-    throw new Error(extracted.reason);
+    return { source: null, validation: { status: "unsupported", reason: extracted.reason } };
   }
 
   const granularity = options.allowUnscopedSymbols
@@ -252,11 +306,11 @@ function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidO
   // (the UI surfaces the non-blocking notice). Only empty / oversized /
   // unsupported block the export.
   if (validation.status !== "ok" && validation.status !== "warning") {
-    throw new Error(validation.reason);
+    return { source: null, validation };
   }
 
   const direction =
     options.direction === "auto" ? inferMermaidDirection(options.scope) : options.direction;
 
-  return emitMermaidLines(collapsed, direction, options.theme);
+  return { source: emitMermaidLines(collapsed, direction, options.theme), validation };
 }
