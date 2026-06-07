@@ -41,6 +41,11 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
     `style-src 'nonce-${nonce}' ${webview.cspSource}`,
     `font-src ${webview.cspSource}`,
     `img-src blob: data:`,
+    // The live ForceAtlas2 layout runs in a Web Worker created from a Blob URL
+    // (graphology-layout-forceatlas2/worker). Without worker-src the worker
+    // falls back to child-src → default-src 'none' and is CSP-blocked, so the
+    // graph never animates. blob: is required because the worker is a Blob URL.
+    `worker-src blob:`,
   ].join("; ");
 
   return `<!DOCTYPE html>
