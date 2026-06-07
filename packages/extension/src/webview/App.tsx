@@ -27,7 +27,7 @@ import type { MermaidPreviewFileFormat } from "./preview/exportPreview.js";
 type AppScene = "graph" | "workspaces" | "mermaid-preview";
 
 /**
- * Tab identity for the editor-style strip (slice 033 US1). Distinct from
+ * Tab identity for the editor-style strip. Distinct from
  * {@link AppScene}: "trace" is a *variant* of the graph scene (driven by
  * GraphView's internal trace state), not a separate scene — so it maps back to
  * the "graph" scene when activated.
@@ -35,7 +35,7 @@ type AppScene = "graph" | "workspaces" | "mermaid-preview";
 type TabKey = "graph" | "mermaid" | "trace" | "workspaces";
 
 // ---------------------------------------------------------------------------
-// State model — discriminated union (FR-002, FR-008)
+// State model — discriminated union
 // ---------------------------------------------------------------------------
 
 interface AppState {
@@ -88,7 +88,7 @@ function reducer(state: AppState, action: AppAction): AppState {
 }
 
 // ---------------------------------------------------------------------------
-// Tab strip (slice 033 US1)
+// Tab strip
 // ---------------------------------------------------------------------------
 
 interface TabDescriptor {
@@ -351,10 +351,10 @@ export function App({ vscodeApi }: AppProps) {
     [showSourceOnly, state.edges, displayNodeIds],
   );
 
-  // ---- Tab strip model (slice 033 US1) --------------------------------------
+  // ---- Tab strip model ------------------------------------------------------
   // The active tab derives from activeScene. "trace" is a graph-scene variant
   // owned by GraphView; at the App level it stays disabled until trace wiring
-  // lands (phase 5 / T032), so it never shows as the active tab here.
+  // lands, so it never shows as the active tab here.
   const activeTabKey: TabKey =
     activeScene === "workspaces"
       ? "workspaces"
@@ -413,8 +413,8 @@ export function App({ vscodeApi }: AppProps) {
     }
 
     if (activeScene === "mermaid-preview") {
-      // The "Back to graph" action moved into the panel toolbar (slice 033
-      // Phase 4); App no longer renders a separate preview topbar.
+      // The "Back to graph" action moved into the panel toolbar; App no
+      // longer renders a separate preview topbar.
       return (
         <div className="dxt-app-shell">
           <MermaidPreviewPanel
@@ -430,11 +430,11 @@ export function App({ vscodeApi }: AppProps) {
     return renderGraphScene();
   }
 
-  // GraphView owns the full 3-column shell (toolbar / rails / status) as of
-  // slice 033 Phase 3. App no longer renders a competing grid or right-rail
-  // "Graph info" panel — the workspace actions (Re-index / Clear / Source-only)
-  // are threaded into the toolbar, counts live in GraphView's status bar, and
-  // Empty/Loading render as overlays on top of the shell (T020).
+  // GraphView owns the full 3-column shell (toolbar / rails / status).
+  // App no longer renders a competing grid or right-rail "Graph info" panel —
+  // the workspace actions (Re-index / Clear / Source-only) are threaded into
+  // the toolbar, counts live in GraphView's status bar, and Empty/Loading
+  // render as overlays on top of the shell.
   function renderGraphScene() {
     return (
       <div

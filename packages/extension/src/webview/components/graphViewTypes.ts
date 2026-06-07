@@ -10,10 +10,10 @@ import type { TraceSequenceSnapshot } from "@dextree/exporters";
 export type { TraceSequenceSnapshot };
 
 // ---------------------------------------------------------------------------
-// Layout presets (slice 025)
+// Layout presets
 // ---------------------------------------------------------------------------
 
-/** Toolbar layout preset identifiers exposed by slice 025. */
+/** Toolbar layout preset identifiers. */
 export type LayoutPresetId = "forceAtlas2" | "circular" | "hierarchical";
 
 /** Static metadata used to render the layout dropdown option list. */
@@ -25,7 +25,7 @@ export interface LayoutPresetOption {
 
 /**
  * Non-blocking local notice surfaced inside GraphView when a preset request
- * is rejected. Slice 025 only emits this for the Hierarchical fallback path.
+ * is rejected. Only emitted for the Hierarchical fallback path.
  */
 export interface LayoutNotice {
   level: "info";
@@ -83,9 +83,9 @@ export interface ThemeColors {
   callsEdgeColor: string;
   inheritsEdgeColor: string;
   instantiatesEdgeColor: string;
-  /** Yellow used for active trace path edges (slice 023). */
+  /** Yellow used for active trace path edges. */
   tracePathEdgeColor: string;
-  /** Gold-ish border applied to classified entry symbols (slice 026). */
+  /** Gold-ish border applied to classified entry symbols. */
   entryBorderColor: string;
   /** Inbound CALLS (callers) of the selected node — direction-aware emphasis. */
   callerEdgeColor: string;
@@ -109,23 +109,23 @@ export interface GraphViewProps {
    */
   onExportMermaid: (nodeIds: string[], edgeIds: string[]) => void;
   /**
-   * Slice 031 (US1) — request a trace sequence export. Called only when a
+   * Request a trace sequence export. Called only when a
    * trace path is active. GraphView builds the snapshot from its internal
    * `TraceState` before invoking. Undefined means the host has not yet
    * wired the trace-sequence command and the button stays disabled.
    */
   onExportTraceSequence?: (trace: TraceSequenceSnapshot) => void;
-  /** Currently displayed workspace name (slice 024). Undefined hides the toolbar button. */
+  /** Currently displayed workspace name. Undefined hides the toolbar button. */
   workspaceName?: string;
-  /** Framework chips shown next to the workspace name (slice 024). May be empty. */
+  /** Framework chips shown next to the workspace name. May be empty. */
   workspaceFrameworks?: readonly string[];
-  /** Click handler for the toolbar workspace switcher button (slice 024). */
+  /** Click handler for the toolbar workspace switcher button. */
   onWorkspaceSwitcherClick?: () => void;
-  /** Slice 033 US6 — signals App when trace mode is active so the trace tab can be enabled. */
+  /** Signals App when trace mode is active so the trace tab can be enabled. */
   onTraceActiveChange?: (active: boolean) => void;
   /**
-   * Workspace actions relocated into the toolbar from the legacy right panel
-   * (slice 033). All optional — when omitted the toolbar omits the group.
+   * Workspace actions relocated into the toolbar from the legacy right panel.
+   * All optional — when omitted the toolbar omits the group.
    */
   onReindex?: () => void;
   onClearWorkspace?: () => void;
@@ -160,8 +160,8 @@ export interface GraphViewProps {
 
 /**
  * Per-node Sigma program selector. Sigma 3 dispatches the WebGL renderer for
- * each node based on this attribute. `entry` is the slice-026 program (gold
- * border around the node's existing color); `square` is registered alongside
+ * each node based on this attribute. `entry` is the entry-classification
+ * program (gold border around the node's existing color); `square` is registered alongside
  * for future architectural-layer differentiation.
  */
 export type SigmaNodeProgramType = "circle" | "square" | "entry";
@@ -253,11 +253,11 @@ export interface SelectionTraversal {
   edgeIds: Set<string>;
   orderedEdgeIds: string[];
   hopLayers: string[][];
-  /** Maximum BFS hop depth applied when this traversal was computed (slice 022). */
+  /** Maximum BFS hop depth applied when this traversal was computed. */
   maxDepth: number;
 }
 
-/** A single result row shown in the SearchBar dropdown (slice 022). */
+/** A single result row shown in the SearchBar dropdown. */
 export interface SearchResultItem {
   nodeId: string;
   label: string;
@@ -265,7 +265,7 @@ export interface SearchResultItem {
   matchIndex: number;
 }
 
-/** Webview search state (slice 022). */
+/** Webview search state. */
 export interface SearchState {
   query: string;
   matchedNodeIds: Set<string>;
@@ -273,13 +273,13 @@ export interface SearchState {
   focusedIndex: number;
 }
 
-/** Webview depth-slider state (slice 022). */
+/** Webview depth-slider state. */
 export interface DepthState {
   depth: number;
   enabled: boolean;
 }
 
-/** Phase of the trace state machine (slice 023). */
+/** Phase of the trace state machine. */
 export type TracePhase = "idle" | "picking-start" | "picking-end" | "path-active";
 
 /**
@@ -308,7 +308,7 @@ export const TRACE_STATE_IDLE: TraceState = {
   selfTraceError: false,
 };
 
-/** Derived from TraceState + graphology node attributes for TraceInspector (slice 023). */
+/** Derived from TraceState + graphology node attributes for TraceInspector. */
 export interface TracePath {
   startNodeId: string;
   endNodeId: string;

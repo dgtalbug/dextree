@@ -180,7 +180,7 @@ function readThemeColors(): ThemeColors {
     callsEdgeColor: styles.getPropertyValue("--vscode-charts-orange").trim() || foreground,
     inheritsEdgeColor: styles.getPropertyValue("--vscode-charts-purple").trim() || foreground,
     instantiatesEdgeColor: styles.getPropertyValue("--vscode-charts-red").trim() || foreground,
-    // Slice 023 — trace path edge color. Reuses the chart yellow if defined;
+    // Trace path edge color. Reuses the chart yellow if defined;
     // falls back to a static yellow that survives all known VS Code themes.
     tracePathEdgeColor: styles.getPropertyValue("--vscode-charts-yellow").trim() || "#dcdcaa",
     // Direction-aware CALLS emphasis for the selected node: callers (inbound)
@@ -390,9 +390,9 @@ export function GraphView({
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<Set<GraphEdge["kind"]>>(
     () => new Set(DEFAULT_HIDDEN_EDGE_KINDS),
   );
-  // Slice 025 — layout preset selection. ForceAtlas2 is the session default
-  // for every fresh GraphView open per FR-003; preset state is local to this
-  // component and never persisted or sent to the extension host.
+  // Layout preset selection. ForceAtlas2 is the session default for every
+  // fresh GraphView open; preset state is local to this component and never
+  // persisted or sent to the extension host.
   const [layoutSelection, setLayoutSelection] = useState<LayoutSelectionState>({
     activePreset: "forceAtlas2",
     notice: null,
@@ -406,7 +406,7 @@ export function GraphView({
         return;
       }
 
-      // Whole-graph visibility for slice 025. Filter-aware visibility can
+      // Whole-graph visibility. Filter-aware visibility can
       // be plumbed in later if a filter-active preset run produces awkward
       // results; until then noverlap operates on every node, but only the
       // currently rendered ones impact the user-visible arrangement.
@@ -414,7 +414,7 @@ export function GraphView({
       const visibleEdgeIds = new Set<string>(graph.edges());
 
       // Snapshot the prior coordinates before any Hierarchical attempt so
-      // we can restore them if the DAG suitability check rejects (FR-009).
+      // we can restore them if the DAG suitability check rejects.
       // Other presets don't need this — they either apply or no-op without
       // ever touching coordinates.
       const snapshot = preset === "hierarchical" ? snapshotNodePositions(graph) : null;
@@ -464,7 +464,7 @@ export function GraphView({
   );
 
   // Auto-dismiss the Hierarchical fallback notice after a few seconds so it
-  // stays non-blocking (FR-009). New notices replace older ones immediately
+  // stays non-blocking. New notices replace older ones immediately
   // because setLayoutSelection always re-runs this effect with a new value.
   useEffect(() => {
     if (layoutSelection.notice === null) return undefined;
@@ -477,16 +477,16 @@ export function GraphView({
     () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
   );
   const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
-  // Search state (slice 022). `searchQuery` is the committed (post-debounce)
+  // Search state. `searchQuery` is the committed (post-debounce)
   // value; the SearchBar manages its own pending input internally.
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchFocusedIndex, setSearchFocusedIndex] = useState<number>(0);
-  // Depth slider state (slice 022). Default 3 per spec FR-005.
+  // Depth slider state. Default 3.
   const [depth, setDepth] = useState<number>(3);
   // Node focus: the focused node id, or null when not focused. React tracks it
   // for the exit affordance; the controller owns the focus membership.
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
-  // Trace state (slice 023). React owns the trace state machine for the banner /
+  // Trace state. React owns the trace state machine for the banner /
   // rails / inspector; the controller holds the phase + path id sets the Sigma
   // reducers read, kept in sync via setTracePhase (eager) + setTracePath.
   const [traceState, setTraceState] = useState<TraceState>(TRACE_STATE_IDLE);
@@ -573,9 +573,9 @@ export function GraphView({
     }));
   }, [activeLensId, nodes]);
 
-  // Search results (slice 022). Case-insensitive substring match on label +
-  // filePath. `fqn` is referenced in the spec but not yet present on GraphNode;
-  // falls back gracefully (always-undefined) per FR-005 / CC-003.
+  // Search results. Case-insensitive substring match on label + filePath.
+  // `fqn` is not yet present on GraphNode; falls back gracefully
+  // (always-undefined).
   const searchResults = useMemo<SearchResultItem[]>(() => {
     const trimmed = searchQuery.trim();
     if (trimmed.length === 0) {
@@ -664,7 +664,7 @@ export function GraphView({
     setDepth(next);
   }, []);
 
-  // Trace mode handlers (slice 023).
+  // Trace mode handlers.
   const handleTraceToggle = useCallback((): void => {
     setTraceState((current) => {
       if (current.phase !== "idle") {
@@ -672,7 +672,7 @@ export function GraphView({
         return TRACE_STATE_IDLE;
       }
       // Entering trace mode clears search + depth so the full graph is
-      // visible for node picking (spec FR-010).
+      // visible for node picking.
       setSearchQuery("");
       setSearchFocusedIndex(0);
       setDepth(3);
@@ -686,7 +686,7 @@ export function GraphView({
     setTraceState(TRACE_STATE_IDLE);
   }, []);
 
-  // Zoom handlers (slice 033 US3). Delegate to the controller, which owns the
+  // Zoom handlers. Delegate to the controller, which owns the
   // Sigma instance + camera math.
   const handleZoomIn = useCallback((): void => {
     controllerRef.current?.zoomIn();
@@ -716,7 +716,7 @@ export function GraphView({
     onExportMermaid([...(view?.nodeIds ?? [])], [...(view?.edgeIds ?? [])]);
   }, [onExportMermaid]);
 
-  // Filter toggles (slice 033 US2). The hidden-kind sets already drive the
+  // Filter toggles. The hidden-kind sets already drive the
   // Sigma node/edge reducers via their refs; these handlers expose the toggle
   // to the left/right rail filter panels. A toggle that adds the kind hides
   // it; removing the kind shows it again.
@@ -811,7 +811,7 @@ export function GraphView({
   );
 
   /**
-   * "Trace from here" entry point (slice 023 US3). Pre-fills the trace start
+   * "Trace from here" entry point. Pre-fills the trace start
    * with the given node id and transitions directly to picking-end. Clears
    * search + depth like the toolbar toggle does.
    */
@@ -848,7 +848,7 @@ export function GraphView({
     controllerRef.current?.zoomFit();
   }, [depth]);
 
-  /** Animate the Sigma camera to the given node (slice 023 trace-step click). */
+  /** Animate the Sigma camera to the given node (trace-step click). */
   const handleTraceStepClick = useCallback((nodeId: string): void => {
     const sigma = sigmaRef.current;
     const graph = graphRef.current;
@@ -1043,7 +1043,7 @@ export function GraphView({
     }
   }, [hiddenNodeKinds]);
 
-  // Slice 031 US3 — keep the decorator-backed id set on the controller in sync
+  // Keep the decorator-backed id set on the controller in sync
   // with `nodes` so the node reducer can honor the Decorator filter chip toggle.
   useEffect(() => {
     const next = new Set<string>();
@@ -1065,7 +1065,7 @@ export function GraphView({
     controllerRef.current?.setLensColorOf(lensColorOf);
   }, [lensColorOf]);
 
-  // Slice 022 — sync matched-node ids onto the controller (non-matches dim).
+  // Sync matched-node ids onto the controller (non-matches dim).
   useEffect(() => {
     controllerRef.current?.setMatchedNodeIds(matchedNodeIds);
   }, [matchedNodeIds]);
@@ -1118,9 +1118,9 @@ export function GraphView({
     );
   }, [traceState]);
 
-  // Slice 023 — Escape exits trace mode from any phase. Listener attached at
-  // window level so it works regardless of focus (matches spec edge case
-  // "Escape always exits trace mode regardless of state").
+  // Escape exits trace mode from any phase. Listener attached at window level
+  // so it works regardless of focus — Escape always exits trace mode
+  // regardless of state.
   useEffect(() => {
     if (traceState.phase === "idle") {
       return;
@@ -1223,7 +1223,7 @@ export function GraphView({
   const shownCallers = neighborCallers.slice(0, MAX_NEIGHBORS);
   const shownCallees = neighborCallees.slice(0, MAX_NEIGHBORS);
 
-  // Inspector neighbor lists (slice 033). The Inspector now owns neighbor
+  // Inspector neighbor lists. The Inspector now owns neighbor
   // rendering in the right rail; the canvas neighbor panel becomes redundant.
   // Implements is not tracked separately yet (CALLS-only graph), so it is empty.
   const toInspectorNeighbors = (items: CanvasNeighbor[]): InspectorNeighbor[] =>
@@ -1240,7 +1240,7 @@ export function GraphView({
   };
 
   // Left-rail node-type filter entries: canonical order, counts from the
-  // current node set, Decorator stays a disabled future stub (slice 031).
+  // current node set, Decorator stays a disabled future stub.
   const nodeKindCounts = new Map<string, number>();
   for (const node of nodes) {
     const key = node.type === "file" ? "file" : (node.symbolKind ?? "misc");
@@ -1254,7 +1254,7 @@ export function GraphView({
     ...(entry.key === "decorator"
       ? {
           disabled: true,
-          tooltip: "Available after slice 026 — decorator-relationship classification.",
+          tooltip: "Not yet available — decorator-relationship classification.",
         }
       : {}),
   }));
@@ -1492,7 +1492,7 @@ export function GraphView({
             : null}
         </svg>
 
-        {/* Canvas overlays (slice 033 US4) */}
+        {/* Canvas overlays */}
         <div className="dxt-floating dxt-zoom-controls" data-testid="canvas-zoom-controls">
           <button
             type="button"

@@ -33,8 +33,8 @@ import type {
   TracePhase,
 } from "./graphViewTypes.js";
 
-// Border-program for entry-classified nodes — the gold-bordered treatment from
-// slice 026. Identical config to the inline GraphView definition it replaces.
+// Border-program for entry-classified nodes — the gold-bordered treatment.
+// Identical config to the inline GraphView definition it replaces.
 const ENTRY_BORDER_COLOR_FALLBACK = "#d4af37";
 const ENTRY_BORDER_PIXELS = 2;
 const NodeEntryProgram = createNodeBorderProgram({

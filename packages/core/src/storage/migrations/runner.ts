@@ -335,10 +335,9 @@ const MIGRATION_006: Migration = {
 // enclosing_symbol_id briefly. The schema-version bump invalidates the workspace
 // cache (validateWorkspaceCache compares metadata.schemaVersion to
 // SCHEMA_VERSION), which forces a reindex on the next session. That reindex
-// rewrites every symbol row with the parent class id populated by
-// ClassRelationExtractor's tree-sitter parent walk (slice 028 T022). NULL is
-// also the correct steady-state value for any top-level symbol that is not a
-// member of a class-like parent.
+// rewrites every symbol row with the parent class id populated by the
+// extractor's tree-sitter parent walk. NULL is also the correct steady-state
+// value for any top-level symbol that is not a member of a class-like parent.
 async function runMigration007(connection: DuckDBConnection): Promise<void> {
   const hasEnclosingId = await columnExists(connection, "symbol", "enclosing_symbol_id");
 

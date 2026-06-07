@@ -22,10 +22,10 @@ export interface ExportMermaidCommandDependencies {
 
 /**
  * Default preview options used when the command opens the preview tab from
- * the command palette or the existing graph-toolbar export button. Slice 029
- * deliberately removes the slice 027/028 QuickPick chain (Diagram / Scope /
- * Granularity / Direction) in favour of inline controls on the preview tab
- * itself (US2 in PR-B). The `theme` here is a host-side default that the
+ * the command palette or the existing graph-toolbar export button. The
+ * QuickPick chain (Diagram / Scope / Granularity / Direction) was removed in
+ * favour of inline controls on the preview tab itself. The `theme` here is a
+ * host-side default that the
  * webview re-resolves against the live VS Code theme on inline rerender;
  * for the initial open it is good enough to thread `light` through the
  * router so the source generation is deterministic.
@@ -43,13 +43,13 @@ const DEFAULT_PREVIEW_OPTIONS: MermaidPreviewOptions = {
 };
 
 /**
- * `dextree.exportMermaid` command body (slice 029).
+ * `dextree.exportMermaid` command body.
  *
- * Before slice 029 this command walked the user through a 4-step QuickPick
- * (Diagram → Scope → Granularity → Direction) and a save dialog. Slice 029
- * replaces both surfaces with the Mermaid preview tab, which hosts the same
- * controls inline (US2) and offers `.mmd` / `.svg` / `.png` / clipboard /
- * Markdown-snippet output actions (US3) without ever closing.
+ * This command previously walked the user through a 4-step QuickPick
+ * (Diagram → Scope → Granularity → Direction) and a save dialog. Both
+ * surfaces are now replaced with the Mermaid preview tab, which hosts the
+ * same controls inline and offers `.mmd` / `.svg` / `.png` / clipboard /
+ * Markdown-snippet output actions without ever closing.
  *
  * In PR-A the command only opens the preview at workspace + symbol +
  * flowchart + auto defaults; inline controls and output actions ship in
@@ -82,7 +82,7 @@ export function createExportMermaidCommand(
 
 /**
  * Execute an inferred Mermaid export. Used by selection-aware entry points
- * (slice 030, US1) and focused export commands (slice 030, US3).
+ * and focused export commands.
  */
 export async function executeInferredMermaidExport(
   dependencies: ExportMermaidCommandDependencies,
@@ -165,7 +165,7 @@ export async function startInferredMermaidExport(
 }
 
 /**
- * Slice 031 (US1) — `dextree.exportTraceSequence` command body. Receives the
+ * `dextree.exportTraceSequence` command body. Receives the
  * webview's `TraceSequenceSnapshot` as the first arg, re-validates it against
  * the current workspace subgraph (fail-closed for empty / unsupported /
  * oversized routes), serializes to Mermaid sequence syntax, and writes the

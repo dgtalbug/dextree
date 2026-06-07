@@ -1,5 +1,5 @@
 /**
- * Per-workspace DuckDB read summary for the workspace switcher (slice 024).
+ * Per-workspace DuckDB read summary for the workspace switcher.
  *
  * Opens a foreign DuckDB file in read-only mode to extract the single
  * `workspace_cache` row and the framework list — without running migrations
@@ -40,7 +40,7 @@ function toIsoOrNull(value: unknown): string | null {
  * Opens the DuckDB file at `dbPath` in read-only mode and returns a summary of
  * the indexed workspace. Returns null if the file is missing, the workspace_cache
  * row is absent, or any I/O error occurs. The framework list degrades to `[]`
- * when the `workspace_framework` table is missing (slice 018 not applied).
+ * when the `workspace_framework` table is missing (an older index).
  *
  * Does NOT run migrations on the opened file — read-only access mode prevents
  * accidental schema mutation of foreign workspace DBs.
@@ -120,7 +120,7 @@ export interface ForeignWorkspaceGraph {
  * payload `Indexer.getWorkspaceSubgraph` produces for the active workspace.
  *
  * Returns null on any I/O or schema error so the caller can show a graceful
- * "could not open workspace" notification (slice 024 FR-008).
+ * "could not open workspace" notification.
  */
 export async function readWorkspaceGraph(
   dbPath: string,

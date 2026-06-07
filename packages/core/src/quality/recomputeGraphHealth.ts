@@ -12,9 +12,8 @@ import type { DuckDBConnection } from "@duckdb/node-api";
  * Owned by `packages/core/src/quality/` per Constitution III: "quality logic
  * MUST remain under `packages/core/src/quality`".
  *
- * STUB — implementation scheduled for slice S11.7 (PageRank symbol ranking +
- * community overlay). See `.dextree/design.md` §7.5 (Blast Radius) and ROADMAP
- * slice S11.7 for the planned algorithm:
+ * STUB — implementation pending (PageRank symbol ranking + community overlay).
+ * See `.dextree/design.md` §7.5 (Blast Radius) for the planned algorithm:
  *   1. Build a graphology MultiDirectedGraph from the persisted `edge` table.
  *   2. Compute per-symbol fan-in (incoming CALLS + REFERENCES).
  *   3. Run PageRank; mark top-5% as `is_core`.
@@ -28,8 +27,8 @@ import type { DuckDBConnection } from "@duckdb/node-api";
  */
 export async function recomputeGraphHealth(_connection: DuckDBConnection): Promise<void> {
   // Intentionally a no-op stub for the MVP foundation.
-  // Throwing here would break the workspace-indexing loop in slice S6 once any
-  // caller wires this in; instead the function is a no-op until S11.7 lands real
-  // logic. The `_connection` parameter is reserved for that implementation.
+  // Throwing here would break the workspace-indexing loop once any caller wires
+  // this in; instead the function is a no-op until real logic lands. The
+  // `_connection` parameter is reserved for that implementation.
   return;
 }

@@ -81,5 +81,28 @@ export default [
       },
     },
   },
+  {
+    // core must run in Node, browser (WASM), and VS Code contexts — it can never
+    // depend on the `vscode` host API. Host-specific behaviour is injected via
+    // interfaces. Enforces the no-vscode-in-core architecture boundary.
+    // (The DuckDB-driver ban lands once storage access moves behind the
+    // repository adapter, so it can be scoped to everything but the adapters.)
+    files: ["packages/core/src/**/*.ts"],
+    ignores: ["**/*.test.ts", "**/__fixtures__/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "vscode",
+              message:
+                "core must not import vscode — it runs in Node/WASM/browser. Inject host behaviour via an interface.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 ];

@@ -248,7 +248,7 @@ export async function activate(context: ActivationContext): Promise<void> {
     }));
   });
 
-  // Slice 029 PR-B — wire inline-control rerenders. The webview posts
+  // Wire inline-control rerenders. The webview posts
   // `requestMermaidPreview` whenever the user changes a control; the handler
   // pulls the latest indexed subgraph for the active workspace and runs it
   // through the same preview router the `dextree.exportMermaid` command uses.
@@ -422,7 +422,7 @@ export async function activate(context: ActivationContext): Promise<void> {
         },
       }),
     ),
-    // Slice 030 — selection-aware and focused Mermaid export commands.
+    // Selection-aware and focused Mermaid export commands.
     // All commands delegate to the same inferred-export path so behavior
     // stays consistent and fail-closed.
     vscode.commands.registerCommand("dextree.exportCallers", async () => {

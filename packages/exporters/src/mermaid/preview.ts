@@ -12,8 +12,8 @@ import { MERMAID_INIT_DIRECTIVE } from "./theme.js";
 
 /**
  * Bounded diagram kind for the preview tab. `flowchart` and `classDiagram`
- * are routable since slice 029 PR-B; `sequenceDiagram` stays explicit
- * `unsupported` until slice 031 ships the sequence serializer.
+ * are routable; `sequenceDiagram` stays explicit `unsupported` until the
+ * sequence serializer ships.
  */
 export type MermaidDiagramKind = "flowchart" | "classDiagram" | "sequenceDiagram";
 
@@ -26,7 +26,7 @@ export type MermaidPreviewTheme = "light" | "dark";
 
 /**
  * Full option payload for {@link generateMermaidPreview}. Mirrors the
- * slice-027 scoped serializer surface and adds the diagram discriminator
+ * scoped serializer surface and adds the diagram discriminator
  * and resolved theme used by the preview tab.
  */
 export interface MermaidPreviewOptions {
@@ -93,8 +93,8 @@ function titleForOptions(options: MermaidPreviewOptions): string {
 
 /**
  * Pure preview router. Builds the Mermaid source text for the requested
- * diagram + scope combination by delegating to the slice-027 scoped flowchart
- * serializer or the slice-028 class-diagram serializer. Never performs
+ * diagram + scope combination by delegating to the scoped flowchart
+ * serializer or the class-diagram serializer. Never performs
  * filesystem, DOM, or network work.
  *
  * Errors raised by the underlying serializer (empty / oversized / unsupported
@@ -102,7 +102,7 @@ function titleForOptions(options: MermaidPreviewOptions): string {
  * variants so callers can render the failure reason without try/catch noise.
  *
  * `sequenceDiagram` is recognised but returns explicit `unsupported` until
- * slice 031 ships the sequence serializer.
+ * the sequence serializer ships.
  */
 export function generateMermaidPreview(
   subgraph: WorkspaceSubgraph,
@@ -113,7 +113,7 @@ export function generateMermaidPreview(
     return {
       status: "unsupported",
       options,
-      reason: "Sequence preview is unavailable until slice 031.",
+      reason: "Sequence preview is unavailable until trace export is supported.",
     };
   }
 

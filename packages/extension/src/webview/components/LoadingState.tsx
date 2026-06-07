@@ -5,7 +5,7 @@ import type { IndexingMessage } from "../protocol/messages.js";
 
 /**
  * Shown while the extension host is indexing or before the first symbols message
- * arrives (FR-003, FR-008).
+ * arrives.
  */
 interface LoadingStateProps {
   indexing?: IndexingMessage;

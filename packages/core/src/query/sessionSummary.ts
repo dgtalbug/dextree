@@ -10,7 +10,7 @@ import { EmptyGraphError, type SessionSummary } from "../types.js";
  * or data changes (CC-001). Returns only pass-1 structural data; pass-2
  * enrichment fields are not required (CC-003).
  *
- * @throws {EmptyGraphError} when no files have been indexed (FR-005).
+ * @throws {EmptyGraphError} when no files have been indexed.
  */
 export async function querySessionSummary(
   connection: DuckDBConnection,

@@ -77,7 +77,7 @@ export const SCHEMA_STATEMENTS = [
       id VARCHAR PRIMARY KEY,
       source_id VARCHAR NOT NULL,
       -- target_id is nullable post-v3: pass-1 IMPORTS edges and pass-1 naive CALLS
-      -- edges may not have a resolved target yet; pass-2 (S8 LSP) fills them in.
+      -- edges may not have a resolved target yet; pass-2 LSP fills them in.
       target_id VARCHAR,
       kind VARCHAR NOT NULL,
       weight FLOAT,

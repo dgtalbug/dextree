@@ -1,5 +1,5 @@
 /**
- * Shown when the extension host reports zero indexed files (FR-006).
+ * Shown when the extension host reports zero indexed files.
  */
 export function EmptyState() {
   return (

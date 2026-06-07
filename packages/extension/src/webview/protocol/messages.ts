@@ -20,7 +20,7 @@ import type {
 
 /**
  * Display record for one card in the Workspaces page. Sent in the
- * `workspaceList` payload from host → webview (slice 024).
+ * `workspaceList` payload from host → webview.
  */
 export interface IndexedWorkspaceRecord {
   workspaceRoot: string;
@@ -39,17 +39,17 @@ export interface IndexedWorkspaceRecord {
 
 /**
  * Pushed by the extension host on panel open and after each index completion
- * while the panel is open (FR-004, FR-009).
+ * while the panel is open.
  */
 export interface GraphMessage {
   type: "graph";
   nodes: GraphNode[];
   edges: GraphEdge[];
-  /** Sorted, deduplicated set of edge kinds present in this workspace graph (US3). */
+  /** Sorted, deduplicated set of edge kinds present in this workspace graph. */
   presentEdgeKinds?: readonly string[];
-  /** Directory basename of the currently displayed workspace (slice 024). */
+  /** Directory basename of the currently displayed workspace. */
   workspaceName?: string;
-  /** Detected framework names for the displayed workspace (may be empty, slice 024). */
+  /** Detected framework names for the displayed workspace (may be empty). */
   workspaceFrameworks?: readonly string[];
 }
 
@@ -68,15 +68,15 @@ export interface IndexingMessage {
   status: IndexingStatus;
 }
 
-/** Sent in response to `requestWorkspaceList`. Carries every indexed workspace (slice 024). */
+/** Sent in response to `requestWorkspaceList`. Carries every indexed workspace. */
 export interface WorkspaceListMessage {
   type: "workspaceList";
   workspaces: IndexedWorkspaceRecord[];
 }
 
 /**
- * Sent by the extension host when the Mermaid preview should open or refresh
- * (slice 029). `preview.status === "ok"` carries source + title for the
+ * Sent by the extension host when the Mermaid preview should open or refresh.
+ * `preview.status === "ok"` carries source + title for the
  * webview to render; non-ok statuses are fail-closed and the webview
  * surfaces the reason without rendering anything.
  */
@@ -114,8 +114,8 @@ export type HostToWebviewMessage =
 // ---------------------------------------------------------------------------
 
 /**
- * Sent when the user clicks a symbol entry in the webview (FR-007).
- * All fields are validated by the extension host before acting (FR-013).
+ * Sent when the user clicks a symbol entry in the webview.
+ * All fields are validated by the extension host before acting.
  */
 export interface NavigateMessage {
   type: "navigate";
@@ -145,12 +145,12 @@ export interface CommandMessage {
   command: GraphCommandId;
 }
 
-/** Sent when the user clicks the toolbar workspace button (slice 024). */
+/** Sent when the user clicks the toolbar workspace button. */
 export interface RequestWorkspaceListMessage {
   type: "requestWorkspaceList";
 }
 
-/** Sent when the user clicks a workspace card or picks one from the command palette (slice 024). */
+/** Sent when the user clicks a workspace card or picks one from the command palette. */
 export interface SwitchWorkspaceMessage {
   type: "switchWorkspace";
   workspaceRoot: string;
@@ -158,7 +158,7 @@ export interface SwitchWorkspaceMessage {
 
 /**
  * Sent by the preview tab when an inline control change should re-request a
- * preview from the host (slice 029, US2 in PR-B). The webview resolves
+ * preview from the host. The webview resolves
  * `options.theme` from the active VS Code theme before sending.
  */
 export interface RequestMermaidPreviewMessage {
@@ -168,7 +168,7 @@ export interface RequestMermaidPreviewMessage {
 
 /**
  * Sent by the preview tab when the user picks a file-backed save action
- * (slice 029, US3 in PR-C). For `mmd` / `svg`, `content` is UTF-8 text.
+ * For `mmd` / `svg`, `content` is UTF-8 text.
  * For `png`, `content` is a `data:image/png;base64,...` payload that the
  * host decodes before writing.
  */
@@ -181,7 +181,7 @@ export interface SaveMermaidPreviewMessage {
 
 /**
  * Sent by the graph toolbar when the user requests a Mermaid export of the
- * current visible view state (slice 030, US3). Carries the serialized
+ * current visible view state. Carries the serialized
  * `VisibleView` membership so the host exports exactly the rendered subgraph
  * (the `visible` scope) rather than re-deriving or falling back to the whole
  * workspace.
@@ -195,7 +195,7 @@ export interface ExportCurrentViewMessage {
 
 /**
  * Sent by the graph toolbar when the user requests trace-sequence export of
- * the active trace route (slice 031, US1). Only emitted while a trace path
+ * the active trace route. Only emitted while a trace path
  * is resolved; the host re-validates and refuses empty / oversized snapshots
  * with a user-visible explanation before writing any file.
  */

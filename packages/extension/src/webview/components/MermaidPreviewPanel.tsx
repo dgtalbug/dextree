@@ -30,19 +30,18 @@ export interface MermaidPreviewPanelProps {
   /**
    * Called when an inline control changes. Wired by App.tsx to send a
    * `requestMermaidPreview` message to the host so the preview rerenders in
-   * place (slice 029 US2 / PR-B). Optional so US1 tests that don't supply
-   * it still pass.
+   * place. Optional so tests that don't supply it still pass.
    */
   onOptionsChange?: (options: MermaidPreviewOptions) => void;
   /**
-   * Returns to the GraphView scene. Wired by App.tsx (slice 033 Phase 4); the
-   * "Back to graph" action now lives in the panel toolbar instead of a separate
-   * App-level topbar. Optional so existing tests render without it.
+   * Returns to the GraphView scene. Wired by App.tsx; the "Back to graph"
+   * action now lives in the panel toolbar instead of a separate App-level
+   * topbar. Optional so existing tests render without it.
    */
   onBackToGraph?: () => void;
   /**
-   * Called when the user requests a file-backed save (slice 029 US3 / PR-C).
-   * The host handles the actual file write after presenting a save dialog.
+   * Called when the user requests a file-backed save. The host handles the
+   * actual file write after presenting a save dialog.
    */
   onSaveRequest?: (
     format: MermaidPreviewFileFormat,
@@ -69,7 +68,7 @@ export interface MermaidPreviewPanelProps {
 const DIAGRAM_OPTIONS: ReadonlyArray<{ value: MermaidDiagramKind; label: string }> = [
   { value: "flowchart", label: "Flowchart" },
   { value: "classDiagram", label: "Class diagram" },
-  { value: "sequenceDiagram", label: "Sequence diagram (unavailable until slice 031)" },
+  { value: "sequenceDiagram", label: "Sequence diagram (not yet available)" },
 ];
 
 const GRANULARITY_OPTIONS: ReadonlyArray<{ value: MermaidGranularity; label: string }> = [
@@ -99,21 +98,20 @@ function sanitizeSvgForRender(svg: string): string {
 }
 
 /**
- * Slice 029 preview tab body.
+ * Mermaid preview tab body.
  *
- * - US1 (PR-A): two-pane layout — source on the left, rendered SVG on the right.
- * - US2 (PR-B): inline scope/granularity/diagram/direction control bar above
- *   the panes. Controls are always visible when a preview exists (even when
- *   the current preview is fail-closed) so the user can switch away from a
- *   failing combination without leaving the tab.
+ * Two-pane layout — source on the left, rendered SVG on the right — with an
+ * inline scope/granularity/diagram/direction control bar above the panes.
+ * Controls are always visible when a preview exists (even when the current
+ * preview is fail-closed) so the user can switch away from a failing
+ * combination without leaving the tab.
  *
  * Mermaid `classDiagram` is supported but ignores `granularity` and
- * `direction` (the slice-028 serializer drops both), so those selectors
- * disable when the active diagram is `classDiagram`. `sequenceDiagram` is
- * listed for discoverability but flagged as unavailable until slice 031;
- * selecting it produces a host-side fail-closed result with the slice-031
- * explanation, which the panel renders in the body without hiding the
- * control bar.
+ * `direction` (the serializer drops both), so those selectors disable when
+ * the active diagram is `classDiagram`. `sequenceDiagram` is listed for
+ * discoverability but flagged as not yet available; selecting it produces a
+ * host-side fail-closed result with an explanation, which the panel renders
+ * in the body without hiding the control bar.
  */
 export function MermaidPreviewPanel({
   preview,
@@ -173,7 +171,7 @@ export function MermaidPreviewPanel({
     };
   }, [okPreview, renderSource]);
 
-  // Export action handlers (US3)
+  // Export action handlers
   async function handleSave(format: MermaidPreviewFileFormat): Promise<void> {
     if (okPreview === null) return;
     setExportStatus({ type: "working", message: `Preparing ${format.toUpperCase()}…` });

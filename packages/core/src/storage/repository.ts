@@ -66,8 +66,8 @@ async function deleteExistingRows(
     "DELETE FROM edge WHERE target_id IN (SELECT id FROM symbol WHERE file_id = $file_id)",
     { file_id: existingFileId },
   );
-  // Slice 031 US3 — clear annotation rows whose parent symbol is about to be
-  // dropped so the table never carries dangling rows after a reindex.
+  // Clear annotation rows whose parent symbol is about to be dropped so the
+  // table never carries dangling rows after a reindex.
   await connection.run(
     "DELETE FROM annotation WHERE parent_symbol_id IN (SELECT id FROM symbol WHERE file_id = $file_id)",
     { file_id: existingFileId },
@@ -81,8 +81,8 @@ async function insertFile(connection: DuckDBConnection, input: ExtractedIndexDat
   // _schema_version, is_core, fan_in, tags, labels, metadata, last_modified,
   // last_author, change_count_30d are omitted from the column list — they take
   // their schema-defined default values. fan_in/is_core are populated later by
-  // `recomputeGraphHealth` (S11.7); the rest stay at their defaults until git
-  // (S10) or diagnostics (S9) fill them in.
+  // `recomputeGraphHealth`; the rest stay at their defaults until git or
+  // diagnostics fill them in.
   await connection.run(
     `
       INSERT INTO file (
@@ -118,8 +118,8 @@ async function updateFile(connection: DuckDBConnection, input: ExtractedIndexDat
   // Update only the columns that change when a file is re-indexed (path metadata,
   // size, hash, last_indexed). is_core, fan_in, tags, labels, metadata, and the
   // git-derived columns are deliberately NOT reset: they're owned by other
-  // subsystems (S9 diagnostics, S10 git, S11.7 graph health) and a reindex
-  // should preserve their state. Closes audit finding M7.
+  // subsystems (diagnostics, git, graph health) and a reindex should preserve
+  // their state.
   await connection.run(
     `
       UPDATE file
@@ -153,7 +153,7 @@ async function insertSymbol(
 ): Promise<void> {
   // _schema_version, fan_in, is_core are omitted — column defaults handle them.
   // The pass-2 enrichment columns (visibility, signature, return_type, etc.) are
-  // also omitted; they're nullable and stay NULL until LSP enrichment (S8) runs.
+  // also omitted; they're nullable and stay NULL until LSP enrichment runs.
   //
   // entry_kind and arch_layer are always written explicitly so migrated v5→v6
   // databases (where the columns are bare-added without DEFAULT) get the same
@@ -277,8 +277,8 @@ async function insertExtraEdges(
   connection: DuckDBConnection,
   edges: readonly EdgeRow[],
 ): Promise<void> {
-  // Generic insert path for extractor-emitted edges (e.g. naive `CALLS` rows
-  // from `NaiveCallExtractor`). Metadata is serialized as JSON via `json` cast.
+  // Generic insert path for extractor-emitted edges (e.g. `CALLS` rows).
+  // Metadata is serialized as JSON via `json` cast.
   for (const edge of edges) {
     await connection.run(
       `
@@ -319,11 +319,11 @@ function remapExtraEdges(
  * relational edges (CALLS, INHERITS, INSTANTIATES) after the symbols and edges
  * for `fileId` have been inserted.
  *
- * Why this is needed: NaiveCallExtractor and ClassRelationExtractor cannot know
- * the symbol UUIDs minted by BaselineTsJsExtractor (both use random uuidv4).
- * Instead they write a stable `source_fqn` (e.g. `"src/foo.ts:MyClass"`) and a
- * target-name key (`callee_name` / `parent_name` / `class_name`) into edge
- * metadata. This step resolves them against the just-written `symbol` rows.
+ * Why this is needed: relational extractors cannot know the symbol UUIDs minted
+ * for definitions (every symbol gets a random uuidv4). Instead they write a
+ * stable `source_fqn` (e.g. `"src/foo.ts:MyClass"`) and a target-name key
+ * (`callee_name` / `parent_name` / `class_name`) into edge metadata. This step
+ * resolves them against the just-written `symbol` rows.
  *
  * Step 1 — source_id: all three kinds have `source_fqn` in metadata. Edges
  * whose source_id still equals the file UUID placeholder are updated to the
@@ -420,7 +420,7 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
 
   // Step 2d (IMPLEMENTS): target_id → same-file interface (or class for the
   // JS pattern where an interface is implemented via a class shape) by
-  // interface_name. Slice 031 US2.
+  // interface_name.
   await connection.run(
     `
       UPDATE edge
@@ -598,11 +598,10 @@ function isAnnotationLikeRow(row: unknown): row is AnnotationLikeRow {
 }
 
 /**
- * Persist annotation rows from {@link DecoratorExtractor} into the existing
- * `annotation` table. Rows missing a valid `parentSymbolId` (e.g. when the
- * extractor could not resolve an enclosing symbol) are silently skipped —
- * the table has a NOT NULL FK to `symbol`, and per slice 031 contract the
- * extractor must not invent synthetic targets. Slice 031 US3.
+ * Persist extractor-emitted annotation rows into the existing `annotation`
+ * table. Rows missing a valid `parentSymbolId` (e.g. when the extractor could
+ * not resolve an enclosing symbol) are silently skipped — the table has a NOT
+ * NULL FK to `symbol`, and extractors must not invent synthetic targets.
  */
 async function insertAnnotations(
   connection: DuckDBConnection,
@@ -751,7 +750,7 @@ export async function resolveWorkspaceCrossFileEdges(
   );
 
   // Resolve IMPLEMENTS: interface_name → any matching interface (or class
-  // used as an interface) in the workspace. Slice 031 US2.
+  // used as an interface) in the workspace.
   await connection.run(
     `
       UPDATE edge

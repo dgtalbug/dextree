@@ -1,5 +1,5 @@
 /**
- * Graph layout preset helpers (slice 025).
+ * Graph layout preset helpers.
  *
  * Owns the math for applying ForceAtlas2 / Circular / Hierarchical layouts to
  * the currently visible subset of the GraphView's in-memory graphology graph.
@@ -66,7 +66,7 @@ export interface ApplyLayoutPresetOptions {
 }
 
 /**
- * The three layout presets exposed by the GraphView toolbar in slice 025.
+ * The three layout presets exposed by the GraphView toolbar.
  * Ordering controls the dropdown menu order; do not reorder without updating
  * the spec's UI screenshot in scratch/graphview-mockup-final.html.
  */
@@ -138,7 +138,7 @@ function countLiveVisibleNodes(
 }
 
 /**
- * Assign Circular coordinates to the visible subset of `graph` (slice 025 US2).
+ * Assign Circular coordinates to the visible subset of `graph`.
  *
  * Hidden nodes keep their existing positions — they are out of view so any
  * resulting position discrepancy is invisible until they become visible
@@ -166,7 +166,7 @@ function assignCircularPositions(
 }
 
 /**
- * Anti-collision readability post-pass (FR-006, FR-008).
+ * Anti-collision readability post-pass.
  *
  * Operates on the full graph instance — hidden nodes can shift slightly but
  * they are not rendered, so the only visible effect is a more readable
@@ -180,7 +180,7 @@ function runReadabilityPass(graph: MultiDirectedGraph): void {
 }
 
 /**
- * Apply a layout preset to the current visible subgraph (slice 025).
+ * Apply a layout preset to the current visible subgraph.
  *
  * Mutates only node coordinates; never touches edges, attributes, or graph
  * data. Returns a typed result that GraphView uses to update its toolbar
@@ -192,7 +192,7 @@ function runReadabilityPass(graph: MultiDirectedGraph): void {
  * - Selecting any preset on a graph with fewer than 2 visible nodes is a
  *   safe no-op (`status: "noop", reason: "trivial-graph"`).
  * - `circular` + `forceAtlas2` always succeed when the graph has enough
- *   visible nodes. The Hierarchical case is added in slice 025 Phase 5.
+ *   visible nodes. Hierarchical may reject unsuitable (non-DAG) graphs.
  */
 export function applyLayoutPreset(
   graph: MultiDirectedGraph,
@@ -277,7 +277,7 @@ export function applyLayoutPreset(
 }
 
 // ---------------------------------------------------------------------------
-// Hierarchical helpers (slice 025 US3)
+// Hierarchical helpers
 // ---------------------------------------------------------------------------
 
 /**

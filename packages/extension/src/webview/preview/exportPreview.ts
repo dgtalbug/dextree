@@ -1,7 +1,7 @@
 import type { MermaidPreviewOptions } from "@dextree/exporters";
 
 /**
- * Webview-local helpers for slice 029 US3 export actions. Pure helpers stay
+ * Webview-local helpers for Mermaid preview export actions. Pure helpers stay
  * sync; side-effecting helpers (PNG rasterization + clipboard image writes)
  * accept an injection point so unit tests can substitute fakes without
  * polyfilling Canvas or `navigator.clipboard.write`.
@@ -11,7 +11,7 @@ import type { MermaidPreviewOptions } from "@dextree/exporters";
  */
 
 /**
- * Supported file formats for Mermaid preview export (slice 029 US3).
+ * Supported file formats for Mermaid preview export.
  */
 export type MermaidPreviewFileFormat = "mmd" | "svg" | "png";
 

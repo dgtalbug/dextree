@@ -35,7 +35,7 @@ export interface GraphToolbarProps {
   onZoomFit: () => void;
   onZoomReset: () => void;
   /**
-   * Workspace actions relocated from the legacy right-rail panel (slice 033).
+   * Workspace actions relocated from the legacy right-rail panel.
    * The whole group renders only when `onReindex` is provided, so GraphView
    * usages that don't own these handlers keep the mockup-clean toolbar.
    */
@@ -239,7 +239,7 @@ export function GraphToolbar({
         </select>
       </div>
 
-      {/* Group: Workspace actions (relocated from legacy right panel, slice 033) */}
+      {/* Group: Workspace actions (relocated from legacy right panel) */}
       {onReindex !== undefined && (
         <div className={styles.group} data-testid="toolbar-group" aria-label="Workspace actions">
           <button

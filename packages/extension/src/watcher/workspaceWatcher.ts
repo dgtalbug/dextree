@@ -37,7 +37,7 @@ export function createWorkspaceWatcher(
   async function processEvent(event: WatcherEvent): Promise<void> {
     const filePath = event.uri.fsPath;
 
-    // FR-002 guard: silently skip if workspace has not been indexed yet
+    // Silently skip if workspace has not been indexed yet
     try {
       const indexer = await getIndexer();
       const allFiles = await indexer.getAllFiles();

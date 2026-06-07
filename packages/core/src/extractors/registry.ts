@@ -15,7 +15,7 @@ function toKnownSymbol(s: StoredSymbol): KnownSymbol {
     name: s.name,
     kind: s.kind,
     // StoredSymbol.range uses 0-based rows (tree-sitter convention from toRange()).
-    // NaiveCallExtractor also uses 0-based node.startPosition.row — no adjustment needed.
+    // Extractors also use 0-based node.startPosition.row — no adjustment needed.
     startLine: s.range.startLine,
     startCol: s.range.startCol,
     endLine: s.range.endLine,
@@ -50,9 +50,9 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
     const modules: unknown[] = [];
     const tests: unknown[] = [];
     // Accumulate known symbols so each extractor sees the IDs the earlier
-    // extractors already minted. This lets NaiveCallExtractor look up the
-    // exact symbol IDs that BaselineTsJsExtractor wrote instead of minting
-    // its own (which would produce dangling foreign keys in the edge table).
+    // extractors already minted. This lets relational extractors look up the
+    // exact symbol IDs that definition extractors wrote instead of minting
+    // their own (which would produce dangling foreign keys in the edge table).
     const knownSymbols: KnownSymbol[] = [...(input.knownSymbols ?? [])];
 
     for (const extractor of matching) {
@@ -61,7 +61,8 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
       try {
         result = await extractor.extract(enrichedInput);
       } catch (err) {
-        // Per FR-007 / contract: failure isolation. Log and continue.
+        // Failure isolation: one extractor's error must not abort the rest.
+        // Log and continue.
         this.logger?.warn("Extractor failed", {
           extractor: extractor.name,
           file: input.absolutePath,

@@ -15,7 +15,7 @@
  *   - manifest:    one or more `ManifestKeyPath` rules. Detection requires at
  *                  least one manifest match.
  *   - structural:  one `StructuralSignal`. Detection requires this AND
- *                  manifest to fire — both signals are needed (FR-003).
+ *                  manifest to fire — both signals are needed.
  *   - fileRole:    pure (filePath, fileContent) → role | null. Returns the
  *                  per-file role attribution for files in workspaces where
  *                  this framework was detected.

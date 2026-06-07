@@ -7,7 +7,7 @@ import type { MermaidGranularity, ScopedExportValidation } from "./scopedSeriali
  *
  *  - `soft` — beyond this the diagram is still exported but the result is
  *    flagged `warning` so the UI can surface a non-blocking "large diagram"
- *    notice (the slice-033 status-bar "soft cap").
+ *    notice (the status-bar "soft cap").
  *  - `hard` — beyond this the export is refused (`oversized`); the diagram is
  *    too dense to be legible.
  *

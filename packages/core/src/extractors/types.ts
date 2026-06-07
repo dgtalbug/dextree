@@ -4,8 +4,8 @@ import type { ExtractedFileRecord, ExtractedImportRef, StoredSymbol } from "../t
 
 /**
  * Minimal symbol descriptor forwarded from earlier extractors so that later
- * extractors (e.g. NaiveCallExtractor) can resolve symbol IDs without minting
- * their own. Populated by the registry after each extractor runs.
+ * relational extractors can resolve symbol IDs without minting their own.
+ * Populated by the registry after each extractor runs.
  */
 export interface KnownSymbol {
   readonly id: string;
@@ -60,8 +60,7 @@ export interface EdgeRow {
 }
 
 /**
- * What each extractor returns. Matches `.dextree/design.md` §8.6 except for the
- * additive `imports` field — slice 009 persists imports as `edge` rows, but the
+ * What each extractor returns. Imports are persisted as `edge` rows, but the
  * in-memory representation still travels through this typed array on the way to
  * `replaceFileGraph`.
  *
@@ -82,8 +81,8 @@ export interface ExtractionResult {
  * Plugin-style extractor contract. `name` is unique across registrations.
  * `version` is informational and surfaces in `console.warn` failure logs.
  * `supports(language)` is the language filter; `extract(input)` produces rows.
- * Future plugin-loaded extractors will implement the same interface — slice 010
- * keeps the surface internal, so no packaging / sandboxing yet.
+ * Future plugin-loaded extractors will implement the same interface; the surface
+ * is internal for now, so no packaging / sandboxing yet.
  */
 export interface Extractor {
   readonly name: string;

@@ -23,9 +23,7 @@ export {
 
 /**
  * Bounded discriminator for the diagram shape produced by
- * {@link serializeToScopedMermaid}. `flowchart` is the slice-016/027 default;
- * `classDiagram` lands in slice 028; `sequenceDiagram` is reserved for slice
- * 031.
+ * {@link serializeToScopedMermaid}. `flowchart` is the default.
  */
 export type MermaidDiagram = "flowchart" | "classDiagram" | "sequenceDiagram";
 
@@ -34,7 +32,7 @@ export type MermaidDiagram = "flowchart" | "classDiagram" | "sequenceDiagram";
  * to export. `workspace` and `file` are the original scopes; `visible` exports
  * an explicit node/edge id set (the rendered `VisibleView`, so an export matches
  * exactly what the user sees after lenses/filters/depth). `symbol-callers` /
- * `symbol-callees` are pre-declared so later slices add behavior without
+ * `symbol-callees` are pre-declared so behavior can be added without
  * changing the option type.
  */
 export type MermaidScope =
@@ -56,8 +54,7 @@ export type MermaidDirection = "auto" | "TB" | "LR" | "BT" | "RL";
 /** Full option payload accepted by the scoped serializer. */
 export interface ScopedMermaidOptions {
   /**
-   * Required since slice 028. The `flowchart` branch is byte-identical to the
-   * slice-027 path; the `classDiagram` branch delegates to
+   * The `classDiagram` branch delegates to
    * `serializeToClassDiagram` and ignores `granularity` (forced to `"symbol"`)
    * and `direction` (Mermaid classDiagram has no direction token).
    */
@@ -69,7 +66,7 @@ export interface ScopedMermaidOptions {
   /**
    * Required when `diagram === "sequenceDiagram"`. Holds the active webview
    * trace route the serializer turns into ordered participants and steps.
-   * Slice-031 wire-through; ignored by the flowchart and classDiagram branches.
+   * Ignored by the flowchart and classDiagram branches.
    * Callers that already validate the snapshot themselves may still pass it
    * here so `serializeToScopedMermaid` can re-validate and fail closed.
    */
@@ -77,7 +74,7 @@ export interface ScopedMermaidOptions {
   /**
    * Opt out of the workspace granularity floor. User-facing export paths leave
    * this unset so a `workspace` scope never descends to `symbol` (see
-   * {@link clampGranularityToScope}). The slice-016 legacy `serializeToMermaid`
+   * {@link clampGranularityToScope}). The legacy `serializeToMermaid`
    * shim sets it `true` to preserve its byte-identical symbol-level output for
    * the snapshot/fuzz callers that predate the floor.
    */
@@ -132,7 +129,7 @@ export type ScopeExtractionResult =
 // Per-axis behavior lives in scope.ts / granularity.ts / direction.ts /
 // validator.ts — all re-exported above for consumers of @dextree/exporters.
 // ---------------------------------------------------------------------------
-// Output formatting helpers. Mirror the slice-016 serializer.ts contract so
+// Output formatting helpers. Mirror the serializer.ts contract so
 // the legacy shim and the new scoped path emit byte-identical node + edge
 // lines (only the `graph <DIR>` header differs).
 // ---------------------------------------------------------------------------

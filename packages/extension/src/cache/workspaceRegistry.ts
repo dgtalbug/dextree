@@ -1,5 +1,5 @@
 /**
- * Global workspace registry for the workspace switcher (slice 024).
+ * Global workspace registry for the workspace switcher.
  *
  * Maintains a JSON file under `globalStorageUri` that maps each indexed
  * workspaceRoot to its DuckDB path. This is the only durable way for the

@@ -250,7 +250,7 @@ class DuckTreeIndexer implements Indexer {
       // (which `replaceFileGraph` writes itself) flow through `extraEdges`.
       const extraEdges = [...result.edges];
 
-      // Per-file framework attribution (slice 018) is needed before classification
+      // Per-file framework attribution is needed before classification
       // so the classifier can use it as one of its local structural inputs.
       const detected = this.frameworkCache.get(workspaceRoot) ?? [];
       const attribution =

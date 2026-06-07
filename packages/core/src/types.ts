@@ -1,5 +1,5 @@
 // Schema version history:
-//   1 — initial baseline (slice 008 era)
+//   1 — initial baseline
 //   2 — adds annotation, module, test core entity tables (migration 002)
 //   3 — unifies call_site + import_ref into edge with kind/metadata (migration 003)
 //   4 — adds workspace_cache table (migration 004)
@@ -277,7 +277,7 @@ export interface SessionSummary {
 /**
  * Thrown by `querySessionSummary` when the graph contains no indexed files.
  * The export command catches this and shows "Index your workspace first"
- * without writing any file (FR-005).
+ * without writing any file.
  */
 export class EmptyGraphError extends Error {
   constructor() {

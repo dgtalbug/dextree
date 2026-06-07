@@ -10,8 +10,9 @@ import type {
 
 /**
  * Pure entrypoint for workspace-level framework detection. Walks the
- * registry; per framework wraps both matchers in try/catch (FR-007). Returns
- * results in registry order. Empty array — never null — when nothing matched.
+ * registry; per framework wraps both matchers in try/catch for isolation.
+ * Returns results in registry order. Empty array — never null — when nothing
+ * matched.
  */
 export const detectFrameworks: DetectFrameworksFn = async (
   params: DetectFrameworksParams,
@@ -45,7 +46,7 @@ async function runMatchersFor(
     tryMatchStructural(def.structural, structuralIO),
   ]);
 
-  // FR-003: BOTH signals required.
+  // BOTH signals required.
   if (!manifestHit || !structuralHit) {
     return null;
   }

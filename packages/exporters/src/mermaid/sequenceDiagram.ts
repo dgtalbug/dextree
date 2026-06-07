@@ -74,8 +74,7 @@ function classParticipantLabel(node: GraphNode): string {
  * quote-escape pass produces `\\"` and the subsequent backslash pass
  * double-escapes the backslash we just wrote, breaking round-trip parsing.
  * Also strips newlines and carriage returns since Mermaid line-terminates
- * on them. Flagged by CodeQL "Incomplete string escaping" on the prior
- * single-replace pattern.
+ * on them. A single-replace pattern here leaves an incomplete string escape.
  */
 function escapeMermaidLabel(label: string): string {
   return label
@@ -97,10 +96,10 @@ function buildParticipants(
   // Track non-class participant ids so a cyclic trace that revisits the same
   // file or top-level symbol produces one participant, not N duplicates. Class
   // participants are already deduped via `classMap`. Method participants are
-  // folded into their enclosing class. CodeRabbit flagged that a cap check on
+  // folded into their enclosing class. Without this dedup, a cap check on
   // `participants.length` would falsely return `oversized` for valid cyclic
-  // traces without this dedup — but the same duplication would also have
-  // emitted duplicate `participant Foo as bar` lines in the serialized output.
+  // traces — and the same duplication would also have emitted duplicate
+  // `participant Foo as bar` lines in the serialized output.
   const seenNonClassIds = new Set<string>();
   // Methods can be re-visited too; dedupe the sourceNodeIds we attach to the
   // enclosing class so the participant's source list doesn't grow unbounded

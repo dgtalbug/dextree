@@ -34,7 +34,7 @@ function normalizeRange(value: unknown): SymbolRange {
 /**
  * DuckDB returns `VARCHAR[]` columns as JS arrays. NULL maps to undefined so
  * downstream "is this defined?" checks behave correctly. An empty array stays
- * as `[]` — meaningful distinct from undefined (slice 020 FR-010).
+ * as `[]` — meaningful distinct from undefined.
  */
 function normalizeStringArray(value: unknown): readonly string[] | undefined {
   if (value === null || value === undefined) return undefined;
@@ -145,9 +145,9 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
-  // Slice 031 US3 — count annotations per parent symbol so the graph view's
-  // Decorator node-filter chip can become truthful (and not a placeholder).
-  // An empty result is the honest signal for an unsupported workspace.
+  // Count annotations per parent symbol so the graph view's Decorator
+  // node-filter chip can become truthful (and not a placeholder). An empty
+  // result is the honest signal for an unsupported workspace.
   const annotationCountRows = await (
     await connection.run(
       `
@@ -210,7 +210,7 @@ export async function getWorkspaceSubgraph(
   ).getRowObjectsJS();
 
   // Post-v3: CALLS edges live in the unified `edge` table too. Pass-1 may leave
-  // target_id NULL (unresolved); pass-2 LSP (S8) will fill it in. This query
+  // target_id NULL (unresolved); pass-2 LSP will fill it in. This query
   // shows only resolved calls.
   const callRows = await (
     await connection.run(
@@ -284,7 +284,7 @@ export async function getWorkspaceSubgraph(
   ).getRowObjectsJS();
 
   // IMPLEMENTS: class → interface (resolved source + target, same shape as INHERITS).
-  // Slice 031 US2 — kept distinct from INHERITS by edge kind so the classDiagram
+  // Kept distinct from INHERITS by edge kind so the classDiagram
   // renderer can use a different relationship arrow (`<|..`) and the graph edge
   // filter exposes them separately.
   const implementsRows = await (
@@ -348,9 +348,9 @@ export async function getWorkspaceSubgraph(
         typeof rawEnclosing === "string" && rawEnclosing.length > 0 ? rawEnclosing : undefined;
       const symbolId = String(row.id);
       const annotationCount = annotationCountsBySymbolId.get(symbolId) ?? 0;
-      // Slice 031 US3 — project decorator-backed presence onto the node's
-      // flags so the Decorator node-filter chip in the webview can become a
-      // truthful filter instead of a disabled stub.
+      // Project decorator-backed presence onto the node's flags so the
+      // Decorator node-filter chip in the webview can become a truthful filter
+      // instead of a disabled stub.
       const flags =
         annotationCount > 0
           ? (Object.freeze([...(baseFlags ?? []), "decorator-backed"]) as readonly string[])

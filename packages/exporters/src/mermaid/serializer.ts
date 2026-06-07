@@ -9,10 +9,10 @@ export interface MermaidSerializeOptions {
 }
 
 /**
- * Slice-016 compatibility shim. Delegates to {@link serializeToScopedMermaid}
+ * Compatibility shim. Delegates to {@link serializeToScopedMermaid}
  * with the workspace / symbol / auto defaults.
  *
- * Preserves two slice-016 invariants that the new scoped path does not
+ * Preserves two invariants that the new scoped path does not
  * guarantee on its own:
  *
  *  1. Throws `Error("Graph has no nodes to export")` on an empty workspace
@@ -20,8 +20,8 @@ export interface MermaidSerializeOptions {
  *  2. Emits `graph TD` as the second line (Mermaid alias of `graph TB`) so
  *     existing snapshot tests stay byte-identical.
  *
- * Slated for removal in slice 029 once the preview panel becomes the only
- * consumer of the legacy entry point.
+ * Slated for removal once the preview panel becomes the only consumer of
+ * the legacy entry point.
  */
 export function serializeToMermaid(
   subgraph: WorkspaceSubgraph,

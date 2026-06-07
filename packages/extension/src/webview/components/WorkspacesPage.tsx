@@ -7,9 +7,9 @@ export interface WorkspacesPageProps {
   workspaces: IndexedWorkspaceRecord[] | null;
   onBack: () => void;
   onSwitch: (workspaceRoot: string) => void;
-  /** Re-index every known workspace (slice 033 T035). Optional — omitting it hides the action. */
+  /** Re-index every known workspace. Optional — omitting it hides the action. */
   onRescanAll?: () => void;
-  /** Pick another folder to index (slice 033 T035). Optional — omitting it hides the action. */
+  /** Pick another folder to index. Optional — omitting it hides the action. */
   onOpenAnother?: () => void;
 }
 
