@@ -174,7 +174,7 @@ const RADIAL_MAX_RINGS = 2;
  * Place a selected node's neighbourhood as concentric rings: the selected node
  * at the origin, its direct neighbours evenly spaced on the inner ring, their
  * neighbours on the next ring out. Built from the selection's pre-computed BFS
- * `hopLayers` (layer 0 = the selected node), so no traversal is recomputed here.
+ * `nodeLayers` (layer 0 = the selected node), so no traversal is recomputed here.
  *
  * The inner ring (direct neighbours of a single centre) is a star — provably
  * crossing-free. Outer rings can cross; we accept that for the added 2-hop
@@ -188,12 +188,12 @@ const RADIAL_MAX_RINGS = 2;
  */
 export function assignRadialPositions(
   graph: MultiDirectedGraph,
-  hopLayers: readonly (readonly string[])[],
+  nodeLayers: readonly (readonly string[])[],
 ): ReadonlySet<string> {
   const moved = new Set<string>();
-  if (hopLayers.length === 0) return moved;
+  if (nodeLayers.length === 0) return moved;
 
-  const center = hopLayers[0]?.[0];
+  const center = nodeLayers[0]?.[0];
   if (center === undefined || !graph.hasNode(center)) return moved;
   graph.setNodeAttribute(center, "x", 0);
   graph.setNodeAttribute(center, "y", 0);
@@ -203,9 +203,9 @@ export function assignRadialPositions(
   // near their parent's angle (keeps ring→ring edges radial, not chordal).
   const angleOf = new Map<string, number>([[center, 0]]);
 
-  const lastRing = Math.min(RADIAL_MAX_RINGS, hopLayers.length - 1);
+  const lastRing = Math.min(RADIAL_MAX_RINGS, nodeLayers.length - 1);
   for (let ring = 1; ring <= lastRing; ring++) {
-    const layer = (hopLayers[ring] ?? []).filter((id) => graph.hasNode(id));
+    const layer = (nodeLayers[ring] ?? []).filter((id) => graph.hasNode(id));
     if (layer.length === 0) continue;
     const radius = ring * RADIAL_RING_SPACING;
 

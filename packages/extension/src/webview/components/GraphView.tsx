@@ -555,13 +555,13 @@ export function GraphView({
   // Reposition the selected node's neighbourhood as concentric rings (center +
   // 2 hops) so its edges fan out radially with minimal crossing. Snapshots the
   // prior layout once per selection so deselect can restore it exactly.
-  const applyRadialOnSelect = useCallback((selection: { hopLayers: string[][] } | null): void => {
+  const applyRadialOnSelect = useCallback((selection: { nodeLayers: string[][] } | null): void => {
     const graph = graphRef.current;
-    if (graph === null || selection === null || selection.hopLayers.length === 0) return;
+    if (graph === null || selection === null || selection.nodeLayers.length === 0) return;
     if (radialSnapshotRef.current === null) {
       radialSnapshotRef.current = snapshotNodePositions(graph);
     }
-    assignRadialPositions(graph, selection.hopLayers);
+    assignRadialPositions(graph, selection.nodeLayers);
     sigmaRef.current?.refresh();
   }, []);
 

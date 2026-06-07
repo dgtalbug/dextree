@@ -252,7 +252,10 @@ export interface SelectionTraversal {
   nodeIds: Set<string>;
   edgeIds: Set<string>;
   orderedEdgeIds: string[];
+  /** EDGE ids grouped by BFS depth (used by the trace overlay). */
   hopLayers: string[][];
+  /** NODE ids grouped by BFS depth, layer 0 = the selected node (radial layout). */
+  nodeLayers: string[][];
   /** Maximum BFS hop depth applied when this traversal was computed. */
   maxDepth: number;
 }
