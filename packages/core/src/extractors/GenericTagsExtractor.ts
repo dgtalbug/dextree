@@ -353,8 +353,6 @@ function emptyResult(): ExtractionResult {
     imports: [],
     edges: [],
     annotations: [],
-    modules: [],
-    tests: [],
   };
 }
 

@@ -73,8 +73,6 @@ export interface ExtractionResult {
   readonly imports: readonly ExtractedImportRef[];
   readonly edges: readonly EdgeRow[];
   readonly annotations?: readonly unknown[];
-  readonly modules?: readonly unknown[];
-  readonly tests?: readonly unknown[];
 }
 
 /**

@@ -47,8 +47,6 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
     const imports: ExtractedImportRef[] = [];
     const edges: EdgeRow[] = [];
     const annotations: unknown[] = [];
-    const modules: unknown[] = [];
-    const tests: unknown[] = [];
     // Accumulate known symbols so each extractor sees the IDs the earlier
     // extractors already minted. This lets relational extractors look up the
     // exact symbol IDs that definition extractors wrote instead of minting
@@ -87,17 +85,11 @@ class InMemoryExtractorRegistry implements ExtractorRegistry {
       if (result.annotations !== undefined) {
         annotations.push(...result.annotations);
       }
-      if (result.modules !== undefined) {
-        modules.push(...result.modules);
-      }
-      if (result.tests !== undefined) {
-        tests.push(...result.tests);
-      }
       // Forward this extractor's symbols to all subsequent extractors.
       knownSymbols.push(...result.symbols.map(toKnownSymbol));
     }
 
-    return { file, symbols, imports, edges, annotations, modules, tests };
+    return { file, symbols, imports, edges, annotations };
   }
 }
 
