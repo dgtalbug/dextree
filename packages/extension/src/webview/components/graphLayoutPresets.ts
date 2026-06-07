@@ -28,7 +28,9 @@ import type {
  */
 const FORCE_ATLAS2_SETTINGS = {
   gravity: 1.8,
-  scalingRatio: 6,
+  // Kept in sync with the mount-time settings in SigmaController.ts (wider
+  // spacing) so re-applying the ForceAtlas2 preset matches the initial layout.
+  scalingRatio: 8,
   slowDown: 3,
   barnesHutOptimize: true,
   barnesHutTheta: 0.5,
@@ -79,7 +81,7 @@ export const LAYOUT_PRESET_OPTIONS: readonly LayoutPresetOption[] = [
   {
     id: "circular",
     label: "Circular",
-    description: "Arrange every visible node on a single ring; quick structural scan.",
+    description: "Concentric rings by role — hubs at the centre, leaves on the rim.",
   },
   {
     id: "hierarchical",
@@ -145,6 +147,26 @@ function countLiveVisibleNodes(
  * again under a different filter setting, at which point a fresh layout
  * preset application will reposition them.
  */
+/** Concentric ring spacing (px) for the structural radial layout. */
+const RADIAL_LAYOUT_RING_SPACING = 200;
+/** Minimum perimeter (px) reserved per node on a ring so dense rings expand out. */
+const RADIAL_LAYOUT_MIN_ARC = 90;
+/** Number of concentric rings between the hub core and the leaf rim. */
+const RADIAL_LAYOUT_RING_COUNT = 5;
+
+/**
+ * Structural radial layout: hubs at the centre, leaves on the outer rim, others
+ * filling concentric rings by role. A node's ring comes from a structural score:
+ *
+ *   - leaves (no outgoing edges) → outermost ring
+ *   - hubs (high in-degree, entry points) → innermost rings
+ *   - everything else ranked between by in-degree
+ *
+ * Within a ring, nodes are ordered by the angle of their already-placed inner
+ * neighbour so edges run roughly centre→out (radial) instead of across the
+ * circle — which minimises crossings (it cannot eliminate them for non-planar
+ * graphs). Replaces the old flat single-ring "circular" arrangement.
+ */
 function assignCircularPositions(
   graph: MultiDirectedGraph,
   visibleNodeIds: ReadonlySet<string>,
@@ -155,14 +177,90 @@ function assignCircularPositions(
   }
   if (visible.length === 0) return;
 
-  // Radius scales with the visible-node count so small graphs stay compact
-  // and large graphs have enough perimeter to keep labels distinguishable.
-  const scale = Math.max(120, Math.sqrt(visible.length) * 30);
-  for (let i = 0; i < visible.length; i++) {
-    const angle = (2 * Math.PI * i) / visible.length;
-    graph.setNodeAttribute(visible[i] as string, "x", Math.cos(angle) * scale);
-    graph.setNodeAttribute(visible[i] as string, "y", Math.sin(angle) * scale);
+  // Structural score: higher = more central. Leaves (outDegree 0) are forced to
+  // the rim; otherwise rank by in-degree with an entry-point bonus.
+  const isLeaf = (id: string): boolean => graph.outDegree(id) === 0;
+  const centralityOf = (id: string): number => {
+    const attrs = graph.getNodeAttributes(id) as { entryKind?: string };
+    const entryBonus = attrs.entryKind === "runtime" || attrs.entryKind === "handler" ? 5 : 0;
+    return graph.inDegree(id) + entryBonus;
+  };
+
+  const leaves = visible.filter(isLeaf);
+  const nonLeaves = visible
+    .filter((id) => !isLeaf(id))
+    .sort((a, b) => centralityOf(b) - centralityOf(a));
+
+  // Assign rings: non-leaves spread across the inner rings (ring 0 = most
+  // central); leaves all land on the outermost ring.
+  const innerRingCount = Math.max(1, RADIAL_LAYOUT_RING_COUNT - 1);
+  const ringOf = new Map<string, number>();
+  if (nonLeaves.length > 0) {
+    const perRing = Math.ceil(nonLeaves.length / innerRingCount);
+    nonLeaves.forEach((id, i) => ringOf.set(id, Math.floor(i / perRing)));
   }
+  const leafRing = RADIAL_LAYOUT_RING_COUNT - 1;
+  for (const id of leaves) ringOf.set(id, leafRing);
+
+  // Bucket by ring, then order each ring by a connected inner node's angle so
+  // the ring→ring edges stay radial.
+  const byRing = new Map<number, string[]>();
+  for (const id of visible) {
+    const r = ringOf.get(id) ?? leafRing;
+    const bucket = byRing.get(r);
+    if (bucket === undefined) byRing.set(r, [id]);
+    else bucket.push(id);
+  }
+
+  const angleOf = new Map<string, number>();
+  const ringIndices = [...byRing.keys()].sort((a, b) => a - b);
+  for (const ring of ringIndices) {
+    const ids = byRing.get(ring)!;
+    if (ring === 0 && ids.length === 1) {
+      graph.setNodeAttribute(ids[0]!, "x", 0);
+      graph.setNodeAttribute(ids[0]!, "y", 0);
+      angleOf.set(ids[0]!, 0);
+      continue;
+    }
+    // Order this ring by the mean angle of each node's inner-ring neighbours so
+    // children sit under their parents.
+    const ordered =
+      ring === 0
+        ? ids
+        : [...ids]
+            .map((id) => ({ id, a: meanNeighbourAngle(graph, id, angleOf) }))
+            .sort((p, q) => p.a - q.a)
+            .map((p) => p.id);
+
+    const minRadius = (ring + 1) * RADIAL_LAYOUT_RING_SPACING;
+    const perimeterNeed = (ordered.length * RADIAL_LAYOUT_MIN_ARC) / (2 * Math.PI);
+    const radius = Math.max(minRadius, perimeterNeed);
+    for (let i = 0; i < ordered.length; i++) {
+      const angle = (2 * Math.PI * i) / ordered.length;
+      graph.setNodeAttribute(ordered[i]!, "x", Math.cos(angle) * radius);
+      graph.setNodeAttribute(ordered[i]!, "y", Math.sin(angle) * radius);
+      angleOf.set(ordered[i]!, angle);
+    }
+  }
+}
+
+/** Mean angle (unit-circle avg) of a node's already-placed neighbours, or 0. */
+function meanNeighbourAngle(
+  graph: MultiDirectedGraph,
+  id: string,
+  angleOf: Map<string, number>,
+): number {
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  graph.forEachNeighbor(id, (nb) => {
+    const a = angleOf.get(nb);
+    if (a === undefined) return;
+    sx += Math.cos(a);
+    sy += Math.sin(a);
+    n += 1;
+  });
+  return n === 0 ? 0 : Math.atan2(sy, sx);
 }
 
 /** Radius of the first concentric ring; outer rings step out by this much. */

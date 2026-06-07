@@ -63,4 +63,12 @@ describe("getWebviewContent", () => {
     // img-src blob: data: the default-src 'none' fallback blocks both.
     expect(html).toContain("img-src blob: data:");
   });
+
+  it("permits blob: in worker-src so the live ForceAtlas2 layout worker can start", () => {
+    const html = getWebviewContent(makeWebview(), makeExtensionUri());
+    // graphology FA2 supervisor creates a Web Worker from a Blob URL. Without
+    // worker-src blob: it falls back to default-src 'none' and is CSP-blocked,
+    // so the graph never animates (the symptom that motivated this directive).
+    expect(html).toContain("worker-src blob:");
+  });
 });

@@ -173,6 +173,37 @@ describe("applyLayoutPreset — Circular (slice 025 US2)", () => {
     }));
     expect(new Set(positions.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`)).size).toBe(3);
   });
+
+  it("places hubs nearer the centre than leaves (structural radial)", () => {
+    // hub ← a, b, c (in-degree 3, has an outgoing edge so it's not a leaf);
+    // leaf1/leaf2 are pure sinks (no outgoing edges) → outer rim.
+    const graph = new MultiDirectedGraph();
+    for (const id of ["hub", "a", "b", "c", "leaf1", "leaf2", "sink"]) {
+      graph.addNode(id, { x: 0, y: 0 });
+    }
+    graph.addEdgeWithKey("a-hub", "a", "hub");
+    graph.addEdgeWithKey("b-hub", "b", "hub");
+    graph.addEdgeWithKey("c-hub", "c", "hub");
+    graph.addEdgeWithKey("hub-sink", "hub", "sink"); // hub has an out-edge → not a leaf
+    graph.addEdgeWithKey("a-leaf1", "a", "leaf1");
+    graph.addEdgeWithKey("b-leaf2", "b", "leaf2");
+
+    applyLayoutPreset(graph, "circular", {
+      activePreset: "forceAtlas2",
+      visibleNodeIds: buildVisibleSet(graph),
+      visibleEdgeIds: buildVisibleEdgeSet(graph),
+    });
+
+    const radius = (id: string) =>
+      Math.hypot(
+        graph.getNodeAttribute(id, "x") as number,
+        graph.getNodeAttribute(id, "y") as number,
+      );
+
+    // The hub (highest in-degree) is more central than the pure-sink leaves.
+    expect(radius("hub")).toBeLessThan(radius("leaf1"));
+    expect(radius("hub")).toBeLessThan(radius("sink"));
+  });
 });
 
 describe("applyLayoutPreset — ForceAtlas2 re-application", () => {
