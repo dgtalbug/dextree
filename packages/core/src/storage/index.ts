@@ -7,4 +7,5 @@ export type {
   MigrationResultOk,
 } from "./migrations/runner.js";
 export { replaceFileGraph } from "./repository.js";
+export type { ForeignGraphReader, GraphRepository } from "./graphRepository.js";
 export { initializeSchema, REQUIRED_TABLES, SCHEMA_STATEMENTS } from "./schema.js";
