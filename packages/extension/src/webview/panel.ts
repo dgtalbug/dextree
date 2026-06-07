@@ -301,7 +301,10 @@ export const WebviewPanelManager = {
                 };
                 postMessage(reply);
               })
-              .catch(() => {
+              .catch((err: unknown) => {
+                // Degrade to an empty list, but log so a persistently failing
+                // registry read is diagnosable rather than silent.
+                injectedLogger?.debug(`[webview] workspace list failed: ${String(err)}`);
                 postMessage({ type: "workspaceList", workspaces: [] });
               });
           }
@@ -324,7 +327,10 @@ export const WebviewPanelManager = {
               .then((edges) => {
                 postMessage({ type: "preciseCalls", nodeId: req.nodeId, edges });
               })
-              .catch(() => {
+              .catch((err: unknown) => {
+                // Degrade to heuristic edges (empty precise set), but log so a
+                // persistently failing language server is diagnosable.
+                injectedLogger?.debug(`[webview] precise calls failed: ${String(err)}`);
                 postMessage({ type: "preciseCalls", nodeId: req.nodeId, edges: [] });
               });
           }

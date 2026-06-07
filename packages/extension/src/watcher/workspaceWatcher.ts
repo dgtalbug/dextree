@@ -123,7 +123,9 @@ export function createWorkspaceWatcher(
       onIndexed();
       logger.debug(`[watcher] re-indexed: ${fileName}`);
     } catch (err) {
-      logger.debug(`[watcher] error processing ${fileName}: ${String(err)}`);
+      // A failed background re-index leaves the graph stale vs disk — surface it
+      // at error level, not debug, so the staleness is diagnosable.
+      logger.error(`[watcher] error processing ${fileName}`, err);
     }
   }
 

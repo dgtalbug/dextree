@@ -12,6 +12,7 @@ import type {
   SymbolClassificationRecord,
 } from "../types.js";
 import { runInTransaction } from "./db.js";
+import { metaPath } from "./edgeMetadata.js";
 
 export interface DetectedFrameworkRow {
   frameworkName: string;
@@ -347,7 +348,7 @@ async function resolveCallEdgeSymbols(
         (
           SELECT s.id FROM symbol s
           WHERE s.file_id = $file_id
-            AND s.fqn = json_extract_string(edge.metadata, '$.source_fqn')
+            AND s.fqn = json_extract_string(edge.metadata, ${metaPath("sourceFqn")})
           LIMIT 1
         ),
         source_id
@@ -366,7 +367,7 @@ async function resolveCallEdgeSymbols(
         (
           SELECT s.id FROM symbol s
           WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.callee_name')
+            AND s.name = json_extract_string(edge.metadata, ${metaPath("calleeName")})
             AND s.kind IN ('function', 'method', 'class')
           LIMIT 1
         ),
@@ -387,7 +388,7 @@ async function resolveCallEdgeSymbols(
         (
           SELECT s.id FROM symbol s
           WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.parent_name')
+            AND s.name = json_extract_string(edge.metadata, ${metaPath("parentName")})
             AND s.kind = 'class'
           LIMIT 1
         ),
@@ -408,7 +409,7 @@ async function resolveCallEdgeSymbols(
         (
           SELECT s.id FROM symbol s
           WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.class_name')
+            AND s.name = json_extract_string(edge.metadata, ${metaPath("className")})
             AND s.kind = 'class'
           LIMIT 1
         ),
@@ -431,7 +432,7 @@ async function resolveCallEdgeSymbols(
         (
           SELECT s.id FROM symbol s
           WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.interface_name')
+            AND s.name = json_extract_string(edge.metadata, ${metaPath("interfaceName")})
             AND s.kind IN ('interface', 'class')
           LIMIT 1
         ),
@@ -453,7 +454,7 @@ async function resolveCallEdgeSymbols(
         (
           SELECT s.id FROM symbol s
           WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.referenced_name')
+            AND s.name = json_extract_string(edge.metadata, ${metaPath("referencedName")})
           LIMIT 1
         ),
         target_id
@@ -687,7 +688,7 @@ export async function resolveWorkspaceCrossFileEdges(
       SET target_id = (
         SELECT s.id FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.callee_name')
+        WHERE s.name = json_extract_string(edge.metadata, ${metaPath("calleeName")})
           AND s.kind IN ('function', 'method', 'class')
           AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
         ORDER BY s.id
@@ -711,7 +712,7 @@ export async function resolveWorkspaceCrossFileEdges(
       SET target_id = (
         SELECT s.id FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.parent_name')
+        WHERE s.name = json_extract_string(edge.metadata, ${metaPath("parentName")})
           AND s.kind = 'class'
           AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
         ORDER BY s.id
@@ -735,7 +736,7 @@ export async function resolveWorkspaceCrossFileEdges(
       SET target_id = (
         SELECT s.id FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.class_name')
+        WHERE s.name = json_extract_string(edge.metadata, ${metaPath("className")})
           AND s.kind = 'class'
           AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
         ORDER BY s.id
@@ -760,7 +761,7 @@ export async function resolveWorkspaceCrossFileEdges(
       SET target_id = (
         SELECT s.id FROM symbol s
         INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.interface_name')
+        WHERE s.name = json_extract_string(edge.metadata, ${metaPath("interfaceName")})
           AND s.kind IN ('interface', 'class')
           AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
         ORDER BY s.id
@@ -804,25 +805,36 @@ export async function synthesizeFolderTree(connection: GraphDbConnection): Promi
     const folders = new Map<string, { id: string; parent: string | null }>();
     const containsFileEdges: { folder: string; file: string }[] = [];
 
+    // The parent path is always registered before its children (root is seeded
+    // first, then each path segment is added before we descend into it), so a
+    // miss here means the invariant broke — fail loudly rather than via `!`.
+    const folderIdFor = (path: string): string => {
+      const entry = folders.get(path);
+      if (entry === undefined) {
+        throw new Error(
+          `synthesizeFolderTree: parent folder '${path}' not registered before child`,
+        );
+      }
+      return entry.id;
+    };
+
     for (const f of files) {
       const rel = String(f.relative_path);
       const parts = rel.split("/");
       parts.pop(); // drop the filename
       // Register every ancestor folder ("" = root), chaining parent links.
-      let parentPath: string | null = null;
       let accum = "";
       // Root sentinel so top-level files attach to a single root node.
-      const rootId = folderId("");
-      if (!folders.has("")) folders.set("", { id: rootId, parent: null });
-      parentPath = "";
+      if (!folders.has("")) folders.set("", { id: folderId(""), parent: null });
+      let parentPath = "";
       for (const part of parts) {
         accum = accum === "" ? part : `${accum}/${part}`;
         if (!folders.has(accum)) {
-          folders.set(accum, { id: folderId(accum), parent: folders.get(parentPath!)!.id });
+          folders.set(accum, { id: folderId(accum), parent: folderIdFor(parentPath) });
         }
         parentPath = accum;
       }
-      containsFileEdges.push({ folder: folders.get(parentPath)!.id, file: String(f.id) });
+      containsFileEdges.push({ folder: folderIdFor(parentPath), file: String(f.id) });
     }
 
     for (const [path, info] of folders) {
