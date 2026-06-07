@@ -13,6 +13,7 @@ import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
 import { parseSource } from "./parser/grammars.js";
 import type { NeighborhoodOptions, NeighborhoodResult } from "./query/neighborhood.js";
+import type { PreciseLocationResolver, PreciseResolution } from "./resolution/types.js";
 import { openDatabase } from "./storage/db.js";
 import { DuckDbGraphRepository } from "./storage/adapters/duckdbGraphRepository.js";
 import {
@@ -26,6 +27,8 @@ import {
   type Indexer,
   type IndexerFactoryOptions,
   type Logger,
+  type PreciseResolutionOptions,
+  type PreciseResolutionSummary,
   type SessionSummary,
   type StoredFile,
   type StoredSymbol,
@@ -58,6 +61,8 @@ export type {
   IndexResult,
   Indexer,
   Logger,
+  PreciseResolutionOptions,
+  PreciseResolutionSummary,
   SessionSummary,
   StoredFile,
   StoredSymbol,
@@ -96,6 +101,8 @@ export type {
   NodeLocation,
   PreciseCallEdge,
   PreciseLocationResolver,
+  PreciseResolution,
+  UnresolvedCallSite,
 } from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 export type { ForeignGraphReader, GraphRepository } from "./storage/graphRepository.js";
@@ -350,6 +357,48 @@ class DuckTreeIndexer implements Indexer {
     // Stamp tiers again so the just-created CONTAINS edges get a tier too.
     await repo.stampResolutionTier();
     this.logger?.info("Finalized workspace cross-file edges + folder tree", { workspaceRoot });
+  }
+
+  async resolvePreciseEdges(
+    workspaceRoot: string,
+    resolver: PreciseLocationResolver,
+    options?: PreciseResolutionOptions,
+  ): Promise<PreciseResolutionSummary> {
+    await this.initialize();
+    const repo = this.requireRepo();
+
+    const sites = await repo.getUnresolvedCallSites(workspaceRoot);
+    const resolutions: PreciseResolution[] = [];
+    let processed = 0;
+    let cancelled = false;
+
+    for (const site of sites) {
+      if (options?.isCancelled?.() === true) {
+        cancelled = true;
+        break;
+      }
+      // The user's language server answers by location. Take the first returned
+      // callee that maps back to a stored symbol; leave the edge heuristic if none.
+      const edges = await resolver.resolve(site.sourceLocation, "out");
+      for (const edge of edges) {
+        const targetId = await repo.findSymbolIdAt(edge.filePath, edge.line);
+        if (targetId !== null) {
+          resolutions.push({ edgeId: site.edgeId, targetId });
+          break;
+        }
+      }
+      processed += 1;
+      options?.onProgress?.({ processed, total: sites.length, upgraded: resolutions.length });
+    }
+
+    const upgraded = await repo.persistPreciseEdges(resolutions);
+    this.logger?.info("Precise resolution pass complete", {
+      workspaceRoot,
+      total: sites.length,
+      upgraded,
+      cancelled,
+    });
+    return { total: sites.length, upgraded, cancelled };
   }
 
   async neighborhood(nodeId: string, options: NeighborhoodOptions): Promise<NeighborhoodResult> {

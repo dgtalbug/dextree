@@ -345,6 +345,7 @@ describe("activate", () => {
         .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
       clearAll: vi.fn().mockResolvedValue({ clearedTables: 0 }),
       finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
+      resolvePreciseEdges: vi.fn().mockResolvedValue({ total: 0, upgraded: 0, cancelled: false }),
       detectWorkspaceFrameworks: vi.fn().mockResolvedValue([]),
       getSessionSummary: vi.fn().mockResolvedValue({}),
       dispose: vi.fn(),

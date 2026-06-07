@@ -33,6 +33,7 @@ import {
   type IndexWorkspaceProgressUpdate,
 } from "./commands/indexWorkspace.js";
 import { registerOpenGraphViewCommand } from "./commands/openGraphView.js";
+import { createResolvePreciseEdgesCommand } from "./commands/resolvePreciseEdges.js";
 import { createLogger, type Logger } from "./logger.js";
 import { LspCallResolver } from "./resolution/lspCallResolver.js";
 import { SymbolsTreeProvider } from "./tree/SymbolsTreeProvider.js";
@@ -409,6 +410,14 @@ export async function activate(context: ActivationContext): Promise<void> {
         logger,
         getIndexer,
         onCleared: refreshViewsAfterIndex,
+      }),
+    ),
+    vscode.commands.registerCommand(
+      "dextree.resolvePreciseEdges",
+      createResolvePreciseEdgesCommand({
+        logger,
+        getIndexer,
+        onResolved: refreshViewsAfterIndex,
       }),
     ),
     vscode.commands.registerCommand(

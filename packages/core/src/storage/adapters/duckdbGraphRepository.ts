@@ -1,4 +1,5 @@
 import type { EdgeRow } from "../../extractors/types.js";
+import type { PreciseResolution } from "../../resolution/types.js";
 import type { Logger } from "../../types.js";
 import type {
   CoverageReport,
@@ -28,6 +29,11 @@ import type { MigrationResult } from "../migrations/runner.js";
 import { replaceFileGraph, replaceWorkspaceFrameworks, setFileFramework } from "../repository.js";
 import type { DetectedFrameworkRow } from "../repository.js";
 import { resolveWorkspaceCrossFileEdges, stampResolutionTier } from "../resolution.js";
+import {
+  findSymbolIdAt,
+  getUnresolvedCallSites,
+  persistPreciseEdges,
+} from "../preciseResolution.js";
 import { synthesizeFolderTree } from "../folderTree.js";
 import { initializeSchema } from "../schema.js";
 import { writeWorkspaceCacheSnapshot, validateWorkspaceCache } from "../workspaceCache.js";
@@ -92,6 +98,18 @@ export class DuckDbGraphRepository implements GraphRepository {
 
   synthesizeFolderTree(): Promise<void> {
     return synthesizeFolderTree(this.connection);
+  }
+
+  getUnresolvedCallSites(workspaceRoot: string) {
+    return getUnresolvedCallSites(this.connection, workspaceRoot);
+  }
+
+  findSymbolIdAt(filePath: string, line: number): Promise<string | null> {
+    return findSymbolIdAt(this.connection, filePath, line);
+  }
+
+  persistPreciseEdges(resolutions: readonly PreciseResolution[]): Promise<number> {
+    return persistPreciseEdges(this.connection, resolutions);
   }
 
   getWorkspaceSubgraph(workspaceRoot: string): Promise<WorkspaceSubgraph> {
