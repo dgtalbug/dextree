@@ -56,11 +56,16 @@ Ship **truth before breadth**:
 
 ---
 
-## 2. Current reality (2026-05-30)
+## 2. Current reality (2026-06-07)
 
 Honest snapshot from git history + spec task lists.
 
-> **Status-sync 2026-05-30:** Phase 2 (S7.1 → S7.14 = specs 017–031) is **complete** — all merged. An unplanned `032-audit-remediation` slice also merged (logger integration, export-status UX, verification hardening). Work has moved on to `033-graphview-mockup-replica` (a closer pixel match to the frozen mockup — phases 1–2 merged, more in progress). The earlier "S7 active / S7.1 next-up" framing below is superseded; the slice board (§3) and phase tables (§7) now reflect git reality.
+> **Status-sync 2026-06-07:** Phase 2 (017–031) + `032-audit-remediation` + `033-graphview-mockup-replica` are merged. Two items the §3.5a / §8 queue listed as still-to-do have since shipped and this doc was stale on them:
+>
+> - **Lens system v2** (table-of-matches + emphasis model, plus the new **god-function** (fan-out) and **dead-code** lenses) landed in slice 033 — `LensResultTable.tsx` + `LensesPanel.tsx` are in the webview, all 7 lenses tested green in core + webview.
+> - The §3.5a **GraphView bug fixes** (hierarchical-layout camera re-fit via `cameraFit.ts`, search-result select) were addressed during 033.
+>
+> A separate **`indexing-engine-v2`** effort (OpenSpec change, PR #161) then rewrote the indexing internals behind the stable contract: one generic tags-based engine, **15 languages** (data-only providers), **tiered call resolution** (heuristic always-on + LSP-precise on select), all **9 edge kinds** (adds REFERENCES + RE_EXPORTS), folder `CONTAINS` tree, and in-store `neighborhood()` traversal. This is a substantial down-payment on **S8** (the remaining S8 scope is whole-graph precise pass-2, not on-select). The slice board (§3) and working order (§8) below reflect this git reality.
 
 | Area                  | Reality                                                                                                                                                                             |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -175,7 +180,9 @@ After 031 ships, Phase 2 is complete and the mockup is realised in product. Phas
 
 A code-grounded audit of the lens + GraphView interaction model (the data and lenses all work; these are UX/feature gaps, sized as small follow-up slices). Not yet specced. **Sequenced after `033` and BEFORE S8 (Hello LSP)** — Phase 3 UI work should not layer on top of these gaps (§7).
 
-#### 3.5a — Sequenced pre-LSP (committed direction, 2026-05-31)
+#### 3.5a — Sequenced pre-LSP — ✅ SHIPPED in slice 033 (status-sync 2026-06-07)
+
+> Both rows below shipped during `033-graphview-mockup-replica`: the lens result-table model + god-function/dead-code lenses are live (`LensResultTable.tsx`, all 7 lenses tested), and the three named GraphView bugs were fixed (hierarchical camera re-fit via `cameraFit.ts`, search-result select, edge-panel placement). Kept here as the build record.
 
 | Slice (proposed)        | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Why before LSP                                                                                                                                    |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -622,16 +629,17 @@ Token-budgeted text snapshot built from PageRank top-K per file. Default 1024 to
 
 This is the practical queue. **Anything below row 2 stays at roadmap level until the active slice above it is nearly merged.**
 
-| Priority | Slice                          | State    | Why now                                                                           |
-| -------- | ------------------------------ | -------- | --------------------------------------------------------------------------------- |
-| 1        | `033-graphview-mockup-replica` | `active` | Finish the pixel-replica pass; close the Phase 2 mockup-parity exit gate          |
-| 2        | §3.5a GraphView bug fixes      | roadmap  | Hierarchical empty-page, search-click dead, edge-panel move — broken interactions |
-| 3        | §3.5a Lens system v2           | roadmap  | God-function (fan-out) + dead-code lenses; table + emphasis model — headline UX   |
-| 4        | §3.5b carry-forward gaps       | roadmap  | Empty-state, architecture visibility, depth affordance, Inspector completeness    |
-| 5        | `S8 — Hello LSP`               | roadmap  | First Phase 3 slice: pass-2 semantic enrichment over the now-stable mockup        |
-| 6+       | S8.5 → S11.8                   | roadmap  | Phase 3 moat overlays in §7 order; each gets its own spec when promoted           |
+| Priority | Slice                          | State         | Why now                                                                                 |
+| -------- | ------------------------------ | ------------- | --------------------------------------------------------------------------------------- |
+| —        | `033-graphview-mockup-replica` | ✅ done       | Pixel-replica pass merged; closed the Phase 2 mockup-parity exit gate                   |
+| —        | §3.5a GraphView bug fixes      | ✅ done (033) | Hierarchical camera re-fit, search-result select, edge-panel placement                  |
+| —        | §3.5a Lens system v2           | ✅ done (033) | God-function + dead-code lenses; table + emphasis model — all 7 lenses tested           |
+| —        | `indexing-engine-v2` (PR #161) | review        | 15-lang generic engine, tiered resolution, 9 edge kinds, neighborhood — S8 down-payment |
+| 1        | §3.5b carry-forward gaps       | roadmap       | Empty-state, architecture visibility, depth affordance, Inspector completeness          |
+| 2        | `S8 — Hello LSP` (remainder)   | roadmap       | Whole-graph precise pass-2 (on-select precise already ships via #161)                   |
+| 3+       | S8.5 → S11.8                   | roadmap       | Phase 3 moat overlays in §7 order; each gets its own spec when promoted                 |
 
-Phase 2 is shipped (017–031 + 032). The lens-v2 redesign and the GraphView bug fixes (§3.5a) are sequenced **before** S8 — Phase 3 enrichment makes the lenses more valuable, so the lens UX should be right first.
+Phase 2 is shipped (017–031 + 032 + 033), and the §3.5a lens-v2 + GraphView bug-fix work shipped inside 033. The `indexing-engine-v2` change (PR #161) delivered the generic multi-language engine, tiered resolution, and the remaining edge kinds — a large down-payment on S8. The clean next items are the §3.5b carry-forward gaps, then the remainder of S8 (whole-graph precise pass-2).
 
 ---
 
