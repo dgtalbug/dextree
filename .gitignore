@@ -55,3 +55,8 @@ openspec/*
 .github/skills/openspec-propose/SKILL.md
 .github/skills/openspec-sync-specs/SKILL.md
 .github/skills/openspec-verify-change/SKILL.md
+
+# Local Obsidian vault (not part of the project)
+.obsidian/
+*.canvas
+*.base
