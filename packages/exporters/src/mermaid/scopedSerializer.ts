@@ -25,7 +25,14 @@ export {
  * Bounded discriminator for the diagram shape produced by
  * {@link serializeToScopedMermaid}. `flowchart` is the default.
  */
-export type MermaidDiagram = "flowchart" | "classDiagram" | "sequenceDiagram";
+/**
+ * Canonical option vocabularies. The arrays are the single source of truth
+ * (RULE-ARCH-007); each type is derived from its array so values and type can
+ * never drift, and runtime validators / UI dropdowns import the array instead
+ * of re-listing the strings.
+ */
+export const MERMAID_DIAGRAMS = ["flowchart", "classDiagram", "sequenceDiagram"] as const;
+export type MermaidDiagram = (typeof MERMAID_DIAGRAMS)[number];
 
 /**
  * Discriminated union describing which portion of the indexed workspace graph
@@ -43,13 +50,15 @@ export type MermaidScope =
   | { kind: "symbol-callees"; symbolId: string; maxDepth?: number };
 
 /** Bounded level of detail. `symbol` is the pass-through baseline. */
-export type MermaidGranularity = "package" | "file" | "symbol";
+export const MERMAID_GRANULARITIES = ["package", "file", "symbol"] as const;
+export type MermaidGranularity = (typeof MERMAID_GRANULARITIES)[number];
 
 /**
  * Flowchart orientation. `auto` resolves to a per-scope-shape default; the
  * other values map directly to Mermaid's `graph <DIR>` tokens.
  */
-export type MermaidDirection = "auto" | "TB" | "LR" | "BT" | "RL";
+export const MERMAID_DIRECTIONS = ["auto", "TB", "LR", "BT", "RL"] as const;
+export type MermaidDirection = (typeof MERMAID_DIRECTIONS)[number];
 
 /** Full option payload accepted by the scoped serializer. */
 export interface ScopedMermaidOptions {

@@ -1,4 +1,10 @@
-import type { MermaidPreviewOptions, MermaidPreviewResult } from "@dextree/exporters";
+import {
+  MERMAID_DIAGRAMS,
+  MERMAID_DIRECTIONS,
+  MERMAID_GRANULARITIES,
+  type MermaidPreviewOptions,
+  type MermaidPreviewResult,
+} from "@dextree/exporters";
 import * as vscode from "vscode";
 import type { Logger } from "../logger.js";
 import { getWebviewContent } from "./html.js";
@@ -81,9 +87,13 @@ interface ParsedSaveMermaidPreviewMessage {
   bytes: Uint8Array;
 }
 
-const VALID_DIAGRAMS = new Set(["flowchart", "classDiagram", "sequenceDiagram"]);
-const VALID_GRANULARITIES = new Set(["package", "file", "symbol"]);
-const VALID_DIRECTIONS = new Set(["auto", "TB", "LR", "BT", "RL"]);
+// Derived from the canonical exporters vocabularies (RULE-ARCH-007) so the
+// host-side validation can't drift from the option types the serializer accepts.
+const VALID_DIAGRAMS = new Set<string>(MERMAID_DIAGRAMS);
+const VALID_GRANULARITIES = new Set<string>(MERMAID_GRANULARITIES);
+const VALID_DIRECTIONS = new Set<string>(MERMAID_DIRECTIONS);
+// Theme stays local: the webview protocol uses lowercase light/dark, distinct
+// from the serializer's MermaidTheme ("Light"/"Dark"/"Print").
 const VALID_THEMES = new Set(["light", "dark"]);
 const VALID_SCOPE_KINDS = new Set(["workspace", "file", "symbol-callers", "symbol-callees"]);
 
