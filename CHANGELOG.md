@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.17.0](https://github.com/dgtalbug/dextree/compare/v1.16.0...v1.17.0) (2026-06-07)
+
+
+### Features
+
+* **core:** indexing engine v2 — generic multi-language parser, tiered resolution, graph access ([#161](https://github.com/dgtalbug/dextree/issues/161)) ([d50d6c8](https://github.com/dgtalbug/dextree/commit/d50d6c85edb2a924696da43699f9845e4782d087))
+* extend GraphViewProps with new workspace actions ([216cb42](https://github.com/dgtalbug/dextree/commit/216cb4291231aaf7e4cd705d32552c3e8e373cb0))
+* extend GraphViewProps with new workspace actions ([c49d31d](https://github.com/dgtalbug/dextree/commit/c49d31d4a7b7d13dc0fd0510c60b5d7bc9de1175))
+* **extension:** cluster aesthetics — community layout, hulls, importance size ([#156](https://github.com/dgtalbug/dextree/issues/156)) ([389cf1b](https://github.com/dgtalbug/dextree/commit/389cf1b6021a074e0484c5b9ea7918a7833f40e7))
+* **extension:** graph UX overhaul — live layout, focused card view, radial-on-select, layout fixes ([#169](https://github.com/dgtalbug/dextree/issues/169)) ([56dd4ed](https://github.com/dgtalbug/dextree/commit/56dd4edf2de6d42d93f5d08f63571cbc886af799))
+* **extension:** live-layout CSP fix + scatter-then-organize settle + structural radial Circular ([#170](https://github.com/dgtalbug/dextree/issues/170)) ([8aaeb99](https://github.com/dgtalbug/dextree/commit/8aaeb991029b3ac4b202833e828cad59abb42fb6))
+* **extension:** read VisibleView for export, depth, trace, focus, and the lens hierarchy ([#155](https://github.com/dgtalbug/dextree/issues/155)) ([270ee49](https://github.com/dgtalbug/dextree/commit/270ee49947805af2c72a043daca28fbd77d7cfb8))
+* **extension:** slice 033 — GraphView mockup replica (shell, lenses, inspector, CSP fixes) ([#141](https://github.com/dgtalbug/dextree/issues/141)) ([c49d31d](https://github.com/dgtalbug/dextree/commit/c49d31d4a7b7d13dc0fd0510c60b5d7bc9de1175))
+* graph cleanups — dead exports, ignore toggles, hull persistence, test hardening ([#157](https://github.com/dgtalbug/dextree/issues/157)) ([acba1af](https://github.com/dgtalbug/dextree/commit/acba1affb9df0a6149414385d7c1785c40c275e5))
+* improve LensesPanel with mockup structure tests ([216cb42](https://github.com/dgtalbug/dextree/commit/216cb4291231aaf7e4cd705d32552c3e8e373cb0))
+* improve LensesPanel with mockup structure tests ([c49d31d](https://github.com/dgtalbug/dextree/commit/c49d31d4a7b7d13dc0fd0510c60b5d7bc9de1175))
+* persist precise (LSP) call resolution — pass-2 (stacked on [#165](https://github.com/dgtalbug/dextree/issues/165)) ([#167](https://github.com/dgtalbug/dextree/issues/167)) ([5b4ac15](https://github.com/dgtalbug/dextree/commit/5b4ac1511278a932161245e76ff2f0fc4f740128)), closes [#166](https://github.com/dgtalbug/dextree/issues/166)
+
+
+### Bug Fixes
+
+* **ci:** exclude CHANGELOG.md from link-check and Prettier race ([#143](https://github.com/dgtalbug/dextree/issues/143)) ([216cb42](https://github.com/dgtalbug/dextree/commit/216cb4291231aaf7e4cd705d32552c3e8e373cb0))
+* **extension:** trace full graph, export scope quick-pick, lens-scoped export ([#159](https://github.com/dgtalbug/dextree/issues/159)) ([9599920](https://github.com/dgtalbug/dextree/commit/95999202cf28f87353ed7b5a343f16a5dc2751ff))
+
 ## [1.16.0](https://github.com/dgtalbug/dextree/compare/v1.15.0...v1.16.0) (2026-05-30)
 
 ### Features
