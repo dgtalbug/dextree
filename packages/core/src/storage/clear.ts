@@ -1,4 +1,4 @@
-import type { GraphDbConnection } from "./db.js";
+import { runInTransaction, type GraphDbConnection } from "./db.js";
 
 import { initializeSchema, REQUIRED_TABLES } from "./schema.js";
 
@@ -97,9 +97,7 @@ export async function clearWorkspace(
   const deletedSymbols = await countMatchingSymbols(connection, workspaceRoot);
   const deletedEdges = await countMatchingEdges(connection, workspaceRoot);
 
-  await connection.run("BEGIN TRANSACTION");
-
-  try {
+  await runInTransaction(connection, async () => {
     // NOTE: @duckdb/node-api throws "Failed to retrieve bind parameter index"
     // when the params dict contains a key the SQL statement does not reference.
     // Each connection.run below therefore receives ONLY the keys its SQL uses.
@@ -125,12 +123,7 @@ export async function clearWorkspace(
     await connection.run(`DELETE FROM workspace_cache WHERE workspace_root = $workspace_root`, {
       workspace_root: params.workspace_root,
     });
-
-    await connection.run("COMMIT");
-  } catch (error) {
-    await connection.run("ROLLBACK");
-    throw error;
-  }
+  });
 
   return { deletedFiles, deletedSymbols, deletedEdges };
 }
@@ -170,9 +163,7 @@ export async function clearFile(
   const deletedEdges =
     Number(edgeFromFileRows[0]?.count ?? 0) + Number(edgeFromSymbolRows[0]?.count ?? 0);
 
-  await connection.run("BEGIN TRANSACTION");
-
-  try {
+  await runInTransaction(connection, async () => {
     const symbolSubquery = `(SELECT id FROM symbol WHERE file_id = $file_id)`;
     await connection.run(`DELETE FROM edge WHERE source_id = $file_id`, params);
     await connection.run(`DELETE FROM edge WHERE target_id = $file_id`, params);
@@ -181,29 +172,19 @@ export async function clearFile(
     await connection.run(`DELETE FROM diagnostic WHERE file_id = $file_id`, params);
     await connection.run(`DELETE FROM symbol WHERE file_id = $file_id`, params);
     await connection.run(`DELETE FROM file WHERE id = $file_id`, params);
-    await connection.run("COMMIT");
-  } catch (error) {
-    await connection.run("ROLLBACK");
-    throw error;
-  }
+  });
 
   return { deletedFiles: 1, deletedSymbols, deletedEdges };
 }
 
 export async function clearAll(connection: GraphDbConnection): Promise<ClearAllResult> {
-  await connection.run("BEGIN TRANSACTION");
-
-  try {
+  await runInTransaction(connection, async () => {
     for (const table of REQUIRED_TABLES) {
       await connection.run(`DROP TABLE IF EXISTS ${table}`);
     }
+  });
 
-    await connection.run("COMMIT");
-  } catch (error) {
-    await connection.run("ROLLBACK");
-    throw error;
-  }
-
+  // Recreate the schema outside the drop transaction — a fresh, independent step.
   await initializeSchema(connection);
 
   return { clearedTables: REQUIRED_TABLES.length };

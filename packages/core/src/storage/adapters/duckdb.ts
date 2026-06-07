@@ -27,7 +27,12 @@ export interface DatabaseHandle {
   close(): void;
 }
 
-let inTransaction = false;
+// Per-connection transaction state. Keyed by connection (not a module-global
+// boolean) so the nesting guard reflects *this* connection's state — a process
+// that holds several handles (e.g. the writable workspace DB plus read-only
+// foreign DBs for the switcher) must not let one connection's transaction flip
+// another's guard. WeakMap so a closed connection's entry is collected with it.
+const activeTransactions = new WeakMap<GraphDbConnection, true>();
 
 export async function openDatabase(dbPath: string): Promise<DatabaseHandle> {
   const { DuckDBInstance } = await import("@duckdb/node-api");
@@ -88,7 +93,7 @@ export async function runInTransaction<T>(
   logger?: Logger,
 ): Promise<T> {
   // Nesting guard — throws synchronously before any SQL is issued.
-  if (inTransaction) {
+  if (activeTransactions.has(connection)) {
     throw new Error("Nested runInTransaction detected");
   }
 
@@ -101,7 +106,7 @@ export async function runInTransaction<T>(
   }
 
   try {
-    inTransaction = true;
+    activeTransactions.set(connection, true);
     logger?.debug("BEGIN TRANSACTION");
     await connection.run("BEGIN TRANSACTION");
 
@@ -119,7 +124,7 @@ export async function runInTransaction<T>(
     }
     throw error;
   } finally {
-    inTransaction = false;
+    activeTransactions.delete(connection);
   }
 }
 

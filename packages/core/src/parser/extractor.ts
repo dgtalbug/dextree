@@ -138,7 +138,15 @@ function expandedCandidates(basePath: string): string[] {
   ];
 }
 
-/** Per-workspace-root cache of tsconfig `compilerOptions.paths` alias mappings. */
+/**
+ * Per-workspace-root cache of tsconfig `compilerOptions.paths` alias mappings.
+ *
+ * Module-global and never evicted: it grows by one entry per distinct
+ * workspace root seen for the process lifetime. Bounded in practice (a session
+ * indexes a handful of roots), but unlike `frameworkCache` it has no
+ * clear-on-workspace hook — if a long-lived host indexes many roots this leaks.
+ * Acceptable for now; revisit with a bounded/LRU cache if it ever matters.
+ */
 const pathAliasCache = new Map<string, Map<string, string[]>>();
 
 /** Candidate tsconfig filenames to probe, in preference order. */
