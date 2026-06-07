@@ -272,6 +272,124 @@ describe("createIndexer", () => {
       await indexer.dispose();
     }
   });
+
+  it("resolvePreciseEdges upgrades a heuristic CALLS edge to precise via a location resolver", async () => {
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-precise-"));
+    tempDirs.push(workspaceRoot);
+    await mkdir(resolve(workspaceRoot, "src"), { recursive: true });
+
+    const targetPath = resolve(workspaceRoot, "src/target.ts");
+    await writeFile(targetPath, "export function doThing() {}\n");
+    const callerPath = resolve(workspaceRoot, "src/caller.ts");
+    await writeFile(
+      callerPath,
+      "import { doThing } from './target';\nexport function caller() {\n  doThing();\n}\n",
+    );
+
+    const indexer = createIndexer(":memory:", wasmDir);
+    try {
+      await indexer.initialize();
+      await indexer.indexFile(targetPath, workspaceRoot);
+      await indexer.indexFile(callerPath, workspaceRoot);
+      await indexer.finalizeWorkspace(workspaceRoot);
+
+      // The callee symbol's stored location is what the resolver must point at.
+      const targetSymbol = (await indexer.getSymbols("src/target.ts")).find(
+        (s) => s.name === "doThing",
+      );
+      expect(targetSymbol).toBeDefined();
+
+      // Fake precise resolver: answers every site with the callee's location.
+      const resolver = {
+        tier: "precise" as const,
+        resolve: async () => [
+          {
+            name: "doThing",
+            filePath: targetPath,
+            line: targetSymbol!.range.startLine,
+            tier: "precise" as const,
+            confidence: 1,
+          },
+        ],
+      };
+
+      const progress: number[] = [];
+      const summary = await indexer.resolvePreciseEdges(workspaceRoot, resolver, {
+        onProgress: (p) => progress.push(p.processed),
+      });
+
+      expect(summary.total).toBeGreaterThan(0);
+      expect(summary.upgraded).toBeGreaterThan(0);
+      expect(summary.cancelled).toBe(false);
+      expect(progress.length).toBe(summary.total);
+
+      // Re-running is a no-op upgrade: the precise edges drop out of the work-list.
+      const second = await indexer.resolvePreciseEdges(workspaceRoot, resolver);
+      expect(second.total).toBeLessThan(summary.total);
+    } finally {
+      await indexer.dispose();
+    }
+  });
+
+  it("resolvePreciseEdges leaves edges heuristic when the resolver answers nothing", async () => {
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-precise-empty-"));
+    tempDirs.push(workspaceRoot);
+    await mkdir(resolve(workspaceRoot, "src"), { recursive: true });
+    const targetPath = resolve(workspaceRoot, "src/target.ts");
+    await writeFile(targetPath, "export function doThing() {}\n");
+    const callerPath = resolve(workspaceRoot, "src/caller.ts");
+    await writeFile(
+      callerPath,
+      "import { doThing } from './target';\nexport function caller() {\n  doThing();\n}\n",
+    );
+
+    const indexer = createIndexer(":memory:", wasmDir);
+    try {
+      await indexer.initialize();
+      await indexer.indexFile(targetPath, workspaceRoot);
+      await indexer.indexFile(callerPath, workspaceRoot);
+      await indexer.finalizeWorkspace(workspaceRoot);
+
+      const coldResolver = { tier: "precise" as const, resolve: async () => [] };
+      const summary = await indexer.resolvePreciseEdges(workspaceRoot, coldResolver);
+      expect(summary.upgraded).toBe(0);
+      // Nothing upgraded → the same sites are still offered next run.
+      const second = await indexer.resolvePreciseEdges(workspaceRoot, coldResolver);
+      expect(second.total).toBe(summary.total);
+    } finally {
+      await indexer.dispose();
+    }
+  });
+
+  it("resolvePreciseEdges honors cancellation and persists partial work", async () => {
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "dextree-core-precise-cancel-"));
+    tempDirs.push(workspaceRoot);
+    await mkdir(resolve(workspaceRoot, "src"), { recursive: true });
+    const targetPath = resolve(workspaceRoot, "src/target.ts");
+    await writeFile(targetPath, "export function doThing() {}\n");
+    const callerPath = resolve(workspaceRoot, "src/caller.ts");
+    await writeFile(
+      callerPath,
+      "import { doThing } from './target';\nexport function caller() {\n  doThing();\n}\n",
+    );
+
+    const indexer = createIndexer(":memory:", wasmDir);
+    try {
+      await indexer.initialize();
+      await indexer.indexFile(targetPath, workspaceRoot);
+      await indexer.indexFile(callerPath, workspaceRoot);
+      await indexer.finalizeWorkspace(workspaceRoot);
+
+      const resolver = { tier: "precise" as const, resolve: async () => [] };
+      const summary = await indexer.resolvePreciseEdges(workspaceRoot, resolver, {
+        isCancelled: () => true, // cancel before the first site
+      });
+      expect(summary.cancelled).toBe(true);
+      expect(summary.upgraded).toBe(0);
+    } finally {
+      await indexer.dispose();
+    }
+  });
 });
 
 afterEach(async () => {

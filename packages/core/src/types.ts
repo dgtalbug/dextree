@@ -6,6 +6,8 @@
 //   5 — adds workspace_framework table + file.framework columns (migration 005)
 //   6 — adds symbol.entry_kind + symbol.arch_layer classification columns (migration 006)
 //   7 — adds symbol.enclosing_symbol_id classification column (migration 007)
+import type { PreciseLocationResolver } from "./resolution/types.js";
+
 export const SCHEMA_VERSION = 8;
 
 export interface Logger {
@@ -324,7 +326,36 @@ export interface Indexer {
   clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary>;
   clearFile(filePath: string): Promise<ClearFileSummary>;
   clearAll(): Promise<ClearAllSummary>;
+  /**
+   * Pass-2 precise resolution: upgrade persisted heuristic/unresolved `CALLS`
+   * edges to the `precise` tier using a host-supplied location resolver (the
+   * user's language server). Opt-in, idempotent, behavior-preserving for the
+   * default index. The host owns the resolver (RULE-ARCH-005); the indexer owns
+   * the work-list + persistence (all DB access through the repository).
+   */
+  resolvePreciseEdges(
+    workspaceRoot: string,
+    resolver: PreciseLocationResolver,
+    options?: PreciseResolutionOptions,
+  ): Promise<PreciseResolutionSummary>;
   dispose(): Promise<void>;
+}
+
+/** Host hooks for the precise pass — progress + cancellation, no VS Code dependency. */
+export interface PreciseResolutionOptions {
+  /** Reports incremental progress; `processed`/`total` sites, `upgraded` so far. */
+  onProgress?: (progress: { processed: number; total: number; upgraded: number }) => void;
+  /** Polled between sites; return true to stop early (persisting what's done). */
+  isCancelled?: () => boolean;
+}
+
+export interface PreciseResolutionSummary {
+  /** Total unresolved call sites considered. */
+  total: number;
+  /** Sites the resolver answered and matched to a target. */
+  upgraded: number;
+  /** Whether the pass stopped early due to cancellation. */
+  cancelled: boolean;
 }
 
 export interface ExtractedFileRecord {

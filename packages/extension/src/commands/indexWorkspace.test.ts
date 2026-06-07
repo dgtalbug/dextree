@@ -43,6 +43,7 @@ function createMockIndexer() {
       elapsedMs: 5,
     }),
     finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
+    resolvePreciseEdges: vi.fn().mockResolvedValue({ total: 0, upgraded: 0, cancelled: false }),
     detectWorkspaceFrameworks: vi.fn().mockResolvedValue([]),
     validateWorkspaceCache: vi.fn(),
     getSymbols: vi.fn(),

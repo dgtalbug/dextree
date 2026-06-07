@@ -123,6 +123,10 @@
         "title": "Dextree: Clear All Indexed Data"
       },
       {
+        "command": "dextree.resolvePreciseEdges",
+        "title": "Dextree: Resolve Precise Edges (LSP)"
+      },
+      {
         "command": "dextree.cancelWorkspaceIndexing",
         "title": "Dextree: Cancel Workspace Indexing",
         "icon": "$(stop-circle)",

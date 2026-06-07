@@ -35,6 +35,7 @@ function makeMockIndexer() {
     clearFile: mockClearFile,
     getAllFiles: mockGetAllFiles,
     finalizeWorkspace: vi.fn().mockResolvedValue(undefined),
+    resolvePreciseEdges: vi.fn().mockResolvedValue({ total: 0, upgraded: 0, cancelled: false }),
     detectWorkspaceFrameworks: vi.fn().mockResolvedValue([]),
     getSymbols: vi.fn(),
     initialize: vi.fn(),

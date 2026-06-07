@@ -19,14 +19,6 @@ import type { MigrationResult } from "./migrations/runner.js";
 import type { DetectedFrameworkRow } from "./repository.js";
 import type { WriteWorkspaceCacheSnapshotInput } from "./workspaceCache.js";
 
-/**
- * In-memory {@link GraphRepository} for contract tests that need the interface
- * without a DuckDB instance. It is a structural proof that the repository is
- * substitutable (RULE-ARCH-003): the type checker enforces that this satisfies
- * the whole interface, and it implements enough real behavior (per-file symbol
- * storage, clears) for round-trip tests. Analytics-heavy reads return valid
- * empty shapes — extend them in a test if a scenario needs richer behavior.
- */
 /** In-memory CALLS edge for the precise-resolution round-trip (test modelling). */
 interface FakeEdge {
   edgeId: string;
@@ -35,6 +27,15 @@ interface FakeEdge {
   resolution: "heuristic" | "unresolved" | "precise";
 }
 
+/**
+ * In-memory {@link GraphRepository} for contract tests that need the interface
+ * without a DuckDB instance. It is a structural proof that the repository is
+ * substitutable (RULE-ARCH-003): the type checker enforces that this satisfies
+ * the whole interface, and it implements enough real behavior (per-file symbol
+ * storage, clears, precise-edge round-trip) for round-trip tests. Analytics-heavy
+ * reads return valid empty shapes — extend them in a test if a scenario needs
+ * richer behavior.
+ */
 export class FakeGraphRepository implements GraphRepository {
   /** relativePath → file */
   private readonly files = new Map<string, StoredFile>();
