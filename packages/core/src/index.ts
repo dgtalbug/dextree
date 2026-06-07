@@ -89,9 +89,6 @@ export type {
   ExtractorRegistry,
   KnownSymbol,
 } from "./extractors/types.js";
-export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
-export { getCoverageReport } from "./query/coverage.js";
-export { neighborhood } from "./query/neighborhood.js";
 export type {
   CallResolver,
   ResolvedEdge,
@@ -101,7 +98,8 @@ export type {
   PreciseLocationResolver,
 } from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
-export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
+export type { ForeignGraphReader, GraphRepository } from "./storage/graphRepository.js";
+export { DuckDbForeignGraphReader } from "./storage/adapters/duckdbGraphRepository.js";
 
 // NOTE: Lens utilities are NOT re-exported here. They're published via the
 // `@dextree/core/lenses` subpath export so webview bundlers (Rollup/Vite)

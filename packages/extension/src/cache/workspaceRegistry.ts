@@ -7,7 +7,7 @@
  * `storageUri` is workspace-scoped and offers no enumeration API.
  */
 
-import { readWorkspaceIndexSummary } from "@dextree/core";
+import { DuckDbForeignGraphReader } from "@dextree/core";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -84,9 +84,10 @@ export async function listIndexedWorkspaces(
   activeWorkspaceRoot: string,
 ): Promise<IndexedWorkspaceRecord[]> {
   const registry = await readWorkspaceRegistry(globalStoragePath);
+  const foreignReader = new DuckDbForeignGraphReader();
   const summaries = await Promise.all(
     registry.entries.map(async (entry) => {
-      const summary = await readWorkspaceIndexSummary(entry.dbPath);
+      const summary = await foreignReader.readWorkspaceIndexSummary(entry.dbPath);
       if (summary === null) return null;
       const record: IndexedWorkspaceRecord = {
         workspaceRoot: summary.workspaceRoot,
