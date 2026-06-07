@@ -32,6 +32,7 @@ const CONFIG: ProviderConfig = {
     variable: "variable",
   },
   callCaptures: ["reference.call"],
+  importNodeTypes: ["import_statement", "import_from_statement"],
 };
 
 export const TREE_SITTER_PYTHON_PROVIDERS: readonly LanguageProvider[] = [

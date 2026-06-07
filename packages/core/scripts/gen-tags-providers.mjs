@@ -13,18 +13,24 @@ const outDir = resolve(coreRoot, "src/extractors/languages/generated");
 
 // One entry per language. The ONLY per-language data: package name + which
 // detectLanguage value(s) it serves + the default capture→kind config.
+// `imports` = top-level AST node types that represent an import in that grammar,
+// used to emit IMPORTS edges. Empty/omitted → the language emits no IMPORTS.
 const LANGUAGES = [
-  { pkg: "tree-sitter-python", languages: ["python"] },
-  { pkg: "tree-sitter-go", languages: ["go"] },
-  { pkg: "tree-sitter-java", languages: ["java"] },
-  { pkg: "tree-sitter-ruby", languages: ["ruby"] },
-  { pkg: "tree-sitter-rust", languages: ["rust"] },
-  { pkg: "tree-sitter-c", languages: ["c"] },
-  { pkg: "tree-sitter-cpp", languages: ["cpp"] },
-  { pkg: "tree-sitter-c-sharp", languages: ["csharp"] },
-  { pkg: "tree-sitter-php", languages: ["php"] },
-  { pkg: "tree-sitter-elixir", languages: ["elixir"] },
-  { pkg: "tree-sitter-scala", languages: ["scala"] },
+  {
+    pkg: "tree-sitter-python",
+    languages: ["python"],
+    imports: ["import_statement", "import_from_statement"],
+  },
+  { pkg: "tree-sitter-go", languages: ["go"], imports: ["import_declaration"] },
+  { pkg: "tree-sitter-java", languages: ["java"], imports: ["import_declaration"] },
+  { pkg: "tree-sitter-ruby", languages: ["ruby"], imports: [] },
+  { pkg: "tree-sitter-rust", languages: ["rust"], imports: ["use_declaration"] },
+  { pkg: "tree-sitter-c", languages: ["c"], imports: ["preproc_include"] },
+  { pkg: "tree-sitter-cpp", languages: ["cpp"], imports: ["preproc_include"] },
+  { pkg: "tree-sitter-c-sharp", languages: ["csharp"], imports: ["using_directive"] },
+  { pkg: "tree-sitter-php", languages: ["php"], imports: ["namespace_use_declaration"] },
+  { pkg: "tree-sitter-elixir", languages: ["elixir"], imports: [] },
+  { pkg: "tree-sitter-scala", languages: ["scala"], imports: ["import_declaration"] },
 ];
 
 // Standard tree-sitter tags `definition.<suffix>` → Dextree SymbolKind. Suffixes
@@ -48,10 +54,11 @@ function tagsFor(pkg) {
   return readFileSync(p, "utf8");
 }
 
-function emit({ pkg, languages }) {
+function emit({ pkg, languages, imports = [] }) {
   const tags = tagsFor(pkg);
   const constName = pkg.replace(/[^a-z0-9]/gi, "_").toUpperCase();
   const escaped = tags.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
+  const importsLine = imports.length > 0 ? `  importNodeTypes: ${JSON.stringify(imports)},\n` : "";
   const lines = [
     `// AUTO-GENERATED from ${pkg}/queries/tags.scm — do not edit by hand.`,
     `// Regenerate: pnpm --filter @dextree/core gen:tags`,
@@ -62,7 +69,10 @@ function emit({ pkg, languages }) {
     `const CONFIG: ProviderConfig = {`,
     `  symbolKinds: ${JSON.stringify(DEFAULT_SYMBOL_KINDS, null, 2).replace(/\n/g, "\n  ")},`,
     `  callCaptures: ["reference.call"],`,
+    importsLine ? importsLine.replace(/\n$/, "") : null,
     `};`,
+  ].filter((l) => l !== null);
+  lines.push(
     ``,
     `export const ${constName}_PROVIDERS: readonly LanguageProvider[] = [`,
     ...languages.map(
@@ -70,7 +80,7 @@ function emit({ pkg, languages }) {
     ),
     `];`,
     ``,
-  ];
+  );
   const out = resolve(outDir, `${pkg}.ts`);
   writeFileSync(out, lines.join("\n"), "utf8");
   return { pkg, constName, file: `${pkg}.ts`, languages };

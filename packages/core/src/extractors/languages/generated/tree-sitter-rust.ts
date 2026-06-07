@@ -78,6 +78,7 @@ const CONFIG: ProviderConfig = {
     variable: "variable",
   },
   callCaptures: ["reference.call"],
+  importNodeTypes: ["use_declaration"],
 };
 
 export const TREE_SITTER_RUST_PROVIDERS: readonly LanguageProvider[] = [

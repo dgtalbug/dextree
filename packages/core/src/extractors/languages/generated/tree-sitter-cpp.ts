@@ -33,6 +33,7 @@ const CONFIG: ProviderConfig = {
     variable: "variable",
   },
   callCaptures: ["reference.call"],
+  importNodeTypes: ["preproc_include"],
 };
 
 export const TREE_SITTER_CPP_PROVIDERS: readonly LanguageProvider[] = [

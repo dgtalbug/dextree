@@ -60,6 +60,8 @@ export class GenericTagsExtractor implements Extractor {
       input.absolutePath,
       input.workspaceRoot,
       input.fileId,
+      input.language,
+      provider.config.importNodeTypes,
     );
 
     const edges = provider.config.structuralOnly

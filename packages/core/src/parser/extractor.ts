@@ -202,43 +202,62 @@ async function loadPathAliases(workspaceRoot: string): Promise<Map<string, strin
   return result;
 }
 
+const DEFAULT_IMPORT_NODE_TYPES = ["import_statement"] as const;
+
 export async function extractImportRefs(
   rootChildren: readonly Node[],
   absolutePath: string,
   workspaceRoot: string,
   fileId: string,
+  language = "typescript",
+  importNodeTypes: readonly string[] = DEFAULT_IMPORT_NODE_TYPES,
 ): Promise<ExtractedImportRef[]> {
   const imports: ExtractedImportRef[] = [];
+  const nodeTypes = new Set(importNodeTypes);
 
   for (const child of rootChildren) {
-    if (child.type !== "import_statement") {
+    if (!nodeTypes.has(child.type)) {
       continue;
     }
 
-    const match = child.text.match(/["']([^"']+)["']/);
-    const specifier = match?.[1];
+    // First quoted/bracketed module specifier in the import text. Works across
+    // grammars: TS/Python `"x"`/`'x'`, Go `"fmt"`, Rust/Java fall back to the
+    // dotted/scoped path below when there is no quoted string.
+    const quoted = child.text.match(/["']([^"']+)["']/)?.[1];
+    const specifier = quoted ?? readUnquotedSpecifier(child);
 
-    if (specifier === undefined) {
+    if (specifier === undefined || specifier === "") {
       continue;
     }
 
-    const importPath = await resolveImportPath(absolutePath, workspaceRoot, specifier);
-
-    if (importPath === null) {
-      continue;
-    }
+    // Path resolution is TS-style (relative + tsconfig aliases). When it resolves
+    // to a workspace file, store that; otherwise keep the raw specifier so the
+    // IMPORTS edge still exists for every language, not only TS/JS.
+    const resolved = await resolveImportPath(absolutePath, workspaceRoot, specifier);
 
     imports.push({
       id: uuidv4(),
       fileId,
-      importPath,
+      importPath: resolved ?? specifier,
       importedSymbol: null,
       range: toRange(child),
-      language: "typescript",
+      language,
     });
   }
 
   return imports;
+}
+
+/**
+ * Best-effort module specifier for grammars whose import has no quoted string
+ * (Rust `use a::b::c;`, Java `import a.b.C;`) — take the dotted/scoped path token.
+ */
+function readUnquotedSpecifier(node: Node): string | undefined {
+  const text = node.text
+    .replace(/^\s*(use|import)\s+/, "")
+    .replace(/;\s*$/, "")
+    .trim();
+  return text.length > 0 ? text : undefined;
 }
 
 export async function extractPlainFile(
