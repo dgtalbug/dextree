@@ -328,10 +328,14 @@ export function applyLayoutPreset(
         iterations: 200,
         settings: FORCE_ATLAS2_SETTINGS,
       });
+      // Anti-collision after the force pass so overlapping nodes are nudged
+      // apart — matches circular/hierarchical and keeps the default view (which
+      // is ForceAtlas2) from rendering nodes on top of each other.
+      runReadabilityPass(graph);
       return {
         status: "applied",
         preset: "forceAtlas2",
-        ranReadabilityPass: false,
+        ranReadabilityPass: true,
         notice: null,
       };
 

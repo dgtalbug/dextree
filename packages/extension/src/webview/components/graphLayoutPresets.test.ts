@@ -190,7 +190,9 @@ describe("applyLayoutPreset — ForceAtlas2 re-application", () => {
     expect(result.status).toBe("applied");
     if (result.status === "applied") {
       expect(result.preset).toBe("forceAtlas2");
-      expect(result.ranReadabilityPass).toBe(false);
+      // ForceAtlas2 now runs the anti-collision pass too, so the default view
+      // de-overlaps its nodes (previously only circular/hierarchical did).
+      expect(result.ranReadabilityPass).toBe(true);
     }
   });
 });
