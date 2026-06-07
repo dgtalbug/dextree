@@ -35,6 +35,8 @@ jobs:
         run: pnpm format:check
       - name: ESLint
         run: pnpm lint
+      - name: No spec-tracking tags in source
+        run: pnpm lint:spec-tags
       - name: TypeScript
         run: pnpm typecheck
       - name: pnpm dedupe check

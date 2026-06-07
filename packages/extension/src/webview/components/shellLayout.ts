@@ -1,5 +1,5 @@
 /**
- * Shell layout constants (slice 033).
+ * Shell layout constants.
  *
  * Single source of truth for the grid templates the mockup pins
  * (scratch/graphview-mockup-final.html). The CSS Modules that own the actual

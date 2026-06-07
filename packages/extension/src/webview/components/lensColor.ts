@@ -1,6 +1,6 @@
 /**
  * Alpha multiplier applied to non-matching nodes when a lens is active.
- * Spec target: ≤ 50% of base opacity (FR-005). 0.35 gives clearer visual
+ * Target: ≤ 50% of base opacity. 0.35 gives clearer visual
  * separation than 0.5 while still letting users see the dimmed structure.
  */
 export const LENS_DIM_ALPHA = 0.35;

@@ -23,18 +23,23 @@ export {
 
 /**
  * Bounded discriminator for the diagram shape produced by
- * {@link serializeToScopedMermaid}. `flowchart` is the slice-016/027 default;
- * `classDiagram` lands in slice 028; `sequenceDiagram` is reserved for slice
- * 031.
+ * {@link serializeToScopedMermaid}. `flowchart` is the default.
  */
-export type MermaidDiagram = "flowchart" | "classDiagram" | "sequenceDiagram";
+/**
+ * Canonical option vocabularies. The arrays are the single source of truth
+ * (RULE-ARCH-007); each type is derived from its array so values and type can
+ * never drift, and runtime validators / UI dropdowns import the array instead
+ * of re-listing the strings.
+ */
+export const MERMAID_DIAGRAMS = ["flowchart", "classDiagram", "sequenceDiagram"] as const;
+export type MermaidDiagram = (typeof MERMAID_DIAGRAMS)[number];
 
 /**
  * Discriminated union describing which portion of the indexed workspace graph
  * to export. `workspace` and `file` are the original scopes; `visible` exports
  * an explicit node/edge id set (the rendered `VisibleView`, so an export matches
  * exactly what the user sees after lenses/filters/depth). `symbol-callers` /
- * `symbol-callees` are pre-declared so later slices add behavior without
+ * `symbol-callees` are pre-declared so behavior can be added without
  * changing the option type.
  */
 export type MermaidScope =
@@ -45,19 +50,20 @@ export type MermaidScope =
   | { kind: "symbol-callees"; symbolId: string; maxDepth?: number };
 
 /** Bounded level of detail. `symbol` is the pass-through baseline. */
-export type MermaidGranularity = "package" | "file" | "symbol";
+export const MERMAID_GRANULARITIES = ["package", "file", "symbol"] as const;
+export type MermaidGranularity = (typeof MERMAID_GRANULARITIES)[number];
 
 /**
  * Flowchart orientation. `auto` resolves to a per-scope-shape default; the
  * other values map directly to Mermaid's `graph <DIR>` tokens.
  */
-export type MermaidDirection = "auto" | "TB" | "LR" | "BT" | "RL";
+export const MERMAID_DIRECTIONS = ["auto", "TB", "LR", "BT", "RL"] as const;
+export type MermaidDirection = (typeof MERMAID_DIRECTIONS)[number];
 
 /** Full option payload accepted by the scoped serializer. */
 export interface ScopedMermaidOptions {
   /**
-   * Required since slice 028. The `flowchart` branch is byte-identical to the
-   * slice-027 path; the `classDiagram` branch delegates to
+   * The `classDiagram` branch delegates to
    * `serializeToClassDiagram` and ignores `granularity` (forced to `"symbol"`)
    * and `direction` (Mermaid classDiagram has no direction token).
    */
@@ -69,7 +75,7 @@ export interface ScopedMermaidOptions {
   /**
    * Required when `diagram === "sequenceDiagram"`. Holds the active webview
    * trace route the serializer turns into ordered participants and steps.
-   * Slice-031 wire-through; ignored by the flowchart and classDiagram branches.
+   * Ignored by the flowchart and classDiagram branches.
    * Callers that already validate the snapshot themselves may still pass it
    * here so `serializeToScopedMermaid` can re-validate and fail closed.
    */
@@ -77,7 +83,7 @@ export interface ScopedMermaidOptions {
   /**
    * Opt out of the workspace granularity floor. User-facing export paths leave
    * this unset so a `workspace` scope never descends to `symbol` (see
-   * {@link clampGranularityToScope}). The slice-016 legacy `serializeToMermaid`
+   * {@link clampGranularityToScope}). The legacy `serializeToMermaid`
    * shim sets it `true` to preserve its byte-identical symbol-level output for
    * the snapshot/fuzz callers that predate the floor.
    */
@@ -132,7 +138,7 @@ export type ScopeExtractionResult =
 // Per-axis behavior lives in scope.ts / granularity.ts / direction.ts /
 // validator.ts — all re-exported above for consumers of @dextree/exporters.
 // ---------------------------------------------------------------------------
-// Output formatting helpers. Mirror the slice-016 serializer.ts contract so
+// Output formatting helpers. Mirror the serializer.ts contract so
 // the legacy shim and the new scoped path emit byte-identical node + edge
 // lines (only the `graph <DIR>` header differs).
 // ---------------------------------------------------------------------------
@@ -200,19 +206,68 @@ function emitMermaidLines(
  * non-ok status; callers that want graceful handling should call the
  * helpers themselves first.
  */
+/**
+ * Strategy contract for a Mermaid diagram type (RULE-ARCH-004). Each diagram is
+ * one serializer; the registry below maps the diagram discriminator to its
+ * strategy, so adding a diagram type is a registration, not a new switch arm.
+ */
+export interface SubgraphSerializer {
+  serialize(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string;
+}
+
+const SERIALIZERS: Readonly<Record<MermaidDiagram, SubgraphSerializer>> = {
+  flowchart: { serialize: serializeFlowchart },
+  classDiagram: { serialize: serializeToClassDiagram },
+  sequenceDiagram: { serialize: serializeSequence },
+};
+
 export function serializeToScopedMermaid(
   subgraph: WorkspaceSubgraph,
   options: ScopedMermaidOptions,
 ): string {
-  switch (options.diagram) {
-    case "flowchart":
-      return serializeFlowchart(subgraph, options);
-    case "classDiagram":
-      return serializeToClassDiagram(subgraph, options);
-    case "sequenceDiagram":
-      return serializeSequence(subgraph, options);
+  const serializer = SERIALIZERS[options.diagram];
+  if (serializer === undefined) {
+    throw new Error(`No Mermaid serializer registered for diagram type '${options.diagram}'`);
+  }
+  return serializer.serialize(subgraph, options);
+}
+
+/**
+ * Typed, non-throwing variant of {@link serializeToScopedMermaid}. Returns the
+ * validation outcome as data alongside the source, so callers (the preview
+ * router) can branch on `validation.status` instead of catching an Error and
+ * regex-matching its message, and read the soft-cap `warning` without re-running
+ * the pipeline. `source` is non-null exactly when `validation.status` is `ok` or
+ * `warning`; it is null for `empty` / `oversized` / `unsupported`.
+ */
+export interface ScopedMermaidResult {
+  source: string | null;
+  validation: ScopedExportValidation;
+}
+
+export function serializeScopedMermaidResult(
+  subgraph: WorkspaceSubgraph,
+  options: ScopedMermaidOptions,
+): ScopedMermaidResult {
+  if (options.diagram === "flowchart") {
+    return serializeFlowchartResult(subgraph, options);
+  }
+  // classDiagram / sequenceDiagram have no soft-cap node path; surface their
+  // blocking failures as a typed validation rather than a thrown Error. Their
+  // failures are empty-scope or unsupported (both `{status, reason}` shapes) —
+  // never the cap-bearing `oversized`.
+  try {
+    return { source: SERIALIZERS[options.diagram].serialize(subgraph, options), validation: OK };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    const status: "empty" | "unsupported" = /zero nodes|empty/i.test(reason)
+      ? "empty"
+      : "unsupported";
+    return { source: null, validation: { status, reason } };
   }
 }
+
+const OK: ScopedExportValidation = { status: "ok", nodeCount: 0, edgeCount: 0 };
 
 function serializeSequence(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {
   if (!options.trace) {
@@ -228,9 +283,26 @@ function serializeSequence(subgraph: WorkspaceSubgraph, options: ScopedMermaidOp
 }
 
 function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidOptions): string {
+  const result = serializeFlowchartResult(subgraph, options);
+  if (result.source === null) {
+    throw new Error(
+      "reason" in result.validation ? result.validation.reason : "flowchart export failed",
+    );
+  }
+  return result.source;
+}
+
+/**
+ * Flowchart serialization computing its validation once and returning it with the
+ * source. The throwing {@link serializeFlowchart} is a thin wrapper over this.
+ */
+function serializeFlowchartResult(
+  subgraph: WorkspaceSubgraph,
+  options: ScopedMermaidOptions,
+): ScopedMermaidResult {
   const extracted = extractMermaidScope(subgraph, options.scope);
   if (extracted.status === "unsupported") {
-    throw new Error(extracted.reason);
+    return { source: null, validation: { status: "unsupported", reason: extracted.reason } };
   }
 
   const granularity = options.allowUnscopedSymbols
@@ -243,11 +315,11 @@ function serializeFlowchart(subgraph: WorkspaceSubgraph, options: ScopedMermaidO
   // (the UI surfaces the non-blocking notice). Only empty / oversized /
   // unsupported block the export.
   if (validation.status !== "ok" && validation.status !== "warning") {
-    throw new Error(validation.reason);
+    return { source: null, validation };
   }
 
   const direction =
     options.direction === "auto" ? inferMermaidDirection(options.scope) : options.direction;
 
-  return emitMermaidLines(collapsed, direction, options.theme);
+  return { source: emitMermaidLines(collapsed, direction, options.theme), validation };
 }

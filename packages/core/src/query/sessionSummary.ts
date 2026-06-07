@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 import { basename } from "node:path";
 
 import { EmptyGraphError, type SessionSummary } from "../types.js";
@@ -10,10 +10,10 @@ import { EmptyGraphError, type SessionSummary } from "../types.js";
  * or data changes (CC-001). Returns only pass-1 structural data; pass-2
  * enrichment fields are not required (CC-003).
  *
- * @throws {EmptyGraphError} when no files have been indexed (FR-005).
+ * @throws {EmptyGraphError} when no files have been indexed.
  */
 export async function querySessionSummary(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<SessionSummary> {
   // 1. File count (also serves as empty-graph guard)

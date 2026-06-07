@@ -1,5 +1,5 @@
 /**
- * `dextree.switchWorkspace` command (slice 024).
+ * `dextree.switchWorkspace` command.
  *
  * Reads the global workspace registry, shows a quick-pick of indexed
  * workspaces, and pushes the selected workspace's graph into the open panel.

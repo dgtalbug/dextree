@@ -171,6 +171,7 @@ const TS_CONFIG: ProviderConfig = {
     module: "type",
   },
   callCaptures: ["reference.call"],
+  importNodeTypes: ["import_statement"],
   relationCaptures: {
     "reference.extends": "INHERITS",
     "reference.implements": "IMPLEMENTS",

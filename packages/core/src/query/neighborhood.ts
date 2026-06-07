@@ -1,4 +1,4 @@
-import type { DuckDBConnection, DuckDBValue } from "@duckdb/node-api";
+import type { GraphDbConnection, GraphDbValue } from "../storage/db.js";
 
 import type {
   GraphEdge,
@@ -21,7 +21,7 @@ const DEFAULT_MAX_NODES = 5000;
  * terminate; `truncated` signals the depth/size cap was hit.
  */
 export async function neighborhood(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   nodeId: string,
   options: NeighborhoodOptions,
 ): Promise<NeighborhoodResult> {
@@ -34,7 +34,7 @@ export async function neighborhood(
   const kindFilter =
     kinds.length > 0 ? `AND e.kind IN (${kinds.map((_, i) => `$k${i}`).join(", ")})` : "";
 
-  const params: Record<string, DuckDBValue> = { seed: nodeId, max_depth: depth };
+  const params: Record<string, GraphDbValue> = { seed: nodeId, max_depth: depth };
   kinds.forEach((k, i) => {
     params[`k${i}`] = k;
   });
@@ -92,12 +92,12 @@ export async function neighborhood(
 
 /** All edges whose endpoints are both within the reached set (and pass the kind filter). */
 async function edgesAmong(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   nodeIds: string[],
   kinds: readonly GraphEdgeKind[],
 ): Promise<GraphEdge[]> {
   const idList = nodeIds.map((_, i) => `$n${i}`).join(", ");
-  const params: Record<string, DuckDBValue> = {};
+  const params: Record<string, GraphDbValue> = {};
   nodeIds.forEach((id, i) => {
     params[`n${i}`] = id;
   });
@@ -127,9 +127,12 @@ async function edgesAmong(
 }
 
 /** Hydrate node ids into GraphNodes from the folder/file/symbol tables. */
-async function hydrateNodes(connection: DuckDBConnection, nodeIds: string[]): Promise<GraphNode[]> {
+async function hydrateNodes(
+  connection: GraphDbConnection,
+  nodeIds: string[],
+): Promise<GraphNode[]> {
   const idList = nodeIds.map((_, i) => `$h${i}`).join(", ");
-  const params: Record<string, DuckDBValue> = {};
+  const params: Record<string, GraphDbValue> = {};
   nodeIds.forEach((id, i) => {
     params[`h${i}`] = id;
   });

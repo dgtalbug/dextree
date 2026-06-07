@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
-
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "./db.js";
 import { v4 as uuidv4 } from "uuid";
 
 import type { EdgeRow } from "../extractors/types.js";
@@ -12,6 +10,10 @@ import type {
   SymbolClassificationRecord,
 } from "../types.js";
 import { runInTransaction } from "./db.js";
+import { resolveCallEdgeSymbols } from "./resolution.js";
+
+export { stampResolutionTier, resolveWorkspaceCrossFileEdges } from "./resolution.js";
+export { synthesizeFolderTree } from "./folderTree.js";
 
 export interface DetectedFrameworkRow {
   frameworkName: string;
@@ -38,7 +40,7 @@ function importRangeParams(importRef: ExtractedImportRef): Record<string, number
 }
 
 async function findExistingFileId(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   absolutePath: string,
 ): Promise<string | null> {
   const rows = await (
@@ -52,7 +54,7 @@ async function findExistingFileId(
 }
 
 async function deleteExistingRows(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   existingFileId: string,
 ): Promise<void> {
   // Two separate statements because DuckDB's named-parameter binding fails
@@ -66,8 +68,8 @@ async function deleteExistingRows(
     "DELETE FROM edge WHERE target_id IN (SELECT id FROM symbol WHERE file_id = $file_id)",
     { file_id: existingFileId },
   );
-  // Slice 031 US3 — clear annotation rows whose parent symbol is about to be
-  // dropped so the table never carries dangling rows after a reindex.
+  // Clear annotation rows whose parent symbol is about to be dropped so the
+  // table never carries dangling rows after a reindex.
   await connection.run(
     "DELETE FROM annotation WHERE parent_symbol_id IN (SELECT id FROM symbol WHERE file_id = $file_id)",
     { file_id: existingFileId },
@@ -77,12 +79,12 @@ async function deleteExistingRows(
   });
 }
 
-async function insertFile(connection: DuckDBConnection, input: ExtractedIndexData): Promise<void> {
+async function insertFile(connection: GraphDbConnection, input: ExtractedIndexData): Promise<void> {
   // _schema_version, is_core, fan_in, tags, labels, metadata, last_modified,
   // last_author, change_count_30d are omitted from the column list — they take
   // their schema-defined default values. fan_in/is_core are populated later by
-  // `recomputeGraphHealth` (S11.7); the rest stay at their defaults until git
-  // (S10) or diagnostics (S9) fill them in.
+  // `recomputeGraphHealth`; the rest stay at their defaults until git or
+  // diagnostics fill them in.
   await connection.run(
     `
       INSERT INTO file (
@@ -114,12 +116,12 @@ async function insertFile(connection: DuckDBConnection, input: ExtractedIndexDat
   );
 }
 
-async function updateFile(connection: DuckDBConnection, input: ExtractedIndexData): Promise<void> {
+async function updateFile(connection: GraphDbConnection, input: ExtractedIndexData): Promise<void> {
   // Update only the columns that change when a file is re-indexed (path metadata,
   // size, hash, last_indexed). is_core, fan_in, tags, labels, metadata, and the
   // git-derived columns are deliberately NOT reset: they're owned by other
-  // subsystems (S9 diagnostics, S10 git, S11.7 graph health) and a reindex
-  // should preserve their state. Closes audit finding M7.
+  // subsystems (diagnostics, git, graph health) and a reindex should preserve
+  // their state.
   await connection.run(
     `
       UPDATE file
@@ -147,13 +149,13 @@ const DEFAULT_CLASSIFICATION: SymbolClassificationRecord = {
 };
 
 async function insertSymbol(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   symbol: StoredSymbol,
   classification: SymbolClassificationRecord = DEFAULT_CLASSIFICATION,
 ): Promise<void> {
   // _schema_version, fan_in, is_core are omitted — column defaults handle them.
   // The pass-2 enrichment columns (visibility, signature, return_type, etc.) are
-  // also omitted; they're nullable and stay NULL until LSP enrichment (S8) runs.
+  // also omitted; they're nullable and stay NULL until LSP enrichment runs.
   //
   // entry_kind and arch_layer are always written explicitly so migrated v5→v6
   // databases (where the columns are bare-added without DEFAULT) get the same
@@ -205,7 +207,7 @@ async function insertSymbol(
 }
 
 async function insertDefinesEdges(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   input: ExtractedIndexData,
 ): Promise<void> {
   for (const symbol of input.symbols) {
@@ -224,7 +226,7 @@ async function insertDefinesEdges(
 }
 
 async function insertImportRefs(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   input: ExtractedIndexData,
 ): Promise<void> {
   // Post-v3: imports are stored as `edge` rows with kind='IMPORTS'. The sidecar
@@ -274,11 +276,11 @@ async function insertImportRefs(
 }
 
 async function insertExtraEdges(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   edges: readonly EdgeRow[],
 ): Promise<void> {
-  // Generic insert path for extractor-emitted edges (e.g. naive `CALLS` rows
-  // from `NaiveCallExtractor`). Metadata is serialized as JSON via `json` cast.
+  // Generic insert path for extractor-emitted edges (e.g. `CALLS` rows).
+  // Metadata is serialized as JSON via `json` cast.
   for (const edge of edges) {
     await connection.run(
       `
@@ -314,213 +316,8 @@ function remapExtraEdges(
   }));
 }
 
-/**
- * SQL post-pass that resolves source_id and target_id for extractor-emitted
- * relational edges (CALLS, INHERITS, INSTANTIATES) after the symbols and edges
- * for `fileId` have been inserted.
- *
- * Why this is needed: NaiveCallExtractor and ClassRelationExtractor cannot know
- * the symbol UUIDs minted by BaselineTsJsExtractor (both use random uuidv4).
- * Instead they write a stable `source_fqn` (e.g. `"src/foo.ts:MyClass"`) and a
- * target-name key (`callee_name` / `parent_name` / `class_name`) into edge
- * metadata. This step resolves them against the just-written `symbol` rows.
- *
- * Step 1 — source_id: all three kinds have `source_fqn` in metadata. Edges
- * whose source_id still equals the file UUID placeholder are updated to the
- * matching symbol's id. Falls back to file-level id (via COALESCE) when the
- * call/instantiation is at module scope.
- *
- * Step 2 — target_id: the per-kind metadata key names the target symbol. Same-
- * file targets are resolved immediately; cross-file targets remain null (pass-2).
- */
-async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: string): Promise<void> {
-  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES', 'RE_EXPORTS')`;
-
-  // Step 1: source_id → actual symbol id, keyed by source_fqn (all kinds share this)
-  await connection.run(
-    `
-      UPDATE edge
-      SET source_id = COALESCE(
-        (
-          SELECT s.id FROM symbol s
-          WHERE s.file_id = $file_id
-            AND s.fqn = json_extract_string(edge.metadata, '$.source_fqn')
-          LIMIT 1
-        ),
-        source_id
-      )
-      WHERE kind IN ${RELATIONAL_KINDS}
-        AND source_id = $file_id
-    `,
-    { file_id: fileId },
-  );
-
-  // Step 2a (CALLS): target_id → same-file symbol by callee_name
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = COALESCE(
-        (
-          SELECT s.id FROM symbol s
-          WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.callee_name')
-            AND s.kind IN ('function', 'method', 'class')
-          LIMIT 1
-        ),
-        target_id
-      )
-      WHERE kind = 'CALLS'
-        AND target_id IS NULL
-        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
-    `,
-    { file_id: fileId },
-  );
-
-  // Step 2b (INHERITS): target_id → same-file class by parent_name
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = COALESCE(
-        (
-          SELECT s.id FROM symbol s
-          WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.parent_name')
-            AND s.kind = 'class'
-          LIMIT 1
-        ),
-        target_id
-      )
-      WHERE kind = 'INHERITS'
-        AND target_id IS NULL
-        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
-    `,
-    { file_id: fileId },
-  );
-
-  // Step 2c (INSTANTIATES): target_id → same-file class by class_name
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = COALESCE(
-        (
-          SELECT s.id FROM symbol s
-          WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.class_name')
-            AND s.kind = 'class'
-          LIMIT 1
-        ),
-        target_id
-      )
-      WHERE kind = 'INSTANTIATES'
-        AND target_id IS NULL
-        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
-    `,
-    { file_id: fileId },
-  );
-
-  // Step 2d (IMPLEMENTS): target_id → same-file interface (or class for the
-  // JS pattern where an interface is implemented via a class shape) by
-  // interface_name. Slice 031 US2.
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = COALESCE(
-        (
-          SELECT s.id FROM symbol s
-          WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.interface_name')
-            AND s.kind IN ('interface', 'class')
-          LIMIT 1
-        ),
-        target_id
-      )
-      WHERE kind = 'IMPLEMENTS'
-        AND target_id IS NULL
-        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
-    `,
-    { file_id: fileId },
-  );
-
-  // Step 2e (REFERENCES): target_id → same-file symbol by referenced_name
-  // (type usage etc.). Cross-file references resolve in the workspace pass.
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = COALESCE(
-        (
-          SELECT s.id FROM symbol s
-          WHERE s.file_id = $file_id
-            AND s.name = json_extract_string(edge.metadata, '$.referenced_name')
-          LIMIT 1
-        ),
-        target_id
-      )
-      WHERE kind = 'REFERENCES'
-        AND target_id IS NULL
-        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
-    `,
-    { file_id: fileId },
-  );
-
-  await stampResolutionTier(connection);
-}
-
-/**
- * Stamp every relational edge with an explicit resolution tier + confidence so a
- * consumer can distinguish a real target from a guess (RULE-ARCH-010). Same-file
- * + cross-file name resolution is the `heuristic` tier; the precise tier (the
- * user's LSP) is applied later, by the host, and overrides this. Edges still
- * without a target are `unresolved`. Idempotent — re-running only upgrades the
- * tier field, never the target.
- */
-export async function stampResolutionTier(connection: DuckDBConnection): Promise<void> {
-  // RE_EXPORTS is path-based (resolved at query time like IMPORTS), so it is not
-  // tier-stamped here — it gets the 'structural' tier below.
-  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES')`;
-  // Resolved → heuristic (unless already marked precise by a higher tier).
-  await connection.run(
-    `
-      UPDATE edge
-      SET metadata = json_merge_patch(
-        metadata,
-        '{"resolution":"heuristic","confidence":0.6}'
-      )
-      WHERE kind IN ${RELATIONAL_KINDS}
-        AND target_id IS NOT NULL
-        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') <> 'precise'
-    `,
-  );
-  // Unresolved → explicit unresolved tier (never silently target-less).
-  await connection.run(
-    `
-      UPDATE edge
-      SET metadata = json_merge_patch(
-        metadata,
-        '{"resolution":"unresolved","confidence":0.0}'
-      )
-      WHERE kind IN ${RELATIONAL_KINDS}
-        AND target_id IS NULL
-        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') NOT IN ('precise', 'heuristic')
-    `,
-  );
-  // Structural / path-resolved edges (DEFINES, CONTAINS, RE_EXPORTS) are facts
-  // resolved structurally or at query time, not heuristic guesses — tag them
-  // 'structural' so coverage reporting has no 'unspecified' rows.
-  await connection.run(
-    `
-      UPDATE edge
-      SET metadata = json_merge_patch(
-        metadata,
-        '{"resolution":"structural","confidence":1.0}'
-      )
-      WHERE kind IN ('DEFINES', 'CONTAINS', 'RE_EXPORTS')
-        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') = ''
-    `,
-  );
-}
-
 export async function replaceFileGraph(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   input: ExtractedIndexData,
   extraEdges: readonly EdgeRow[] = [],
   classifications: ReadonlyMap<string, SymbolClassificationRecord> = new Map(),
@@ -598,14 +395,13 @@ function isAnnotationLikeRow(row: unknown): row is AnnotationLikeRow {
 }
 
 /**
- * Persist annotation rows from {@link DecoratorExtractor} into the existing
- * `annotation` table. Rows missing a valid `parentSymbolId` (e.g. when the
- * extractor could not resolve an enclosing symbol) are silently skipped —
- * the table has a NOT NULL FK to `symbol`, and per slice 031 contract the
- * extractor must not invent synthetic targets. Slice 031 US3.
+ * Persist extractor-emitted annotation rows into the existing `annotation`
+ * table. Rows missing a valid `parentSymbolId` (e.g. when the extractor could
+ * not resolve an enclosing symbol) are silently skipped — the table has a NOT
+ * NULL FK to `symbol`, and extractors must not invent synthetic targets.
  */
 async function insertAnnotations(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   annotations: readonly unknown[],
   validSymbolIds: ReadonlySet<string>,
 ): Promise<void> {
@@ -655,202 +451,12 @@ async function insertAnnotations(
 }
 
 /**
- * Workspace-wide cross-file edge resolution pass.
- *
- * Called once after all files in a workspace have been indexed. The per-file
- * `resolveCallEdgeSymbols` pass already resolved same-file targets; this pass
- * resolves edges whose target still lives in a *different* file that was
- * indexed later in the batch.
- *
- * For each relational kind (CALLS, INHERITS, INSTANTIATES) that still has
- * `target_id = NULL`, we look up the target symbol by name across all symbols
- * in the workspace. On name collision we prefer symbols in the same file as
- * the source (already done in per-file pass) and fall back to workspace-wide
- * first-match. This is a pass-1 heuristic; pass-2 (LSP) will refine it.
- *
- * The `workspaceRoot` parameter is used only to scope the UPDATE to the
- * workspace's own symbols (not symbols from other indexed workspaces).
- */
-export async function resolveWorkspaceCrossFileEdges(
-  connection: DuckDBConnection,
-  workspaceRoot: string,
-): Promise<void> {
-  const prefix = workspaceRoot.endsWith("/") ? workspaceRoot : `${workspaceRoot}/`;
-  const params = { workspace_root: workspaceRoot, workspace_prefix: `${prefix}%` };
-
-  // Resolve CALLS: callee_name → any matching function/method/class in workspace
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = (
-        SELECT s.id FROM symbol s
-        INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.callee_name')
-          AND s.kind IN ('function', 'method', 'class')
-          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
-        ORDER BY s.id
-        LIMIT 1
-      )
-      WHERE kind = 'CALLS'
-        AND target_id IS NULL
-        AND source_id IN (
-          SELECT s2.id FROM symbol s2
-          INNER JOIN file f2 ON f2.id = s2.file_id
-          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
-        )
-    `,
-    params,
-  );
-
-  // Resolve INHERITS: parent_name → any matching class in workspace
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = (
-        SELECT s.id FROM symbol s
-        INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.parent_name')
-          AND s.kind = 'class'
-          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
-        ORDER BY s.id
-        LIMIT 1
-      )
-      WHERE kind = 'INHERITS'
-        AND target_id IS NULL
-        AND source_id IN (
-          SELECT s2.id FROM symbol s2
-          INNER JOIN file f2 ON f2.id = s2.file_id
-          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
-        )
-    `,
-    params,
-  );
-
-  // Resolve INSTANTIATES: class_name → any matching class in workspace
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = (
-        SELECT s.id FROM symbol s
-        INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.class_name')
-          AND s.kind = 'class'
-          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
-        ORDER BY s.id
-        LIMIT 1
-      )
-      WHERE kind = 'INSTANTIATES'
-        AND target_id IS NULL
-        AND source_id IN (
-          SELECT s2.id FROM symbol s2
-          INNER JOIN file f2 ON f2.id = s2.file_id
-          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
-        )
-    `,
-    params,
-  );
-
-  // Resolve IMPLEMENTS: interface_name → any matching interface (or class
-  // used as an interface) in the workspace. Slice 031 US2.
-  await connection.run(
-    `
-      UPDATE edge
-      SET target_id = (
-        SELECT s.id FROM symbol s
-        INNER JOIN file f ON f.id = s.file_id
-        WHERE s.name = json_extract_string(edge.metadata, '$.interface_name')
-          AND s.kind IN ('interface', 'class')
-          AND (f.path = $workspace_root OR f.path LIKE $workspace_prefix)
-        ORDER BY s.id
-        LIMIT 1
-      )
-      WHERE kind = 'IMPLEMENTS'
-        AND target_id IS NULL
-        AND source_id IN (
-          SELECT s2.id FROM symbol s2
-          INNER JOIN file f2 ON f2.id = s2.file_id
-          WHERE f2.path = $workspace_root OR f2.path LIKE $workspace_prefix
-        )
-    `,
-    params,
-  );
-
-  // Re-stamp tiers now that cross-file targets are filled in.
-  await stampResolutionTier(connection);
-}
-
-/** Deterministic folder id: stable across re-index so the tree doesn't reshuffle. */
-function folderId(path: string): string {
-  return `folder:${createHash("sha256").update(path, "utf8").digest("hex").slice(0, 32)}`;
-}
-
-/**
- * Synthesize `folder` nodes + `CONTAINS` edges from the indexed files' relative
- * paths, producing a connected root→folder→file tree. Deterministic ids (path
- * hash) keep re-indexing stable. Rebuilt wholesale each call (idempotent): clear
- * folders + CONTAINS, then re-derive from current files. Runs in finalize.
- */
-export async function synthesizeFolderTree(connection: DuckDBConnection): Promise<void> {
-  await runInTransaction(connection, async () => {
-    await connection.run("DELETE FROM folder");
-    await connection.run("DELETE FROM edge WHERE kind = 'CONTAINS'");
-
-    const reader = await connection.run("SELECT id, relative_path FROM file");
-    const files = await reader.getRowObjects();
-    if (files.length === 0) return;
-
-    const folders = new Map<string, { id: string; parent: string | null }>();
-    const containsFileEdges: { folder: string; file: string }[] = [];
-
-    for (const f of files) {
-      const rel = String(f.relative_path);
-      const parts = rel.split("/");
-      parts.pop(); // drop the filename
-      // Register every ancestor folder ("" = root), chaining parent links.
-      let parentPath: string | null = null;
-      let accum = "";
-      // Root sentinel so top-level files attach to a single root node.
-      const rootId = folderId("");
-      if (!folders.has("")) folders.set("", { id: rootId, parent: null });
-      parentPath = "";
-      for (const part of parts) {
-        accum = accum === "" ? part : `${accum}/${part}`;
-        if (!folders.has(accum)) {
-          folders.set(accum, { id: folderId(accum), parent: folders.get(parentPath!)!.id });
-        }
-        parentPath = accum;
-      }
-      containsFileEdges.push({ folder: folders.get(parentPath)!.id, file: String(f.id) });
-    }
-
-    for (const [path, info] of folders) {
-      await connection.run(
-        "INSERT INTO folder (id, path, parent_id) VALUES ($id, $path, $parent)",
-        { id: info.id, path, parent: info.parent },
-      );
-      if (info.parent !== null) {
-        await connection.run(
-          "INSERT INTO edge (id, source_id, target_id, kind, metadata) VALUES ($id, $s, $t, 'CONTAINS', '{}')",
-          { id: `contains:${info.parent}->${info.id}`, s: info.parent, t: info.id },
-        );
-      }
-    }
-    for (const e of containsFileEdges) {
-      await connection.run(
-        "INSERT INTO edge (id, source_id, target_id, kind, metadata) VALUES ($id, $s, $t, 'CONTAINS', '{}')",
-        { id: `contains:${e.folder}->${e.file}`, s: e.folder, t: e.file },
-      );
-    }
-  });
-}
-
-/**
  * Replace all workspace_framework rows with the supplied list, atomically.
  * Mirrors the replaceFileGraph pattern: DELETE all, INSERT new, in one transaction.
  * Empty input clears the table (workspace has no detected frameworks).
  */
 export async function replaceWorkspaceFrameworks(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   rows: readonly DetectedFrameworkRow[],
 ): Promise<void> {
   await runInTransaction(connection, async () => {
@@ -881,7 +487,7 @@ export async function replaceWorkspaceFrameworks(
  * values is a no-op at the DB level.
  */
 export async function setFileFramework(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   fileId: string,
   framework: string | null,
   role: string | null,

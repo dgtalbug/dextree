@@ -105,9 +105,9 @@ export function computeSelection(
 
 /**
  * Derive a TracePath summary from the trace state for the right-rail
- * TraceInspector (slice 023). Returns null when the path is empty.
+ * TraceInspector. Returns null when the path is empty.
  * `layersCrossed` is currently always empty because `arch_layer` is a
- * slice 026 column; we render gracefully when absent per spec CC-003.
+ * later-added column; we render gracefully when absent.
  */
 export function computeTracePath(graph: MultiDirectedGraph, state: TraceState): TracePath | null {
   if (state.pathNodeIds.length === 0 || state.startNodeId === null || state.endNodeId === null) {

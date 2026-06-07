@@ -84,6 +84,7 @@ const CONFIG: ProviderConfig = {
     variable: "variable",
   },
   callCaptures: ["reference.call"],
+  importNodeTypes: ["import_declaration"],
 };
 
 export const TREE_SITTER_SCALA_PROVIDERS: readonly LanguageProvider[] = [

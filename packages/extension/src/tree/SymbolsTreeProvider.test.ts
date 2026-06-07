@@ -394,6 +394,89 @@ describe("SymbolsTreeProvider — file children (US1)", () => {
     const children = await provider.getChildren(symbolNode);
     expect(children).toHaveLength(0);
   });
+
+  it("nests methods under their enclosing class via enclosingSymbolId", async () => {
+    const indexer = makeIndexer();
+    indexer.getSymbols.mockResolvedValue([
+      {
+        id: "cls",
+        fqn: "src/svc.ts:Service",
+        name: "Service",
+        kind: "class",
+        fileId: "f1",
+        range: { startLine: 0, startCol: 0, endLine: 20, endCol: 1 },
+        language: "typescript",
+      },
+      {
+        id: "m1",
+        fqn: "src/svc.ts:Service.run",
+        name: "run",
+        kind: "method",
+        fileId: "f1",
+        enclosingSymbolId: "cls",
+        range: { startLine: 2, startCol: 2, endLine: 4, endCol: 3 },
+        language: "typescript",
+      },
+      {
+        id: "free",
+        fqn: "src/svc.ts:helper",
+        name: "helper",
+        kind: "function",
+        fileId: "f1",
+        range: { startLine: 22, startCol: 0, endLine: 24, endCol: 1 },
+        language: "typescript",
+      },
+    ]);
+    const fileNode = new TreeFileNode({
+      id: "f1",
+      relativePath: "src/svc.ts",
+      language: "typescript",
+      path: "/workspace/src/svc.ts",
+      hash: "abc123",
+    });
+    const provider = makeProvider(indexer);
+
+    // Top level: the class and the free function, not the method.
+    const top = await provider.getChildren(fileNode);
+    expect(top).toHaveLength(2);
+    expect(top[0]?.treeItem.label).toBe("Service (class)");
+    expect(top[1]?.treeItem.label).toBe("helper (function)");
+    // Collapsed (1) because it has a member; mirrors the mock's enum mapping.
+    expect(top[0]?.treeItem.collapsibleState).toBe(1);
+
+    // The class node yields its method as a child.
+    const classChildren = await provider.getChildren(top[0]);
+    expect(classChildren).toHaveLength(1);
+    expect(classChildren[0]?.treeItem.label).toBe("run (method)");
+    expect(classChildren[0]?.treeItem.collapsibleState).toBe(0); // None — leaf
+  });
+
+  it("surfaces a symbol whose enclosing id is absent from the file as top-level", async () => {
+    const indexer = makeIndexer();
+    indexer.getSymbols.mockResolvedValue([
+      {
+        id: "orphan",
+        fqn: "src/svc.ts:orphan",
+        name: "orphan",
+        kind: "method",
+        fileId: "f1",
+        enclosingSymbolId: "not-in-file",
+        range: { startLine: 0, startCol: 0, endLine: 1, endCol: 1 },
+        language: "typescript",
+      },
+    ]);
+    const fileNode = new TreeFileNode({
+      id: "f1",
+      relativePath: "src/svc.ts",
+      language: "typescript",
+      path: "/workspace/src/svc.ts",
+      hash: "abc123",
+    });
+    const provider = makeProvider(indexer);
+    const top = await provider.getChildren(fileNode);
+    expect(top).toHaveLength(1);
+    expect(top[0]?.treeItem.label).toBe("orphan (method)");
+  });
 });
 
 // ---------------------------------------------------------------------------

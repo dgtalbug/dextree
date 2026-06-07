@@ -2,8 +2,8 @@
  * Minimal TOML keypath reader. Returns the string value at a dot-separated
  * keypath, or undefined if missing. Handles `[section]` and `[section.sub]`
  * headers, plus `key = "value"` and `key = value` lines. Comments (`#`) are
- * ignored. Arrays-of-tables (`[[name]]`) are out of scope for slice 018;
- * if a framework needs them, upgrade to a library and keep the contract.
+ * ignored. Arrays-of-tables (`[[name]]`) are out of scope for this minimal
+ * parser; if a framework needs them, upgrade to a library and keep the contract.
  *
  * Why inline: we only need keypath lookup. A full TOML parser is ~5 KB
  * of dependency surface we don't otherwise use.
@@ -26,7 +26,7 @@ export function readTomlKeypath(content: string, keypath: string): string | unde
     }
 
     if (line.startsWith("[[")) {
-      // Array-of-tables not supported in this slice; skip the section.
+      // Array-of-tables not supported; skip the section.
       currentSection = "__unsupported__";
       continue;
     }

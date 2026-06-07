@@ -19,12 +19,12 @@ import {
   createExportMermaidCommand,
   createExportTraceSequenceCommand,
   executeInferredMermaidExport,
-  startInferredMermaidExport,
 } from "./commands/exportMermaid.js";
 import {
   createExportCurrentViewCommand,
   createExportTraceCommand,
 } from "./commands/exportCurrentView.js";
+import { createExportShortcutCommands } from "./commands/exportShortcuts.js";
 import { createIndexFileCommand } from "./commands/indexFile.js";
 import {
   createIndexWorkspaceCommand,
@@ -248,7 +248,7 @@ export async function activate(context: ActivationContext): Promise<void> {
     }));
   });
 
-  // Slice 029 PR-B — wire inline-control rerenders. The webview posts
+  // Wire inline-control rerenders. The webview posts
   // `requestMermaidPreview` whenever the user changes a control; the handler
   // pulls the latest indexed subgraph for the active workspace and runs it
   // through the same preview router the `dextree.exportMermaid` command uses.
@@ -422,41 +422,12 @@ export async function activate(context: ActivationContext): Promise<void> {
         },
       }),
     ),
-    // Slice 030 — selection-aware and focused Mermaid export commands.
-    // All commands delegate to the same inferred-export path so behavior
-    // stays consistent and fail-closed.
-    vscode.commands.registerCommand("dextree.exportCallers", async () => {
-      const symbol = await pickSymbol();
-      if (symbol === undefined) return;
-      await startInferredMermaidExport({ getIndexer, openMermaidPreview: openPreview }, "callers", {
-        kind: "symbol",
-        symbolId: symbol.id,
-        filePath: symbol.filePath,
-      });
-    }),
-    vscode.commands.registerCommand("dextree.exportCallees", async () => {
-      const symbol = await pickSymbol();
-      if (symbol === undefined) return;
-      await startInferredMermaidExport({ getIndexer, openMermaidPreview: openPreview }, "callees", {
-        kind: "symbol",
-        symbolId: symbol.id,
-        filePath: symbol.filePath,
-      });
-    }),
-    vscode.commands.registerCommand("dextree.exportClassHierarchy", async () => {
-      const symbol = await pickSymbol();
-      if (symbol === undefined) return;
-      await startInferredMermaidExport(
-        { getIndexer, openMermaidPreview: openPreview },
-        "class-hierarchy",
-        { kind: "symbol", symbolId: symbol.id, filePath: symbol.filePath },
-      );
-    }),
-    vscode.commands.registerCommand("dextree.exportPackage", async () => {
-      await startInferredMermaidExport({ getIndexer, openMermaidPreview: openPreview }, "package", {
-        kind: "folder",
-        relativePath: ".",
-      });
+    // Selection-aware Mermaid export shortcuts (callers / callees / class
+    // hierarchy / package) — all delegate to the same inferred-export path.
+    ...createExportShortcutCommands({
+      getIndexer,
+      openMermaidPreview: openPreview,
+      pickSymbol,
     }),
     vscode.commands.registerCommand(
       "dextree.exportTrace",

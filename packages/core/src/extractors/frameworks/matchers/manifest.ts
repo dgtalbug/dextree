@@ -53,8 +53,8 @@ function extractValue(content: string, keyPath: ManifestKeyPath): string | undef
   }
   if (lower.endsWith(".toml") || lower === "go.mod") {
     // go.mod is technically not TOML, but its `require ( ... )` blocks are
-    // matched by a different path — for slice 018 we treat the whole file as
-    // text and rely on the regex policy. The TOML reader will return
+    // matched by a different path — we treat the whole file as text and rely on
+    // the regex policy. The TOML reader will return
     // undefined for go.mod, so we fall through to whole-file regex below.
     const tomlValue = readTomlKeypath(content, keyPath.keypath);
     if (tomlValue !== undefined) return tomlValue;

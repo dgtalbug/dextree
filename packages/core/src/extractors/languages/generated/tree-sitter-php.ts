@@ -58,6 +58,7 @@ const CONFIG: ProviderConfig = {
     variable: "variable",
   },
   callCaptures: ["reference.call"],
+  importNodeTypes: ["namespace_use_declaration"],
 };
 
 export const TREE_SITTER_PHP_PROVIDERS: readonly LanguageProvider[] = [

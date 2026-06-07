@@ -1,4 +1,10 @@
-import type { MermaidPreviewOptions, MermaidPreviewResult } from "@dextree/exporters";
+import {
+  MERMAID_DIAGRAMS,
+  MERMAID_DIRECTIONS,
+  MERMAID_GRANULARITIES,
+  type MermaidPreviewOptions,
+  type MermaidPreviewResult,
+} from "@dextree/exporters";
 import * as vscode from "vscode";
 import type { Logger } from "../logger.js";
 import { getWebviewContent } from "./html.js";
@@ -48,9 +54,9 @@ let cachedIndexing: IndexingMessage | undefined;
 let cachedMermaidPreview: MermaidPreviewMessage | undefined;
 let isWebviewReady = false;
 
-// Slice 024 — injected by extension.ts so panel.ts stays decoupled from the
-// workspace registry / cache layer. Both handlers return without effect when
-// undefined (the webview just sees no response).
+// Injected by extension.ts so panel.ts stays decoupled from the workspace
+// registry / cache layer. Both handlers return without effect when undefined
+// (the webview just sees no response).
 let listIndexedWorkspacesHandler: (() => Promise<IndexedWorkspaceRecord[]>) | undefined;
 let switchWorkspaceHandler: ((workspaceRoot: string) => Promise<void>) | undefined;
 
@@ -62,14 +68,14 @@ let preciseCallsHandler:
   | ((req: PreciseCallsRequest) => Promise<PreciseCallEdgeResult[]>)
   | undefined;
 
-// Slice 029 PR-B — injected by extension.ts so panel.ts stays decoupled from
-// the indexer. Resolves a `requestMermaidPreview` from the webview against the
+// Injected by extension.ts so panel.ts stays decoupled from the indexer.
+// Resolves a `requestMermaidPreview` from the webview against the
 // current workspace subgraph. Undefined means no handler is registered yet, in
 // which case incoming requests are silently dropped (useful in unit tests and
 // during activation before wiring completes).
 let mermaidPreviewHandler: MermaidPreviewHandler | undefined;
 
-// Slice 032 — request sequencing counter. Increment on each incoming
+// Request sequencing counter. Increment on each incoming
 // `requestMermaidPreview` message; only the last-requested result is pushed.
 let mermaidPreviewRequestSeq = 0;
 
@@ -81,9 +87,13 @@ interface ParsedSaveMermaidPreviewMessage {
   bytes: Uint8Array;
 }
 
-const VALID_DIAGRAMS = new Set(["flowchart", "classDiagram", "sequenceDiagram"]);
-const VALID_GRANULARITIES = new Set(["package", "file", "symbol"]);
-const VALID_DIRECTIONS = new Set(["auto", "TB", "LR", "BT", "RL"]);
+// Derived from the canonical exporters vocabularies (RULE-ARCH-007) so the
+// host-side validation can't drift from the option types the serializer accepts.
+const VALID_DIAGRAMS = new Set<string>(MERMAID_DIAGRAMS);
+const VALID_GRANULARITIES = new Set<string>(MERMAID_GRANULARITIES);
+const VALID_DIRECTIONS = new Set<string>(MERMAID_DIRECTIONS);
+// Theme stays local: the webview protocol uses lowercase light/dark, distinct
+// from the serializer's MermaidTheme ("Light"/"Dark"/"Print").
 const VALID_THEMES = new Set(["light", "dark"]);
 const VALID_SCOPE_KINDS = new Set(["workspace", "file", "symbol-callers", "symbol-callees"]);
 
@@ -236,7 +246,7 @@ function postMessage(message: HostToWebviewMessage): void {
 }
 
 /**
- * Manages the Dextree Graph View webview panel (FR-001 through FR-013).
+ * Manages the Dextree Graph View webview panel.
  *
  * Use `WebviewPanelManager.create()` to open or reveal the panel.
  * Use `WebviewPanelManager.pushGraph()` to push an updated graph payload.
@@ -244,7 +254,7 @@ function postMessage(message: HostToWebviewMessage): void {
 export const WebviewPanelManager = {
   /**
    * Creates a new webview panel, or reveals the existing one if already open.
-   * On creation, immediately posts the current symbol list (FR-004).
+   * On creation, immediately posts the current symbol list.
    */
   create(context: vscode.ExtensionContext): void {
     if (currentPanel !== undefined) {
@@ -266,7 +276,7 @@ export const WebviewPanelManager = {
     currentPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, "resources", "dextree.svg");
     isWebviewReady = false;
 
-    // Navigation messages from the webview (FR-007, FR-013)
+    // Navigation messages from the webview
     currentPanel.webview.onDidReceiveMessage(
       (msg: unknown) => {
         if (typeof msg !== "object" || msg === null) return;
@@ -289,7 +299,7 @@ export const WebviewPanelManager = {
           return;
         }
 
-        // Slice 024 — webview asks for the list of indexed workspaces
+        // Webview asks for the list of indexed workspaces
         if (record["type"] === "requestWorkspaceList") {
           const provider = listIndexedWorkspacesHandler;
           if (provider !== undefined) {
@@ -301,7 +311,10 @@ export const WebviewPanelManager = {
                 };
                 postMessage(reply);
               })
-              .catch(() => {
+              .catch((err: unknown) => {
+                // Degrade to an empty list, but log so a persistently failing
+                // registry read is diagnosable rather than silent.
+                injectedLogger?.debug(`[webview] workspace list failed: ${String(err)}`);
                 postMessage({ type: "workspaceList", workspaces: [] });
               });
           }
@@ -324,14 +337,17 @@ export const WebviewPanelManager = {
               .then((edges) => {
                 postMessage({ type: "preciseCalls", nodeId: req.nodeId, edges });
               })
-              .catch(() => {
+              .catch((err: unknown) => {
+                // Degrade to heuristic edges (empty precise set), but log so a
+                // persistently failing language server is diagnosable.
+                injectedLogger?.debug(`[webview] precise calls failed: ${String(err)}`);
                 postMessage({ type: "preciseCalls", nodeId: req.nodeId, edges: [] });
               });
           }
           return;
         }
 
-        // Slice 024 — webview asks to switch to a different workspace
+        // Webview asks to switch to a different workspace
         if (record["type"] === "switchWorkspace") {
           const target = record["workspaceRoot"];
           const handler = switchWorkspaceHandler;
@@ -343,7 +359,7 @@ export const WebviewPanelManager = {
           return;
         }
 
-        // Slice 029 PR-B — webview asks the host to build a fresh preview from
+        // Webview asks the host to build a fresh preview from
         // the latest indexed graph and the current inline-control selection.
         // Any throw from the handler is converted into a fail-closed
         // `mermaidPreview` reply so the preview tab never silently hangs in
@@ -390,7 +406,7 @@ export const WebviewPanelManager = {
           return;
         }
 
-        // Slice 030 US3 — webview requests a current-view Mermaid export.
+        // Webview requests a current-view Mermaid export.
         // The serialized VisibleView membership rides along so the host can
         // export exactly the rendered subgraph (the `visible` scope).
         if (record["type"] === "exportCurrentView") {
@@ -408,7 +424,7 @@ export const WebviewPanelManager = {
           return;
         }
 
-        // Slice 031 US1 — webview requests trace-sequence export of the
+        // Webview requests trace-sequence export of the
         // active trace route. The host re-validates the snapshot before
         // serializing and refuses empty / oversized snapshots fail-closed.
         // Attach a rejection handler so failures inside the command body
@@ -449,13 +465,20 @@ export const WebviewPanelManager = {
           return;
         }
 
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        const validated = validateNavigateMessage(msg, workspaceRoot);
-        if (validated === null) {
-          // Silent ignore per FR-013 — invalid or untrusted message
+        if (record["type"] === "navigate") {
+          const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          const validated = validateNavigateMessage(msg, workspaceRoot);
+          if (validated === null) {
+            // Invalid or untrusted navigate payload — ignore.
+            return;
+          }
+          void navigateToSymbol(validated.filePath, validated.line);
           return;
         }
-        void navigateToSymbol(validated.filePath, validated.line);
+
+        // Unknown message type — log so a protocol-version mismatch is
+        // diagnosable rather than silently dropped (was: fell through to navigate).
+        injectedLogger?.debug(`[webview] unknown message type: ${String(record["type"])}`);
       },
       undefined,
       context.subscriptions,
@@ -465,7 +488,7 @@ export const WebviewPanelManager = {
     // from the client cannot race ahead of the host listener.
     currentPanel.webview.html = getWebviewContent(currentPanel.webview, context.extensionUri);
 
-    // Clean up module reference when panel is closed (FR-005)
+    // Clean up module reference when panel is closed
     currentPanel.onDidDispose(
       () => {
         currentPanel = undefined;
@@ -503,8 +526,8 @@ export const WebviewPanelManager = {
   },
 
   /**
-   * Slice 029 — push a Mermaid preview result to the open webview. The
-   * webview reacts by switching to the mermaid-preview scene and rendering
+   * Push a Mermaid preview result to the open webview. The webview reacts
+   * by switching to the mermaid-preview scene and rendering
    * the source/SVG pair (or fail-closed reason for non-ok statuses).
    *
    * Caches the message so `postCachedState` can replay it after the webview
@@ -513,8 +536,8 @@ export const WebviewPanelManager = {
    * no-op until `isWebviewReady` flips true. Same race rationale as
    * `pushGraph` and `pushIndexing`.
    *
-   * Subsequent inline-control changes (US2 / PR-B) will overwrite the cache
-   * with the new result so reopens always show the most recent preview.
+   * Subsequent inline-control changes overwrite the cache with the new
+   * result so reopens always show the most recent preview.
    */
   pushMermaidPreview(preview: MermaidPreviewResult): void {
     const message: MermaidPreviewMessage = { type: "mermaidPreview", preview };
@@ -546,7 +569,7 @@ export const WebviewPanelManager = {
   },
 
   /**
-   * Slice 024 — register host-side handlers for workspace switcher messages.
+   * Register host-side handlers for workspace switcher messages.
    * Called once during extension activation. Subsequent calls overwrite the
    * stored handlers (useful for tests).
    */
@@ -579,8 +602,8 @@ export const WebviewPanelManager = {
   },
 
   /**
-   * Slice 029 PR-B — register the host-side resolver for inline-control
-   * preview rerenders. Wired once during extension activation against the
+   * Register the host-side resolver for inline-control preview rerenders.
+   * Wired once during extension activation against the
    * shared indexer; subsequent calls overwrite. Pass `undefined` to clear
    * (used by tests between cases).
    */

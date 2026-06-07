@@ -29,6 +29,14 @@ export interface ProviderConfig {
    */
   readonly relationCaptures?: Readonly<Record<string, string>>;
   /**
+   * Top-level AST node types that represent an import in this grammar (e.g. TS
+   * `["import_statement"]`, Python `["import_statement","import_from_statement"]`,
+   * Go `["import_declaration"]`, Rust `["use_declaration"]`). The engine reads the
+   * module specifier from these and emits an `IMPORTS` edge per import. Omitted →
+   * no IMPORTS edges for the language (e.g. structural formats).
+   */
+  readonly importNodeTypes?: readonly string[];
+  /**
    * Structural-only formats (markdown/yaml/json) that have no call graph. When
    * true the engine still records file + definition nodes but fabricates no
    * call edges even if a capture exists.

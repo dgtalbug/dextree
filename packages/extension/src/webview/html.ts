@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 /**
  * Generates the HTML content for the Dextree Graph View webview panel.
  *
- * Security model (FR-011, FR-012):
+ * Security model:
  *  - A per-render nonce is used to allowlist exactly our script and our inline
  *    style block. No `unsafe-inline` or `unsafe-eval` is used.
  *  - `webview.cspSource` covers the VS Code resource scheme needed for font loading.
@@ -70,14 +70,14 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       background-color: var(--vscode-editor-background);
     }
 
-    /* Dextree design tokens (slice 033). These must live in this nonce-guarded
+    /* Dextree design tokens. These must live in this nonce-guarded
        inline block — not a CSS Module — because custom properties declared in a
        module :root get scoped/hashed and would not cascade to every component.
        Hex values match scratch/graphview-mockup-final.html: there is no
        --vscode-* token covering architectural layers or framework identity, so
-       these are the one allowed exception to the "tokens only" rule (FR-026). */
+       these are the one allowed exception to the "tokens only" rule. */
     :root {
-      /* Architectural-layer palette (classifier output, slice 026) */
+      /* Architectural-layer palette (classifier output) */
       --layer-entry: #f1c40f;
       --layer-orchestration: #3794ff;
       --layer-domain: #2ecc71;
@@ -91,7 +91,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
       --fw-vitest: #6e9f18;
       --fw-node: #68a063;
 
-      /* Edge-kind dot colors (Edge Types rail, slice 033). Unlike the layer/fw
+      /* Edge-kind dot colors (Edge Types rail). Unlike the layer/fw
          palettes these track the active theme via --vscode-charts-*, so a custom
          VS Code theme recolors the edge swatches; the hex is only a last-resort
          fallback for themes that omit the chart tokens. */
@@ -135,7 +135,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
     [data-framework="nodejs"]     { --fw-color: var(--fw-node); }
 
     /* ============================================================
-       GraphView canvas overlays (slice 033 US4). These use global dxt-*
+       GraphView canvas overlays. These use global dxt-*
        class names from GraphView's JSX, so the rules live here rather than a
        CSS Module. Translucent backdrops use rgba() by design (no --vscode-*
        token provides a blurred overlay fill — allowed per the layout contract).
@@ -359,8 +359,8 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
        border-radius: 8px;
      }
 
-     /* Empty/Loading overlay — covers the GraphView shell without replacing it
-        (slice 033 T020). The shell rails stay mounted underneath. */
+     /* Empty/Loading overlay — covers the GraphView shell without replacing it.
+        The shell rails stay mounted underneath. */
      .dxt-graph-overlay {
        position: absolute;
        inset: 0;
@@ -1152,7 +1152,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
         flex-shrink: 0;
       }
 
-      /* Slice 025 — layout preset dropdown */
+      /* Layout preset dropdown */
       .dxt-layout-preset {
         display: inline-flex;
         align-items: center;
@@ -1203,7 +1203,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.
         color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
       }
 
-      /* Slice 025 — non-blocking notice for Hierarchical fallback (FR-009) */
+      /* Non-blocking notice for Hierarchical fallback */
       .dxt-layout-notice {
         position: absolute;
         top: 56px;

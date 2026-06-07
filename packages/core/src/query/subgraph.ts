@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 import { MultiDirectedGraph } from "graphology";
 
 import type {
@@ -20,6 +20,41 @@ function workspaceParams(workspaceRoot: string) {
   };
 }
 
+/**
+ * Fetch resolved symbol→symbol edges of one kind, both endpoints inside the
+ * workspace. CALLS/INHERITS/INSTANTIATES/IMPLEMENTS share this exact shape; only
+ * the edge kind differs. The kind is a fixed literal (never user input), so it is
+ * interpolated directly rather than bound.
+ */
+async function queryResolvedEdges(
+  connection: GraphDbConnection,
+  kind: "CALLS" | "INHERITS" | "INSTANTIATES" | "IMPLEMENTS",
+  params: ReturnType<typeof workspaceParams>,
+): Promise<Record<string, unknown>[]> {
+  return (
+    await connection.run(
+      `
+        SELECT
+          MIN(e.id) AS id,
+          e.source_id AS source,
+          e.target_id AS target
+        FROM edge e
+        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
+        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
+        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
+        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
+        WHERE e.kind = '${kind}'
+          AND e.target_id IS NOT NULL
+          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
+          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
+        GROUP BY e.source_id, e.target_id
+        ORDER BY source ASC, target ASC
+      `,
+      params,
+    )
+  ).getRowObjectsJS();
+}
+
 function normalizeRange(value: unknown): SymbolRange {
   const range = value as Record<string, unknown>;
 
@@ -34,7 +69,7 @@ function normalizeRange(value: unknown): SymbolRange {
 /**
  * DuckDB returns `VARCHAR[]` columns as JS arrays. NULL maps to undefined so
  * downstream "is this defined?" checks behave correctly. An empty array stays
- * as `[]` — meaningful distinct from undefined (slice 020 FR-010).
+ * as `[]` — meaningful distinct from undefined.
  */
 function normalizeStringArray(value: unknown): readonly string[] | undefined {
   if (value === null || value === undefined) return undefined;
@@ -80,7 +115,7 @@ function normalizeArchLayer(value: unknown): ArchitecturalLayer | undefined {
 }
 
 export async function getWorkspaceSubgraph(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<WorkspaceSubgraph> {
   const params = workspaceParams(workspaceRoot);
@@ -145,9 +180,9 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
-  // Slice 031 US3 — count annotations per parent symbol so the graph view's
-  // Decorator node-filter chip can become truthful (and not a placeholder).
-  // An empty result is the honest signal for an unsupported workspace.
+  // Count annotations per parent symbol so the graph view's Decorator
+  // node-filter chip can become truthful (and not a placeholder). An empty
+  // result is the honest signal for an unsupported workspace.
   const annotationCountRows = await (
     await connection.run(
       `
@@ -209,106 +244,14 @@ export async function getWorkspaceSubgraph(
     )
   ).getRowObjectsJS();
 
-  // Post-v3: CALLS edges live in the unified `edge` table too. Pass-1 may leave
-  // target_id NULL (unresolved); pass-2 LSP (S8) will fill it in. This query
-  // shows only resolved calls.
-  const callRows = await (
-    await connection.run(
-      `
-        SELECT
-          MIN(e.id) AS id,
-          e.source_id AS source,
-          e.target_id AS target
-        FROM edge e
-        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
-        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
-        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
-        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
-        WHERE e.kind = 'CALLS'
-          AND e.target_id IS NOT NULL
-          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
-          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
-        GROUP BY e.source_id, e.target_id
-        ORDER BY source ASC, target ASC
-      `,
-      params,
-    )
-  ).getRowObjectsJS();
-
-  // INHERITS: class → base class (resolved source + target symbols, cross-file included)
-  const inheritsRows = await (
-    await connection.run(
-      `
-        SELECT
-          MIN(e.id) AS id,
-          e.source_id AS source,
-          e.target_id AS target
-        FROM edge e
-        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
-        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
-        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
-        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
-        WHERE e.kind = 'INHERITS'
-          AND e.target_id IS NOT NULL
-          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
-          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
-        GROUP BY e.source_id, e.target_id
-        ORDER BY source ASC, target ASC
-      `,
-      params,
-    )
-  ).getRowObjectsJS();
-
-  // INSTANTIATES: symbol/file → class (resolved source + target)
-  const instantiatesRows = await (
-    await connection.run(
-      `
-        SELECT
-          MIN(e.id) AS id,
-          e.source_id AS source,
-          e.target_id AS target
-        FROM edge e
-        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
-        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
-        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
-        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
-        WHERE e.kind = 'INSTANTIATES'
-          AND e.target_id IS NOT NULL
-          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
-          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
-        GROUP BY e.source_id, e.target_id
-        ORDER BY source ASC, target ASC
-      `,
-      params,
-    )
-  ).getRowObjectsJS();
-
-  // IMPLEMENTS: class → interface (resolved source + target, same shape as INHERITS).
-  // Slice 031 US2 — kept distinct from INHERITS by edge kind so the classDiagram
-  // renderer can use a different relationship arrow (`<|..`) and the graph edge
-  // filter exposes them separately.
-  const implementsRows = await (
-    await connection.run(
-      `
-        SELECT
-          MIN(e.id) AS id,
-          e.source_id AS source,
-          e.target_id AS target
-        FROM edge e
-        INNER JOIN symbol src_symbol ON src_symbol.id = e.source_id
-        INNER JOIN symbol dst_symbol ON dst_symbol.id = e.target_id
-        INNER JOIN file src_file ON src_file.id = src_symbol.file_id
-        INNER JOIN file dst_file ON dst_file.id = dst_symbol.file_id
-        WHERE e.kind = 'IMPLEMENTS'
-          AND e.target_id IS NOT NULL
-          AND (src_file.path = $workspace_root OR src_file.path LIKE $workspace_prefix)
-          AND (dst_file.path = $workspace_root OR dst_file.path LIKE $workspace_prefix)
-        GROUP BY e.source_id, e.target_id
-        ORDER BY source ASC, target ASC
-      `,
-      params,
-    )
-  ).getRowObjectsJS();
+  // Resolved symbol→symbol edges (both endpoints in the workspace). Pass-1 may
+  // leave target_id NULL (unresolved); these queries show only resolved edges.
+  // IMPLEMENTS is kept a distinct kind from INHERITS so the classDiagram renderer
+  // can use a different arrow (`<|..`) and the edge filter exposes them separately.
+  const callRows = await queryResolvedEdges(connection, "CALLS", params);
+  const inheritsRows = await queryResolvedEdges(connection, "INHERITS", params);
+  const instantiatesRows = await queryResolvedEdges(connection, "INSTANTIATES", params);
+  const implementsRows = await queryResolvedEdges(connection, "IMPLEMENTS", params);
 
   const nodes: GraphNode[] = [
     ...fileRows.map((row) => {
@@ -348,9 +291,9 @@ export async function getWorkspaceSubgraph(
         typeof rawEnclosing === "string" && rawEnclosing.length > 0 ? rawEnclosing : undefined;
       const symbolId = String(row.id);
       const annotationCount = annotationCountsBySymbolId.get(symbolId) ?? 0;
-      // Slice 031 US3 — project decorator-backed presence onto the node's
-      // flags so the Decorator node-filter chip in the webview can become a
-      // truthful filter instead of a disabled stub.
+      // Project decorator-backed presence onto the node's flags so the
+      // Decorator node-filter chip in the webview can become a truthful filter
+      // instead of a disabled stub.
       const flags =
         annotationCount > 0
           ? (Object.freeze([...(baseFlags ?? []), "decorator-backed"]) as readonly string[])

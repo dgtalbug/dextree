@@ -14,17 +14,18 @@ import { validateClassDiagramExport } from "../mermaid/classDiagram.js";
 import { DEFAULT_MERMAID_THEME } from "../mermaid/theme.js";
 import {
   clampGranularityToScope,
+  MERMAID_DIRECTIONS,
+  MERMAID_GRANULARITIES,
   serializeToScopedMermaid,
   validateScopedMermaidExport,
   type MermaidDiagram,
-  type MermaidDirection,
-  type MermaidGranularity,
   type MermaidScope,
 } from "../mermaid/scopedSerializer.js";
 import { serializeToMermaid } from "../mermaid/serializer.js";
 
-const GRANULARITIES: MermaidGranularity[] = ["package", "file", "symbol"];
-const DIRECTIONS: MermaidDirection[] = ["auto", "TB", "LR", "BT", "RL"];
+const GRANULARITIES = MERMAID_GRANULARITIES;
+const DIRECTIONS = MERMAID_DIRECTIONS;
+// Deliberate subset: sequenceDiagram needs a trace snapshot, not fuzzable here.
 const DIAGRAMS: MermaidDiagram[] = ["flowchart", "classDiagram"];
 
 export function fuzz(data: Buffer): void {

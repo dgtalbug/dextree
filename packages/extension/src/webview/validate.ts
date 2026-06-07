@@ -1,7 +1,7 @@
 import type { NavigateMessage } from "./protocol/messages.js";
 
 /**
- * Validates a raw message object as a NavigateMessage (FR-013).
+ * Validates a raw message object as a NavigateMessage.
  *
  * Checks:
  *  - type === "navigate"

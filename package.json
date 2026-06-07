@@ -41,6 +41,7 @@
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
     "lint:fix": "eslint --fix \"packages/**/*.ts\"",
+    "lint:spec-tags": "node scripts/check-no-spec-tags.mjs",
     "package": "pnpm --filter dextree run package",
     "prepare": "husky",
     "test": "turbo run test",

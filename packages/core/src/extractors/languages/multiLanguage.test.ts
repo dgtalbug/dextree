@@ -124,4 +124,33 @@ describe("multi-language extraction (data-only providers)", () => {
       expect(result.symbols.every((s) => s.language === c.language)).toBe(true);
     });
   }
+
+  // IMPORTS edges must exist for non-TS/JS languages whose provider declares
+  // import node types (previously the import walk was TS/JS-only).
+  const IMPORT_CASES = [
+    {
+      language: "python",
+      path: "a.py",
+      source: "import os\nfrom a.b import c\n",
+      expect: ["os", "a.b"],
+    },
+    { language: "go", path: "a.go", source: 'package m\nimport "fmt"\n', expect: ["fmt"] },
+    { language: "rust", path: "a.rs", source: "use std::io;\n", expect: ["std::io"] },
+  ];
+
+  for (const c of IMPORT_CASES) {
+    it(`produces IMPORTS edges for ${c.language}`, async () => {
+      const result = await extract(c.source, c.path, c.language);
+      expect(result.imports.length).toBeGreaterThan(0);
+      // Every import edge is tagged with the file's language, not hardcoded TS.
+      expect(result.imports.every((i) => i.language === c.language)).toBe(true);
+      const paths = result.imports.map((i) => i.importPath);
+      for (const want of c.expect) {
+        expect(
+          paths.some((p) => p.includes(want)),
+          `${c.language} import path should include ${want}; got ${paths.join(", ")}`,
+        ).toBe(true);
+      }
+    });
+  }
 });

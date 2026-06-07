@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "./db.js";
 
 import {
   SCHEMA_VERSION,
@@ -82,7 +82,7 @@ function identityMatches(row: WorkspaceCacheRow, identity: WorkspaceCacheIdentit
 }
 
 export async function writeWorkspaceCacheSnapshot(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   input: WriteWorkspaceCacheSnapshotInput,
 ): Promise<void> {
   const timestamp = new Date().toISOString();
@@ -143,7 +143,7 @@ export async function writeWorkspaceCacheSnapshot(
 }
 
 export async function validateWorkspaceCache(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   identity: WorkspaceCacheIdentity,
 ): Promise<WorkspaceCacheValidation> {
   try {

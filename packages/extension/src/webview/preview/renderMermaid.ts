@@ -18,7 +18,7 @@ export interface ThemeKindBody {
 
 /**
  * Resolves the active VS Code theme kind to the bounded `MermaidPreviewTheme`
- * required by `generateMermaidPreview`. Mapping per slice 029 data-model:
+ * required by `generateMermaidPreview`. Mapping:
  *
  *   - `light` / `hc-light` → `"light"`
  *   - `dark` / `hc-dark` → `"dark"`

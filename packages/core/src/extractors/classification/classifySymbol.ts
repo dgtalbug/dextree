@@ -24,8 +24,7 @@ const UNCLASSIFIED_ENTRY: EntryKind = "unclassified";
 const UNKNOWN_LAYER: ArchitecturalLayer = "unknown";
 
 // Each branch is wrapped so the trailing `$` on the file-extension branch
-// cannot be misread as also anchoring the directory-segment branch
-// (CodeQL js/regex/missing-regexp-anchor).
+// cannot be misread as also anchoring the directory-segment branch.
 const TEST_PATH_RX =
   /(?:(?:^|\/)(?:__tests__|__test__|tests?)\/)|(?:\.(?:test|spec)\.[mc]?[jt]sx?$)/;
 

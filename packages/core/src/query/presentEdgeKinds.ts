@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 
 /**
  * Returns the sorted, deduplicated set of `edge.kind` values currently present
@@ -12,7 +12,7 @@ import type { DuckDBConnection } from "@duckdb/node-api";
  * Empty result on a fresh / empty workspace is a normal outcome, not an error.
  */
 export async function getPresentEdgeKinds(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   _workspaceRoot: string,
 ): Promise<readonly string[]> {
   const rows = await (

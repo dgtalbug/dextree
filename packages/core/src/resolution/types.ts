@@ -31,3 +31,36 @@ export interface CallResolver {
    */
   resolve(nodeId: string, direction: "in" | "out"): Promise<readonly ResolvedEdge[]>;
 }
+
+/** A node's source position, for resolvers that query by location (e.g. an LSP). */
+export interface NodeLocation {
+  filePath: string;
+  /** 0-based line. */
+  line: number;
+  /** 0-based column. */
+  column: number;
+}
+
+/** A precise caller/callee resolved by a location-based source (e.g. a language server). */
+export interface PreciseCallEdge {
+  /** Display name of the related symbol (the caller or callee). */
+  name: string;
+  filePath: string;
+  /** 0-based start line. */
+  line: number;
+  readonly tier: "precise";
+  confidence: number;
+}
+
+/**
+ * Host-side precise resolver contract (RULE-ARCH-010). Unlike {@link CallResolver}
+ * (graph-node-id based, in `core`), this resolves from a source *position* because
+ * the precise source — the user's language server — answers by file+position, not
+ * by our graph ids. The host (VS Code / IntelliJ) implements it; `core` owns the
+ * contract so the seam is real and portable. Degrades to an empty array when no
+ * precise source answers, leaving the heuristic tier in place.
+ */
+export interface PreciseLocationResolver {
+  readonly tier: "precise";
+  resolve(node: NodeLocation, direction: "in" | "out"): Promise<readonly PreciseCallEdge[]>;
+}

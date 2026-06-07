@@ -6,6 +6,7 @@ import type { Language, Node, Tree } from "web-tree-sitter";
 
 import { detectLanguage, extractImportRefs } from "../parser/extractor.js";
 import { loadGrammar } from "../parser/grammars.js";
+import { EDGE_META_KEYS } from "../storage/edgeMetadata.js";
 import type { StoredSymbol, SymbolKind, SymbolRange } from "../types.js";
 import { getLanguageProvider } from "./languages/registry.js";
 import type { LanguageProvider } from "./languages/types.js";
@@ -60,6 +61,8 @@ export class GenericTagsExtractor implements Extractor {
       input.absolutePath,
       input.workspaceRoot,
       input.fileId,
+      input.language,
+      provider.config.importNodeTypes,
     );
 
     const edges = provider.config.structuralOnly
@@ -194,9 +197,9 @@ function buildCallEdges(calls: CallSite[], symbols: StoredSymbol[], fileId: stri
       targetId: null,
       kind: "CALLS",
       metadata: {
-        callee_name: call.callee,
-        source_fqn: source ? source.fqn : null,
-        call_site_range: rangeOf(call.node),
+        [EDGE_META_KEYS.calleeName]: call.callee,
+        [EDGE_META_KEYS.sourceFqn]: source ? source.fqn : null,
+        [EDGE_META_KEYS.callSiteRange]: rangeOf(call.node),
       },
     });
   }
@@ -207,11 +210,11 @@ function buildCallEdges(calls: CallSite[], symbols: StoredSymbol[], fileId: stri
 // REFERENCES resolves to a symbol by name; RE_EXPORTS names a module path
 // (resolved at query time like IMPORTS), so its key is distinct.
 const TARGET_NAME_KEY: Record<string, string> = {
-  INHERITS: "parent_name",
-  INSTANTIATES: "class_name",
-  IMPLEMENTS: "interface_name",
-  REFERENCES: "referenced_name",
-  RE_EXPORTS: "reexport_path",
+  INHERITS: EDGE_META_KEYS.parentName,
+  INSTANTIATES: EDGE_META_KEYS.className,
+  IMPLEMENTS: EDGE_META_KEYS.interfaceName,
+  REFERENCES: EDGE_META_KEYS.referencedName,
+  RE_EXPORTS: EDGE_META_KEYS.reexportPath,
 };
 
 /**
@@ -235,8 +238,8 @@ function buildRelationEdges(
       kind: rel.kind,
       metadata: {
         [targetKey]: rel.targetName,
-        source_fqn: source ? source.fqn : null,
-        reference_range: rangeOf(rel.node),
+        [EDGE_META_KEYS.sourceFqn]: source ? source.fqn : null,
+        [EDGE_META_KEYS.referenceRange]: rangeOf(rel.node),
       },
     });
   }
@@ -350,8 +353,6 @@ function emptyResult(): ExtractionResult {
     imports: [],
     edges: [],
     annotations: [],
-    modules: [],
-    tests: [],
   };
 }
 

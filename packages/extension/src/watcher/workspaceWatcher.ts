@@ -37,7 +37,7 @@ export function createWorkspaceWatcher(
   async function processEvent(event: WatcherEvent): Promise<void> {
     const filePath = event.uri.fsPath;
 
-    // FR-002 guard: silently skip if workspace has not been indexed yet
+    // Silently skip if workspace has not been indexed yet
     try {
       const indexer = await getIndexer();
       const allFiles = await indexer.getAllFiles();
@@ -123,7 +123,9 @@ export function createWorkspaceWatcher(
       onIndexed();
       logger.debug(`[watcher] re-indexed: ${fileName}`);
     } catch (err) {
-      logger.debug(`[watcher] error processing ${fileName}: ${String(err)}`);
+      // A failed background re-index leaves the graph stale vs disk — surface it
+      // at error level, not debug, so the staleness is diagnosable.
+      logger.error(`[watcher] error processing ${fileName}`, err);
     }
   }
 

@@ -56,12 +56,22 @@ export type SequenceDiagramValidation =
 
 const SEQUENCE_DIAGRAM_CAPS = { participants: 40, steps: 100 } as const;
 
-function lookupNode(subgraph: WorkspaceSubgraph, id: string): GraphNode | undefined {
-  return subgraph.nodes.find((n) => n.id === id);
+/**
+ * Per-serialization id→node / id→edge indexes. Built once per build pass so the
+ * id lookups inside the trace loops are O(1) instead of a `.find` over the whole
+ * subgraph each iteration (the loops run per trace node/edge, so the naive form
+ * was O(trace · subgraph)).
+ */
+interface SubgraphIndex {
+  nodes: ReadonlyMap<string, GraphNode>;
+  edges: ReadonlyMap<string, WorkspaceSubgraph["edges"][number]>;
 }
 
-function lookupEdge(subgraph: WorkspaceSubgraph, id: string) {
-  return subgraph.edges.find((e) => e.id === id);
+function indexSubgraph(subgraph: WorkspaceSubgraph): SubgraphIndex {
+  return {
+    nodes: new Map(subgraph.nodes.map((n) => [n.id, n])),
+    edges: new Map(subgraph.edges.map((e) => [e.id, e])),
+  };
 }
 
 function classParticipantLabel(node: GraphNode): string {
@@ -74,8 +84,7 @@ function classParticipantLabel(node: GraphNode): string {
  * quote-escape pass produces `\\"` and the subsequent backslash pass
  * double-escapes the backslash we just wrote, breaking round-trip parsing.
  * Also strips newlines and carriage returns since Mermaid line-terminates
- * on them. Flagged by CodeQL "Incomplete string escaping" on the prior
- * single-replace pattern.
+ * on them. A single-replace pattern here leaves an incomplete string escape.
  */
 function escapeMermaidLabel(label: string): string {
   return label
@@ -97,24 +106,25 @@ function buildParticipants(
   // Track non-class participant ids so a cyclic trace that revisits the same
   // file or top-level symbol produces one participant, not N duplicates. Class
   // participants are already deduped via `classMap`. Method participants are
-  // folded into their enclosing class. CodeRabbit flagged that a cap check on
+  // folded into their enclosing class. Without this dedup, a cap check on
   // `participants.length` would falsely return `oversized` for valid cyclic
-  // traces without this dedup — but the same duplication would also have
-  // emitted duplicate `participant Foo as bar` lines in the serialized output.
+  // traces — and the same duplication would also have emitted duplicate
+  // `participant Foo as bar` lines in the serialized output.
   const seenNonClassIds = new Set<string>();
   // Methods can be re-visited too; dedupe the sourceNodeIds we attach to the
   // enclosing class so the participant's source list doesn't grow unbounded
   // on cyclic traces.
   const seenMethodIdsByClass = new Map<string, Set<string>>();
+  const index = indexSubgraph(subgraph);
 
   for (const nodeId of trace.nodeIds) {
-    const node = lookupNode(subgraph, nodeId);
+    const node = index.nodes.get(nodeId);
     if (!node) continue;
 
     if (node.symbolKind === "method" && node.enclosingSymbolId) {
       const enclosureId = node.enclosingSymbolId;
       if (!classMap.has(enclosureId)) {
-        const enc = lookupNode(subgraph, enclosureId);
+        const enc = index.nodes.get(enclosureId);
         classMap.set(enclosureId, {
           label: enc ? classParticipantLabel(enc) : enclosureId,
           sourceNodeIds: [],
@@ -183,15 +193,16 @@ function buildSteps(
   participants: SequenceDiagramParticipant[],
 ): SequenceDiagramStep[] {
   const steps: SequenceDiagramStep[] = [];
+  const index = indexSubgraph(subgraph);
   let hopIndex = 0;
   for (const edgeId of trace.edgeIds) {
-    const edge = lookupEdge(subgraph, edgeId);
+    const edge = index.edges.get(edgeId);
     hopIndex += 1;
     if (!edge) continue;
     const from = resolveParticipantId(edge.source, participants);
     const to = resolveParticipantId(edge.target, participants);
     if (!from || !to) continue;
-    const sourceNode = lookupNode(subgraph, edge.source);
+    const sourceNode = index.nodes.get(edge.source);
     const label = sourceNode?.label ?? edge.kind;
     steps.push({
       edgeId: edge.id,

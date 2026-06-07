@@ -87,7 +87,7 @@ export function WorkspaceCard({ workspace, onSwitch }: WorkspaceCardProps) {
         <div className={styles.archTitle}>Architecture</div>
         {/*
          * IndexedWorkspaceRecord carries no per-layer breakdown yet, so the
-         * strip is a single gray placeholder (T038). Once the record gains a
+         * strip is a single gray placeholder. Once the record gains a
          * layer histogram this becomes proportional --layer-* segments.
          */}
         <div

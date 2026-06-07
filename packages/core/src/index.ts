@@ -1,5 +1,5 @@
 import { mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, isAbsolute } from "node:path";
 
 import { v4 as uuidv4 } from "uuid";
 
@@ -113,7 +113,14 @@ export type {
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 export { getCoverageReport } from "./query/coverage.js";
 export { neighborhood } from "./query/neighborhood.js";
-export type { CallResolver, ResolvedEdge, ResolutionTier } from "./resolution/types.js";
+export type {
+  CallResolver,
+  ResolvedEdge,
+  ResolutionTier,
+  NodeLocation,
+  PreciseCallEdge,
+  PreciseLocationResolver,
+} from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 
@@ -183,6 +190,15 @@ class DuckTreeIndexer implements Indexer {
     workspaceRoot: string,
     cacheIdentity?: WorkspaceCacheIdentity,
   ): Promise<IndexResult> {
+    // Fail fast at the boundary (RULE-ARCH-006) — an empty/relative path would
+    // otherwise surface as an opaque fs error deep in extraction.
+    if (!isAbsolute(absolutePath)) {
+      throw new Error(`indexFile: absolutePath must be an absolute path, got "${absolutePath}"`);
+    }
+    if (!isAbsolute(workspaceRoot)) {
+      throw new Error(`indexFile: workspaceRoot must be an absolute path, got "${workspaceRoot}"`);
+    }
+
     const existing = this.indexFileInFlight.get(absolutePath);
     if (existing !== undefined) {
       return existing;
@@ -250,7 +266,7 @@ class DuckTreeIndexer implements Indexer {
       // (which `replaceFileGraph` writes itself) flow through `extraEdges`.
       const extraEdges = [...result.edges];
 
-      // Per-file framework attribution (slice 018) is needed before classification
+      // Per-file framework attribution is needed before classification
       // so the classifier can use it as one of its local structural inputs.
       const detected = this.frameworkCache.get(workspaceRoot) ?? [];
       const attribution =
@@ -367,6 +383,11 @@ class DuckTreeIndexer implements Indexer {
   }
 
   async neighborhood(nodeId: string, options: NeighborhoodOptions): Promise<NeighborhoodResult> {
+    // Fail fast at the boundary (RULE-ARCH-006) — an empty node id would scan
+    // from a non-existent seed and silently return nothing.
+    if (nodeId.trim() === "") {
+      throw new Error("neighborhood: nodeId must be a non-empty string");
+    }
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return neighborhood(database.connection, nodeId, options);

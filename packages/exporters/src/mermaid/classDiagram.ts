@@ -2,6 +2,7 @@ import type { GraphNode, WorkspaceSubgraph } from "@dextree/core";
 
 import type { ScopedMermaidOptions } from "./scopedSerializer.js";
 import { MERMAID_INIT_DIRECTIVE } from "./theme.js";
+import { firstCapBreach } from "./validator.js";
 
 export interface ClassDiagramEntry {
   classId: string;
@@ -136,23 +137,27 @@ export function validateClassDiagramExport(subgraph: WorkspaceSubgraph): ClassDi
   const classCount = entries.length;
   const methodCount = entries.reduce((sum, e) => sum + e.methods.length, 0);
 
-  if (classCount > MERMAID_CLASS_DIAGRAM_CAPS.classes) {
+  const breach = firstCapBreach([
+    {
+      count: classCount,
+      cap: MERMAID_CLASS_DIAGRAM_CAPS.classes,
+      reason: (count, cap) =>
+        `${count} classes exceeds the class-diagram cap of ${cap}; narrow the scope.`,
+    },
+    {
+      count: methodCount,
+      cap: MERMAID_CLASS_DIAGRAM_CAPS.methods,
+      reason: (count, cap) =>
+        `${count} method stubs exceeds the class-diagram cap of ${cap}; narrow the scope.`,
+    },
+  ]);
+  if (breach !== null) {
     return {
       status: "oversized",
       classCount,
       methodCount,
       cap: MERMAID_CLASS_DIAGRAM_CAPS,
-      reason: `${classCount} classes exceeds the class-diagram cap of ${MERMAID_CLASS_DIAGRAM_CAPS.classes}; narrow the scope.`,
-    };
-  }
-
-  if (methodCount > MERMAID_CLASS_DIAGRAM_CAPS.methods) {
-    return {
-      status: "oversized",
-      classCount,
-      methodCount,
-      cap: MERMAID_CLASS_DIAGRAM_CAPS,
-      reason: `${methodCount} method stubs exceeds the class-diagram cap of ${MERMAID_CLASS_DIAGRAM_CAPS.methods}; narrow the scope.`,
+      reason: breach,
     };
   }
 
@@ -167,6 +172,71 @@ export function validateClassDiagramExport(subgraph: WorkspaceSubgraph): ClassDi
 function toMermaidClassName(label: string): string {
   const safe = label.replace(/[^A-Za-z0-9_]/g, "_");
   return /^[A-Za-z_]/.test(safe) ? safe : "_" + safe;
+}
+
+/** Emit the `class Foo { +bar() }` blocks (one per entry, methods inline). */
+function emitClassBodies(
+  entries: ReadonlyArray<ClassDiagramEntry>,
+  classNameById: ReadonlyMap<string, string>,
+): string[] {
+  const lines: string[] = [];
+  for (const entry of entries) {
+    const safeName = classNameById.get(entry.classId)!;
+    if (entry.methods.length === 0) {
+      lines.push(`  class ${safeName}`);
+    } else {
+      lines.push(`  class ${safeName} {`);
+      for (const method of entry.methods) {
+        lines.push(`    +${method.name}()`);
+      }
+      lines.push(`  }`);
+    }
+  }
+  return lines;
+}
+
+/**
+ * Collect inheritance / instantiation / implementation relationship lines,
+ * sorted deterministically by (source, target) so the diagram is stable across
+ * runs. Edges to targets outside the current scope are skipped.
+ */
+function collectRelationshipLines(
+  entries: ReadonlyArray<ClassDiagramEntry>,
+  classNameById: ReadonlyMap<string, string>,
+): string[] {
+  type RelationshipLine = { source: string; target: string; line: string };
+  const relationships: RelationshipLine[] = [];
+  const push = (
+    entry: ClassDiagramEntry,
+    targetId: string,
+    render: (s: string, t: string) => string,
+  ) => {
+    const sourceName = classNameById.get(entry.classId)!;
+    const targetName = classNameById.get(targetId);
+    if (targetName === undefined) return;
+    relationships.push({
+      source: entry.classId,
+      target: targetId,
+      line: render(sourceName, targetName),
+    });
+  };
+
+  for (const entry of entries) {
+    for (const targetId of entry.inheritsFrom) {
+      push(entry, targetId, (s, t) => `  ${s} <|-- ${t}`);
+    }
+    for (const targetId of entry.instantiates) {
+      push(entry, targetId, (s, t) => `  ${s} <.. ${t}`);
+    }
+    for (const targetId of entry.implementsInterfaces) {
+      push(entry, targetId, (s, t) => `  ${t} <|.. ${s}`);
+    }
+  }
+
+  relationships.sort((a, b) =>
+    `${a.source}\0${a.target}`.localeCompare(`${b.source}\0${b.target}`),
+  );
+  return relationships.map((rel) => rel.line);
 }
 
 export function serializeToClassDiagram(
@@ -184,63 +254,10 @@ export function serializeToClassDiagram(
     classNameById.set(entry.classId, toMermaidClassName(entry.className));
   }
 
-  const lines: string[] = [];
-  lines.push(MERMAID_INIT_DIRECTIVE[options.theme]);
-  lines.push("classDiagram");
-
-  for (const entry of entries) {
-    const safeName = classNameById.get(entry.classId)!;
-    if (entry.methods.length === 0) {
-      lines.push(`  class ${safeName}`);
-    } else {
-      lines.push(`  class ${safeName} {`);
-      for (const method of entry.methods) {
-        lines.push(`    +${method.name}()`);
-      }
-      lines.push(`  }`);
-    }
-  }
-
-  type RelationshipLine = { source: string; target: string; line: string };
-  const relationships: RelationshipLine[] = [];
-  for (const entry of entries) {
-    const sourceName = classNameById.get(entry.classId)!;
-    for (const targetId of entry.inheritsFrom) {
-      const targetName = classNameById.get(targetId);
-      if (targetName === undefined) continue;
-      relationships.push({
-        source: entry.classId,
-        target: targetId,
-        line: `  ${sourceName} <|-- ${targetName}`,
-      });
-    }
-    for (const targetId of entry.instantiates) {
-      const targetName = classNameById.get(targetId);
-      if (targetName === undefined) continue;
-      relationships.push({
-        source: entry.classId,
-        target: targetId,
-        line: `  ${sourceName} <.. ${targetName}`,
-      });
-    }
-    for (const targetId of entry.implementsInterfaces) {
-      const targetName = classNameById.get(targetId);
-      if (targetName === undefined) continue;
-      relationships.push({
-        source: entry.classId,
-        target: targetId,
-        line: `  ${targetName} <|.. ${sourceName}`,
-      });
-    }
-  }
-  relationships.sort((a, b) => {
-    const keyA = `${a.source}\0${a.target}`;
-    const keyB = `${b.source}\0${b.target}`;
-    return keyA.localeCompare(keyB);
-  });
-  for (const rel of relationships) {
-    lines.push(rel.line);
-  }
-
-  return lines.join("\n");
+  return [
+    MERMAID_INIT_DIRECTIVE[options.theme],
+    "classDiagram",
+    ...emitClassBodies(entries, classNameById),
+    ...collectRelationshipLines(entries, classNameById),
+  ].join("\n");
 }

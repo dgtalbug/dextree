@@ -41,6 +41,7 @@ const CONFIG: ProviderConfig = {
     variable: "variable",
   },
   callCaptures: ["reference.call"],
+  importNodeTypes: ["using_directive"],
 };
 
 export const TREE_SITTER_C_SHARP_PROVIDERS: readonly LanguageProvider[] = [
