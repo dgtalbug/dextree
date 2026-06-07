@@ -1,11 +1,5 @@
 import type { GraphEdge } from "@dextree/core";
-import {
-  CLASSIFIED_LAYERS,
-  countArchitectureNodes,
-  rankLensMatches,
-  type LensId,
-  type RankableLensId,
-} from "@dextree/core/lenses";
+import { CLASSIFIED_LAYERS } from "@dextree/core/lenses";
 import { MultiDirectedGraph } from "graphology";
 import { edgePathFromNodePath } from "graphology-shortest-path";
 import { bidirectional } from "graphology-shortest-path/unweighted";
@@ -28,7 +22,8 @@ import {
   type InspectorNeighbors,
 } from "./InspectorPanel.js";
 import { LENS_REGISTRY, LensesPanel } from "./LensesPanel.js";
-import { LensResultTable, type LensResultRow } from "./LensResultTable.js";
+import { LensResultTable } from "./LensResultTable.js";
+import { useGraphLenses } from "./hooks/useGraphLenses.js";
 import lensesPanelStyles from "./LensesPanel.module.css";
 import {
   CANONICAL_NODE_FILTER_LIST,
@@ -270,10 +265,6 @@ function refreshSigma(sigma: Sigma): void {
  * (fan-out / fan-in counts) render as integers; fractional metrics (PageRank
  * importance) render to 3 decimals so distinct scores stay distinguishable.
  */
-function formatLensMetric(metric: number): string {
-  return Number.isInteger(metric) ? String(metric) : metric.toFixed(3);
-}
-
 function applyTheme(
   graph: MultiDirectedGraph,
   sigma: Sigma,
@@ -476,7 +467,6 @@ export function GraphView({
   const [hiddenNodeKinds, setHiddenNodeKinds] = useState<Set<string>>(
     () => new Set(DEFAULT_HIDDEN_NODE_KINDS),
   );
-  const [activeLensId, setActiveLensId] = useState<LensId | null>(null);
   // Search state. `searchQuery` is the committed (post-debounce)
   // value; the SearchBar manages its own pending input internally.
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -511,67 +501,10 @@ export function GraphView({
     }
   }, [onPersistClusterHulls]);
 
-  // Compute counts for all five lenses against the current subgraph. Stub
-  // lenses (selector === null) contribute 0. Runs once per subgraph change.
-  const lensCounts = useMemo<Record<LensId, number>>(() => {
-    const graph = graphRef.current;
-    const empty: Record<LensId, number> = {
-      "god-function": 0,
-      "god-class": 0,
-      "most-used": 0,
-      "least-used": 0,
-      "dead-code": 0,
-      "entry-points": 0,
-      architecture: 0,
-    };
-    if (graph === null) return empty;
-    const out = { ...empty };
-    for (const id of Object.keys(LENS_REGISTRY) as LensId[]) {
-      const mode = LENS_REGISTRY[id].mode;
-      out[id] =
-        mode.kind === "match" ? mode.selector(graph, nodes).size : countArchitectureNodes(nodes);
-    }
-    return out;
-  }, [nodes]);
-
-  // Compute the set of node IDs the active lens matches. Recomputes when the
-  // user switches lenses or the subgraph changes. `null` means no lens active
-  // OR the active lens is a recolour lens (which dims nothing).
-  const lensMatchSet = useMemo<ReadonlySet<string> | null>(() => {
-    if (activeLensId === null) return null;
-    const graph = graphRef.current;
-    if (graph === null) return null;
-    const mode = LENS_REGISTRY[activeLensId].mode;
-    if (mode.kind !== "match") return null;
-    return mode.selector(graph, nodes);
-  }, [activeLensId, nodes]);
-
-  // The active recolour lens's colour fn, or null when no recolour lens is
-  // active. Drives the node reducer's recolour branch.
-  const lensColorOf = useMemo<((archLayer: string | undefined) => string | null) | null>(() => {
-    if (activeLensId === null) return null;
-    const mode = LENS_REGISTRY[activeLensId].mode;
-    return mode.kind === "recolor" ? mode.colorOf : null;
-  }, [activeLensId]);
-
-  const onLensToggle = useCallback((id: LensId) => {
-    setActiveLensId((current) => (current === id ? null : id));
-  }, []);
-
-  // Ranked result rows for the active rankable lens (architecture recolours and
-  // has no table). Enriches the core `rankLensMatches` output with display
-  // labels and a formatted metric. Recomputes when the lens or graph changes.
-  const lensResultRows = useMemo<LensResultRow[] | null>(() => {
-    if (activeLensId === null || activeLensId === "architecture") return null;
-    const graph = graphRef.current;
-    if (graph === null) return null;
-    const labelById = new Map(nodes.map((n) => [n.id, n.label]));
-    return rankLensMatches(activeLensId as RankableLensId, graph, nodes).map((row) => ({
-      nodeId: row.nodeId,
-      label: labelById.get(row.nodeId) ?? row.nodeId,
-      metric: row.metric === null ? null : formatLensMetric(row.metric),
-    }));
-  }, [activeLensId, nodes]);
+  // Lens state + all lens-derived values (counts, active-match set, recolour fn,
+  // result rows) — see useGraphLenses.
+  const { activeLensId, lensCounts, lensMatchSet, lensColorOf, onLensToggle, lensResultRows } =
+    useGraphLenses(nodes, graphRef);
 
   // Search results. Case-insensitive substring match on label + filePath.
   // `fqn` is not yet present on GraphNode; falls back gracefully
