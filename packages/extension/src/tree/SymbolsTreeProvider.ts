@@ -105,9 +105,19 @@ export class TreeSymbolNode {
   readonly kind = "symbol" as const;
   readonly treeItem: vscode.TreeItem;
 
-  constructor(symbol: StoredSymbol, fileUri: vscode.Uri) {
+  constructor(
+    symbol: StoredSymbol,
+    fileUri: vscode.Uri,
+    readonly children: TreeSymbolNode[] = [],
+  ) {
     const label = `${symbol.name} (${symbol.kind})`;
-    const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+    // A symbol with members (e.g. a class with methods) is collapsible so its
+    // members nest under it; member-less symbols stay leaves.
+    const collapsible =
+      children.length > 0
+        ? vscode.TreeItemCollapsibleState.Collapsed
+        : vscode.TreeItemCollapsibleState.None;
+    const item = new vscode.TreeItem(label, collapsible);
     item.iconPath = new vscode.ThemeIcon(kindCodicon(symbol.kind));
     item.contextValue = "dextreeSymbol";
     item.tooltip = `${symbol.name} (${symbol.kind}) — ${symbol.id}`;
@@ -174,6 +184,49 @@ function buildRootTree(files: StoredFile[], workspaceUri?: vscode.Uri): TreeNode
   ];
 }
 
+/**
+ * Nest a file's symbols by `enclosingSymbolId`: methods/members render under
+ * their enclosing class/interface instead of as flat siblings. A symbol is
+ * top-level when it has no enclosing id, or its enclosing id is not among this
+ * file's symbols (a dangling reference — surfaced rather than dropped). Order is
+ * preserved within each level so the tree mirrors `getSymbols` ordering.
+ */
+function buildSymbolTree(symbols: StoredSymbol[], fileUri: vscode.Uri): TreeSymbolNode[] {
+  const childrenByParent = new Map<string, StoredSymbol[]>();
+  const presentIds = new Set(symbols.map((s) => s.id));
+
+  for (const symbol of symbols) {
+    const parentId = symbol.enclosingSymbolId;
+    if (parentId === undefined || parentId === symbol.id || !presentIds.has(parentId)) continue;
+    const bucket = childrenByParent.get(parentId);
+    if (bucket === undefined) {
+      childrenByParent.set(parentId, [symbol]);
+    } else {
+      bucket.push(symbol);
+    }
+  }
+
+  // `seen` guards against a malformed enclosing cycle (A→B→A) producing
+  // infinite recursion; a symbol already on the current path renders as a leaf.
+  const build = (symbol: StoredSymbol, seen: ReadonlySet<string>): TreeSymbolNode => {
+    if (seen.has(symbol.id)) return new TreeSymbolNode(symbol, fileUri);
+    const nextSeen = new Set(seen).add(symbol.id);
+    const childSymbols = childrenByParent.get(symbol.id) ?? [];
+    return new TreeSymbolNode(
+      symbol,
+      fileUri,
+      childSymbols.map((child) => build(child, nextSeen)),
+    );
+  };
+
+  return symbols
+    .filter((symbol) => {
+      const parentId = symbol.enclosingSymbolId;
+      return parentId === undefined || parentId === symbol.id || !presentIds.has(parentId);
+    })
+    .map((symbol) => build(symbol, new Set()));
+}
+
 // ---------------------------------------------------------------------------
 // TreeDataProvider
 // ---------------------------------------------------------------------------
@@ -237,17 +290,15 @@ export class SymbolsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       }
       try {
         const symbols = await indexer.getSymbols(element.file.relativePath);
-        return symbols.map((symbol) => {
-          const fileUri = vscode.Uri.joinPath(workspaceUri, element.file.relativePath);
-          return new TreeSymbolNode(symbol, fileUri);
-        });
+        const fileUri = vscode.Uri.joinPath(workspaceUri, element.file.relativePath);
+        return buildSymbolTree(symbols, fileUri);
       } catch (error) {
         this.logger.error(`Failed to load symbols for ${element.file.relativePath}`, error);
         return [];
       }
     }
 
-    // Symbol nodes are leaf nodes
-    return [];
+    // Symbol node — return its nested members (empty for leaf symbols)
+    return element.children;
   }
 }
