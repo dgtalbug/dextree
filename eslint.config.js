@@ -109,5 +109,32 @@ export default [
       ],
     },
   },
+  {
+    // Two-engine boundary (RULE-ARCH-002): Sigma.js is the main graph view;
+    // React Flow (@xyflow/react) is allowed ONLY for focused subgraphs under
+    // webview/blast-radius/. The legacy `reactflow` package is banned outright.
+    // Mirrors the driver-behind-adapter confinement used in core.
+    files: ["packages/extension/src/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx", "packages/extension/src/webview/blast-radius/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "reactflow",
+              message:
+                "Use @xyflow/react (v12+), not the legacy reactflow package (RULE-ARCH-002).",
+            },
+            {
+              name: "@xyflow/react",
+              message:
+                "React Flow is for focused subgraphs only — import it under webview/blast-radius/. The main graph uses Sigma.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 ];

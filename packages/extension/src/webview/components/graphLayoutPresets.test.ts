@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyLayoutPreset,
+  assignRadialPositions,
   LAYOUT_PRESET_OPTIONS,
   restoreNodePositions,
   snapshotNodePositions,
@@ -189,7 +190,9 @@ describe("applyLayoutPreset — ForceAtlas2 re-application", () => {
     expect(result.status).toBe("applied");
     if (result.status === "applied") {
       expect(result.preset).toBe("forceAtlas2");
-      expect(result.ranReadabilityPass).toBe(false);
+      // ForceAtlas2 now runs the anti-collision pass too, so the default view
+      // de-overlaps its nodes (previously only circular/hierarchical did).
+      expect(result.ranReadabilityPass).toBe(true);
     }
   });
 });
@@ -314,5 +317,81 @@ describe("applyLayoutPreset — Hierarchical (slice 025 US3)", () => {
 
     expect(graph.getNodeAttribute("a", "x")).toBe(7);
     expect(graph.getNodeAttribute("a", "y")).toBe(9);
+  });
+});
+
+describe("assignRadialPositions", () => {
+  /** center → 3 direct neighbours; one neighbour has a 2-hop child. */
+  function buildStar(): MultiDirectedGraph {
+    const graph = new MultiDirectedGraph();
+    for (const id of ["c", "n1", "n2", "n3", "g1"]) {
+      graph.addNode(id, { x: 999, y: 999 });
+    }
+    graph.addDirectedEdge("c", "n1");
+    graph.addDirectedEdge("c", "n2");
+    graph.addDirectedEdge("c", "n3");
+    graph.addDirectedEdge("n1", "g1"); // 2-hop
+    return graph;
+  }
+
+  const radius = (graph: MultiDirectedGraph, id: string): number => {
+    const x = graph.getNodeAttribute(id, "x") as number;
+    const y = graph.getNodeAttribute(id, "y") as number;
+    return Math.hypot(x, y);
+  };
+
+  it("places the selected node at the origin", () => {
+    const graph = buildStar();
+    assignRadialPositions(graph, [["c"], ["n1", "n2", "n3"], ["g1"]]);
+    expect(graph.getNodeAttribute("c", "x")).toBe(0);
+    expect(graph.getNodeAttribute("c", "y")).toBe(0);
+  });
+
+  it("places direct neighbours on the inner ring and 2-hop nodes further out", () => {
+    const graph = buildStar();
+    const moved = assignRadialPositions(graph, [["c"], ["n1", "n2", "n3"], ["g1"]]);
+
+    const r1 = radius(graph, "n1");
+    expect(radius(graph, "n2")).toBeCloseTo(r1, 5);
+    expect(radius(graph, "n3")).toBeCloseTo(r1, 5);
+    // 2-hop child sits on a strictly larger ring.
+    expect(radius(graph, "g1")).toBeGreaterThan(r1);
+
+    expect(moved).toContain("c");
+    expect(moved).toContain("g1");
+  });
+
+  it("spreads inner-ring neighbours to distinct angles (no stacking)", () => {
+    const graph = buildStar();
+    assignRadialPositions(graph, [["c"], ["n1", "n2", "n3"], ["g1"]]);
+    const angle = (id: string) =>
+      Math.atan2(
+        graph.getNodeAttribute(id, "y") as number,
+        graph.getNodeAttribute(id, "x") as number,
+      );
+    const angles = new Set([angle("n1"), angle("n2"), angle("n3")]);
+    expect(angles.size).toBe(3);
+  });
+
+  it("is a no-op for an empty / centerless traversal", () => {
+    const graph = buildStar();
+    const before = snapshotNodePositions(graph);
+    expect(assignRadialPositions(graph, []).size).toBe(0);
+    expect(snapshotNodePositions(graph)).toEqual(before);
+  });
+
+  it("round-trips with snapshot/restore (deselect restores prior layout)", () => {
+    const graph = buildStar();
+    // Give nodes a meaningful prior layout to restore to.
+    graph.setNodeAttribute("c", "x", 10);
+    graph.setNodeAttribute("c", "y", 20);
+    const snapshot = snapshotNodePositions(graph);
+
+    assignRadialPositions(graph, [["c"], ["n1", "n2", "n3"], ["g1"]]);
+    expect(graph.getNodeAttribute("c", "x")).toBe(0); // moved by radial
+
+    restoreNodePositions(graph, snapshot);
+    expect(graph.getNodeAttribute("c", "x")).toBe(10); // restored
+    expect(graph.getNodeAttribute("c", "y")).toBe(20);
   });
 });

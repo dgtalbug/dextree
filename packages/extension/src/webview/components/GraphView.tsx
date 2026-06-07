@@ -9,10 +9,12 @@ import type Sigma from "sigma";
 
 import {
   applyLayoutPreset,
+  assignRadialPositions,
   LAYOUT_PRESET_OPTIONS,
   restoreNodePositions,
   snapshotNodePositions,
 } from "./graphLayoutPresets.js";
+import { LazyFocusedGraphView } from "../blast-radius/LazyFocusedGraphView.js";
 import { GraphToolbar } from "./GraphToolbar.js";
 import { EdgeTypesPanel, type EdgeTypeEntry } from "./EdgeTypesPanel.js";
 import { fitCameraToNodes, type NodeBoundsGraph } from "./cameraFit.js";
@@ -102,7 +104,9 @@ type SigmaWithExtras = Sigma & {
       options?: { duration?: number },
     ) => void;
     getState?: () => { x: number; y: number; ratio: number };
+    animatedReset?: (options?: { duration?: number }) => unknown;
   };
+  refresh?: () => void;
 };
 
 function useReducedMotionPreference(): boolean {
@@ -373,6 +377,9 @@ export function GraphView({
   const [retryCount, setRetryCount] = useState(0);
   const [fallbackGraph, setFallbackGraph] = useState<FallbackGraph | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Pre-radial node positions, captured when a selection begins so deselect can
+  // restore the exact prior layout. Null when no selection is repositioning.
+  const radialSnapshotRef = useRef<ReturnType<typeof snapshotNodePositions> | null>(null);
   const [overlaySegments, setOverlaySegments] = useState<OverlaySegment[]>([]);
   const [showMinimap, setShowMinimap] = useState(false);
   // Seed from the restored preference (VS Code state); default on when unset.
@@ -420,6 +427,11 @@ export function GraphView({
         setLayoutSelection({ activePreset: result.preset, notice: null });
         const sigma = sigmaRef.current;
         sigma?.refresh();
+        // Re-running ForceAtlas2 → let it settle live again. Circular/Hierarchical
+        // are fixed structural layouts, so they don't get the live sim.
+        if (result.preset === "forceAtlas2") {
+          controllerRef.current?.restartLiveLayout();
+        }
         // A preset can move nodes into a coordinate range outside the current
         // camera view (Hierarchical's origin-centred layers, Circular's ring),
         // which would leave the canvas looking empty. Re-frame the new layout.
@@ -548,30 +560,84 @@ export function GraphView({
     setSearchFocusedIndex(0);
   }, []);
 
+  // Reposition the selected node's neighbourhood as concentric rings (center +
+  // 2 hops) so its edges fan out radially with minimal crossing. Snapshots the
+  // prior layout once per selection so deselect can restore it exactly.
+  const applyRadialOnSelect = useCallback((selection: { nodeLayers: string[][] } | null): void => {
+    const graph = graphRef.current;
+    if (graph === null || selection === null || selection.nodeLayers.length === 0) return;
+    if (radialSnapshotRef.current === null) {
+      radialSnapshotRef.current = snapshotNodePositions(graph);
+    }
+    assignRadialPositions(graph, selection.nodeLayers);
+    sigmaRef.current?.refresh();
+  }, []);
+
+  // Restore the pre-radial layout (deselect / data change). No-op if nothing was
+  // repositioned.
+  const restoreFromRadial = useCallback((): void => {
+    const graph = graphRef.current;
+    const snapshot = radialSnapshotRef.current;
+    if (graph === null || snapshot === null) return;
+    restoreNodePositions(graph, snapshot);
+    radialSnapshotRef.current = null;
+    sigmaRef.current?.refresh();
+  }, []);
+
+  // The focused (React Flow boxed-card) view's input traversal, or null when the
+  // overlay is closed. Opened by Alt/Cmd + double-click; the Sigma canvas stays
+  // mounted underneath so closing restores it with no rebuild.
+  const [focusedTraversal, setFocusedTraversal] = useState<SelectionTraversal | null>(null);
+
+  const openFocusedView = useCallback(
+    (nodeId: string): void => {
+      const graph = graphRef.current;
+      if (graph === null || !graph.hasNode(nodeId)) return;
+      // Honour the current depth control as the focused neighbourhood radius.
+      setFocusedTraversal(computeSelection(graph, nodeId, depth));
+    },
+    [depth],
+  );
+
+  const closeFocusedView = useCallback((): void => {
+    setFocusedTraversal(null);
+  }, []);
+
+  // The mount effect must not re-run when `depth` changes (it would rebuild
+  // Sigma). Route onFocus through a ref that always holds the latest
+  // depth-aware opener, so the mount callback stays stable.
+  const openFocusedViewRef = useRef(openFocusedView);
+  openFocusedViewRef.current = openFocusedView;
+
   // Select a node (highlight + neighbourhood + Inspector) the same way a canvas
   // single-click does, then fly the camera to it with a zoom so the move is
   // obvious. `selectNode` lives in the Sigma effect closure, so the state writes
   // are replicated here. Shared by search-result and lens-row selection.
-  const selectAndFlyToNode = useCallback((nodeId: string): void => {
-    const sigma = sigmaRef.current;
-    const graph = graphRef.current;
-    if (graph === null || !graph.hasNode(nodeId)) return;
-    setSelectedNodeId(nodeId);
-    // Historically this path set the selection + refreshed but did not touch the
-    // overlay (unlike a canvas click); preserve that by opting out.
-    controllerRef.current?.setSelection(nodeId, { updateOverlay: false });
+  const selectAndFlyToNode = useCallback(
+    (nodeId: string): void => {
+      const sigma = sigmaRef.current;
+      const graph = graphRef.current;
+      if (graph === null || !graph.hasNode(nodeId)) return;
+      setSelectedNodeId(nodeId);
+      // Historically this path set the selection + refreshed but did not touch the
+      // overlay (unlike a canvas click); preserve that by opting out.
+      controllerRef.current?.setSelection(nodeId, { updateOverlay: false });
+      // Radial repositions the selected node to the origin, so fly there.
+      applyRadialOnSelect(controllerRef.current?.currentSelection ?? null);
 
-    // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
-    // zoomed-out graph). Clamp so we only ever zoom in, never out.
-    const camera = (sigma as SigmaWithExtras | null)?.getCamera?.();
-    const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
-    const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
-    if (camera?.animate !== undefined && typeof x === "number" && typeof y === "number") {
-      const currentRatio = camera.getState?.().ratio ?? 1;
-      const ratio = Math.min(currentRatio, SEARCH_FLY_TO_RATIO);
-      camera.animate({ x, y, ratio }, { duration: CAMERA_CENTER_DURATION_MS });
-    }
-  }, []);
+      // Fly + zoom in (keeping the prior ratio made the pan imperceptible on a
+      // zoomed-out graph). Clamp so we only ever zoom in, never out.
+      const camera = (sigma as SigmaWithExtras | null)?.getCamera?.();
+      const x = graph.getNodeAttribute(nodeId, "x") as number | undefined;
+      const y = graph.getNodeAttribute(nodeId, "y") as number | undefined;
+      if (camera?.animate !== undefined && typeof x === "number" && typeof y === "number") {
+        const currentRatio = camera.getState?.().ratio ?? 1;
+        const ratio = Math.min(currentRatio, SEARCH_FLY_TO_RATIO);
+        camera.animate({ x, y, ratio }, { duration: CAMERA_CENTER_DURATION_MS });
+      }
+    },
+    [applyRadialOnSelect],
+  );
 
   const handleSearchSelectResult = useCallback(
     (nodeId: string, index: number): void => {
@@ -804,6 +870,9 @@ export function GraphView({
 
   useEffect(() => {
     setSelectedNodeId(null);
+    // Graph data changed — drop any pending radial snapshot rather than restoring
+    // it: its node ids belong to the previous graph and the new layout is fresh.
+    radialSnapshotRef.current = null;
     // Clear the controller's selection/hover render mirror when the graph data
     // changes. setSelection(null) also clears the overlay; setHover(null) is a
     // no-op before mount (no graph yet) and clears hover after.
@@ -901,15 +970,18 @@ export function GraphView({
     try {
       const sigma = controller.mount(container, graph, {
         onNavigate,
+        onFocus: (nodeId) => openFocusedViewRef.current(nodeId),
         onSelect: (nodeId) => {
           // React stays authoritative for the Inspector; the controller owns the
           // selection traversal + overlay. Selecting does NOT recenter the camera.
           setSelectedNodeId(nodeId);
           controller.setSelection(nodeId);
+          applyRadialOnSelect(controller.currentSelection);
         },
         onClear: () => {
           setSelectedNodeId(null);
           controller.setSelection(null);
+          restoreFromRadial();
         },
         onTracePick: (nodeId) => handleTraceNodeClick(nodeId),
         // mount() sets the controller's instance before invoking this, so read
@@ -1675,6 +1747,25 @@ export function GraphView({
           {activeLayoutLabel}
         </span>
       </footer>
+
+      {focusedTraversal !== null ? (
+        <div className={shellStyles.focusedOverlay} data-testid="focused-view-overlay">
+          <button
+            type="button"
+            className={shellStyles.focusedCloseButton}
+            onClick={closeFocusedView}
+            aria-label="Close focused view"
+          >
+            <span className="codicon codicon-close" aria-hidden="true" /> Close
+          </button>
+          <LazyFocusedGraphView
+            graphNodes={nodes}
+            graphEdges={edges}
+            traversal={focusedTraversal}
+            colors={readThemeColors()}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

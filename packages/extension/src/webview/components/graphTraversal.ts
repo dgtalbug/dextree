@@ -93,12 +93,23 @@ export function computeSelection(
     }
   }
 
+  // Node ids grouped by BFS depth (layer 0 = the selected node). Distinct from
+  // `hopLayers`, which holds EDGE ids per depth. Used by the radial-on-select
+  // layout to place each ring.
+  const nodeLayers: string[][] = [];
+  for (let depth = 0; depth <= maxDepth; depth++) {
+    const layer = nodesByDepth.get(depth);
+    if (layer === undefined) break;
+    nodeLayers.push([...layer]);
+  }
+
   return {
     selectedNodeId,
     nodeIds,
     edgeIds,
     orderedEdgeIds,
     hopLayers,
+    nodeLayers,
     maxDepth,
   };
 }

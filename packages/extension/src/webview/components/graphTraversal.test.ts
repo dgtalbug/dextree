@@ -48,11 +48,27 @@ describe("computeSelection", () => {
     expect(result!.edgeIds.has("b-c")).toBe(true);
   });
 
-  it("records per-hop layers", () => {
+  it("records per-hop EDGE layers in hopLayers", () => {
     const result = computeSelection(buildGraph(), "a", 2);
 
     expect(result!.hopLayers.length).toBeGreaterThanOrEqual(1);
     expect(result!.hopLayers[0]).toEqual(expect.arrayContaining(["a-b", "a-d"]));
+  });
+
+  it("records per-hop NODE layers in nodeLayers (layer 0 = selected node)", () => {
+    const result = computeSelection(buildGraph(), "a", 2);
+
+    // This is the contract the radial-on-select layout depends on: nodeLayers
+    // holds NODE ids by depth, not edges. Layer 0 is the selected node alone.
+    expect(result!.nodeLayers[0]).toEqual(["a"]);
+    expect(result!.nodeLayers[1]).toEqual(expect.arrayContaining(["b", "d"]));
+    expect(result!.nodeLayers[2]).toEqual(["c"]);
+    // Every entry must be a real node, never an edge id.
+    for (const layer of result!.nodeLayers) {
+      for (const id of layer) {
+        expect(buildGraph().hasNode(id)).toBe(true);
+      }
+    }
   });
 });
 
