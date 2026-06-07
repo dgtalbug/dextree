@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createDefaultExtractorRegistry,
-  DecoratorExtractor,
-  ImplementsExtractor,
-} from "./index.js";
+import { createDefaultExtractorRegistry, GenericTagsExtractor } from "./index.js";
 import { createExtractorRegistry } from "./registry.js";
 import type { Extractor, ExtractInput, ExtractionResult } from "./types.js";
 
@@ -195,26 +191,17 @@ describe("ExtractorRegistry", () => {
     expect(result.edges).toEqual([]);
   });
 
-  // Slice 031 T005 — default registry exposes both new pass-1 extractors.
-  // Spies on the extractor prototypes prove they were actually dispatched
-  // (CodeRabbit flagged that the earlier version of this test would pass
-  // even if the extractors were silently dropped from the registry, since
-  // `result.edges`/`result.annotations` are empty for a no-op TS input).
-  it("createDefaultExtractorRegistry() registers and dispatches Implements + Decorator extractors", async () => {
-    const implSpy = vi.spyOn(ImplementsExtractor.prototype, "extract");
-    const decSpy = vi.spyOn(DecoratorExtractor.prototype, "extract");
+  // The default registry now wires the single generic engine. A spy on its
+  // prototype proves it is actually dispatched for a supported language (a no-op
+  // null-tree input still routes through it).
+  it("createDefaultExtractorRegistry() registers and dispatches the generic engine", async () => {
+    const engineSpy = vi.spyOn(GenericTagsExtractor.prototype, "extract");
     try {
-      const registry = createDefaultExtractorRegistry();
-      const result = await registry.run(
-        makeInput({ language: "typescript", source: "export const x = 1;" }),
-      );
-      expect(implSpy).toHaveBeenCalledTimes(1);
-      expect(decSpy).toHaveBeenCalledTimes(1);
-      expect(result.edges).toEqual([]);
-      expect(result.annotations).toEqual([]);
+      const registry = createDefaultExtractorRegistry("/wasm");
+      await registry.run(makeInput({ language: "typescript", source: "export const x = 1;" }));
+      expect(engineSpy).toHaveBeenCalledTimes(1);
     } finally {
-      implSpy.mockRestore();
-      decSpy.mockRestore();
+      engineSpy.mockRestore();
     }
   });
 

@@ -3707,9 +3707,14 @@
                 >
                 as spec
               </li>
-              <li>lenses · god class · most-used · least-used · entry points · architecture</li>
+              <li>
+                lenses · god class · god function · most-used · least-used · dead code · entry
+                points · architecture
+              </li>
               <li>trace route · shortest-path between any two symbols</li>
               <li>framework + entry-point + layer tagging at index time</li>
+              <li>15-language pass-1 · one generic tags engine · adding a language is data</li>
+              <li>tiered call resolution · heuristic + LSP-precise on select · 9 edge kinds</li>
               <li>Mermaid v2 · scoped + classDiagram + sequenceDiagram + preview panel</li>
             </ul>
           </div>
@@ -3720,8 +3725,7 @@
             </div>
             <div class="version-num">v0.3</div>
             <ul>
-              <li>LSP enrichment (pass-2 semantic resolution)</li>
-              <li>multi-language pass-1 (Python · Go · Rust · JS)</li>
+              <li>LSP enrichment · whole-graph pass-2 semantic resolution</li>
               <li>diagnostics + git + test linkage overlays</li>
               <li>⚡ blast radius + framework route map</li>
               <li>MCP server (read-only) · repo-map text snapshot</li>
@@ -3888,8 +3892,8 @@
               <div>
                 <div class="ladder-rung-title">LSP enrichment · pass-2</div>
                 <div class="ladder-rung-desc">
-                  debounced executeReferenceProvider · resolve call edges in-place · upgrade pass-1
-                  graph live · multi-language pass-1 (Python · Go · Rust)
+                  whole-graph executeReferenceProvider · resolve call edges in-place · upgrade the
+                  pass-1 graph live (precise-on-select already ships in v0.2)
                 </div>
               </div>
               <div class="ladder-rung-side"><span class="pill">queued</span></div>
@@ -4642,29 +4646,33 @@
             <div class="gap-fix">fix · <span class="ver">v0.2</span></div>
           </div>
           <div class="gap-row">
-            <span class="gap-sev" data-sev="medium">medium</span>
+            <span class="gap-sev" data-sev="medium">partial</span>
             <div class="gap-text">
-              <strong>No LSP pass-2 yet — cross-file CALLS are FQN-resolved, not semantic</strong>
+              <strong>Call resolution is tiered — heuristic now, LSP precise on select</strong>
               <p>
-                Pass-1 emits naive
+                Every
                 <code style="font-family: var(--mono); color: var(--amber)">CALLS</code>
-                edges via tree-sitter + a fqn lookup. Method overloads, dynamic dispatch, and
-                imported aliases need real LSP resolution. Planned for S8.
+                edge carries a confidence tier. The always-on heuristic tier resolves by scope +
+                name; clicking a node upgrades its callers/callees to compiler-grade
+                <em>precise</em> edges via your installed language server. Whole-graph precise
+                resolution (overloads, dynamic dispatch) is the remaining S8 work.
               </p>
             </div>
-            <div class="gap-fix">add · <span class="ver">v0.3</span></div>
+            <div class="gap-fix">expand · <span class="ver">v0.3</span></div>
           </div>
           <div class="gap-row">
-            <span class="gap-sev" data-sev="medium">medium</span>
+            <span class="gap-sev" data-sev="low">shipped</span>
             <div class="gap-text">
-              <strong>TypeScript / JavaScript only — no multi-language pass-1</strong>
+              <strong>Multi-language pass-1 — 15 languages through one engine</strong>
               <p>
-                Python / Go / Rust / Java extractors are not implemented yet. The
-                <code style="font-family: var(--mono); color: var(--amber)">ExtractorRegistry</code>
-                plumbing is ready; grammars + per-language emission still to ship. Planned for S8.5.
+                A single generic engine reads tree-sitter
+                <code style="font-family: var(--mono); color: var(--amber)">tags.scm</code> +
+                per-language config — adding a language is data, not code. Ships for TypeScript,
+                JavaScript, TSX, JSX, Python, Go, Java, Ruby, Rust, C, C++, C#, PHP, Elixir, and
+                Scala.
               </p>
             </div>
-            <div class="gap-fix">add · <span class="ver">v0.3</span></div>
+            <div class="gap-fix">done · <span class="ver">v0.3</span></div>
           </div>
           <div class="gap-row">
             <span class="gap-sev" data-sev="medium">medium</span>
@@ -4844,7 +4852,7 @@
               </tr>
               <tr>
                 <td>LSP fusion (real types)</td>
-                <td data-cell="self-yes">yes (pass 2)</td>
+                <td data-cell="self-yes">precise-on-select · whole-graph v0.3</td>
                 <td data-cell="no">no</td>
                 <td data-cell="no">no</td>
                 <td data-cell="no">no</td>
@@ -4853,7 +4861,7 @@
               </tr>
               <tr>
                 <td>live diagnostics overlay</td>
-                <td data-cell="self-yes">yes (v0.2)</td>
+                <td data-cell="dim">planned (v0.3)</td>
                 <td data-cell="no">no</td>
                 <td data-cell="no">no</td>
                 <td data-cell="no">no</td>
@@ -4862,7 +4870,7 @@
               </tr>
               <tr>
                 <td>git history fusion</td>
-                <td data-cell="self-yes">yes (v0.2)</td>
+                <td data-cell="dim">planned (v0.3)</td>
                 <td data-cell="ok">commit graph</td>
                 <td data-cell="no">no</td>
                 <td data-cell="no">no</td>
@@ -4871,7 +4879,7 @@
               </tr>
               <tr>
                 <td>⚡ blast radius / PR risk</td>
-                <td data-cell="self-yes">first-class (v0.2)</td>
+                <td data-cell="dim">planned (v0.3)</td>
                 <td data-cell="meh">manual cypher</td>
                 <td data-cell="meh">manual</td>
                 <td data-cell="no">no</td>
@@ -4934,7 +4942,7 @@
               </tr>
               <tr>
                 <td>language coverage</td>
-                <td data-cell="self-no">TS/JS/Py only (v0.1)</td>
+                <td data-cell="ok">15 languages</td>
                 <td data-cell="ok">20+ languages</td>
                 <td data-cell="ok">15+</td>
                 <td data-cell="meh">JS/TS</td>

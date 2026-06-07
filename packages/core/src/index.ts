@@ -11,7 +11,13 @@ import type { DetectedFramework } from "./extractors/frameworks/types.js";
 import { buildBaselineFileRecord, createDefaultExtractorRegistry } from "./extractors/index.js";
 import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
-import { parseTypeScriptSource } from "./parser/parser.js";
+import { parseSource } from "./parser/grammars.js";
+import { getCoverageReport } from "./query/coverage.js";
+import {
+  neighborhood,
+  type NeighborhoodOptions,
+  type NeighborhoodResult,
+} from "./query/neighborhood.js";
 import { getAllFilesQuery } from "./query/files.js";
 import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
 import { querySessionSummary } from "./query/sessionSummary.js";
@@ -23,6 +29,8 @@ import {
   replaceFileGraph,
   replaceWorkspaceFrameworks,
   resolveWorkspaceCrossFileEdges,
+  stampResolutionTier,
+  synthesizeFolderTree,
   setFileFramework,
 } from "./storage/repository.js";
 import { applyMigrations } from "./storage/migrations/runner.js";
@@ -33,6 +41,7 @@ import {
   type ClearAllSummary,
   type ClearFileSummary,
   type ClearWorkspaceSummary,
+  type CoverageReport,
   type FrameworkInfo,
   type IndexResult,
   type Indexer,
@@ -51,6 +60,10 @@ export type {
   ClearAllSummary,
   ClearFileSummary,
   ClearWorkspaceSummary,
+  CoverageReport,
+  CoverageRow,
+  NeighborhoodOptions,
+  NeighborhoodResult,
   EdgeKindCount,
   EntryKind,
   ExtractedFileRecord,
@@ -98,6 +111,9 @@ export type {
   KnownSymbol,
 } from "./extractors/types.js";
 export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
+export { getCoverageReport } from "./query/coverage.js";
+export { neighborhood } from "./query/neighborhood.js";
+export type { CallResolver, ResolvedEdge, ResolutionTier } from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
 
@@ -120,13 +136,6 @@ export class SchemaError extends Error {
   }
 }
 
-const TS_LIKE_LANGUAGES = new Set([
-  "typescript",
-  "javascript",
-  "typescriptreact",
-  "javascriptreact",
-]);
-
 class DuckTreeIndexer implements Indexer {
   private databaseHandle: DatabaseHandle | null = null;
   private initializationPromise: Promise<void> | null = null;
@@ -141,7 +150,7 @@ class DuckTreeIndexer implements Indexer {
     options?: IndexerFactoryOptions,
   ) {
     this.logger = options?.logger;
-    this.registry = createDefaultExtractorRegistry(this.logger);
+    this.registry = createDefaultExtractorRegistry(this.wasmDir, this.logger);
   }
 
   async initialize(): Promise<void> {
@@ -201,9 +210,9 @@ class DuckTreeIndexer implements Indexer {
     const language = detectLanguage(absolutePath);
     const source = await readFile(absolutePath, "utf8");
     const fileId = uuidv4();
-    const tree = TS_LIKE_LANGUAGES.has(language)
-      ? await parseTypeScriptSource(source, this.wasmDir)
-      : null;
+    // Generic parse: any language with a registered grammar gets a tree; others
+    // (structural/plaintext) get null and fall through to the file-only record.
+    const tree = await parseSource(source, language, this.wasmDir);
 
     try {
       this.logger?.debug("indexFile start", {
@@ -351,7 +360,16 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     await resolveWorkspaceCrossFileEdges(database.connection, workspaceRoot);
-    this.logger?.info("Finalized workspace cross-file edges", { workspaceRoot });
+    await synthesizeFolderTree(database.connection);
+    // Stamp tiers again so the just-created CONTAINS edges get a tier too.
+    await stampResolutionTier(database.connection);
+    this.logger?.info("Finalized workspace cross-file edges + folder tree", { workspaceRoot });
+  }
+
+  async neighborhood(nodeId: string, options: NeighborhoodOptions): Promise<NeighborhoodResult> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return neighborhood(database.connection, nodeId, options);
   }
 
   async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {
@@ -382,6 +400,12 @@ class DuckTreeIndexer implements Indexer {
     await this.initialize();
     const database = this.requireDatabaseHandle();
     return getPresentEdgeKinds(database.connection, workspaceRoot);
+  }
+
+  async getCoverageReport(): Promise<CoverageReport> {
+    await this.initialize();
+    const database = this.requireDatabaseHandle();
+    return getCoverageReport(database.connection);
   }
 
   async getSessionSummary(workspaceRoot: string): Promise<SessionSummary> {

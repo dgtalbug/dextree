@@ -4,6 +4,17 @@ allowBuilds:
   "@vscode/vsce-sign": true
   esbuild: true
   keytar: true
+  tree-sitter-c: false
+  tree-sitter-c-sharp: false
+  tree-sitter-cpp: false
+  tree-sitter-elixir: false
+  tree-sitter-go: false
+  tree-sitter-java: false
   tree-sitter-javascript: false
+  tree-sitter-php: false
+  tree-sitter-python: false
+  tree-sitter-ruby: false
+  tree-sitter-rust: false
+  tree-sitter-scala: false
   tree-sitter-typescript: false
   vue-demi: true

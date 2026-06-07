@@ -182,7 +182,7 @@ describe("applyMigrations", () => {
       const v = (r as { version: number | bigint }).version;
       return typeof v === "bigint" ? Number(v) : v;
     });
-    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it("adds symbol.entry_kind and symbol.arch_layer columns on a v5 DB (migration 006)", async () => {

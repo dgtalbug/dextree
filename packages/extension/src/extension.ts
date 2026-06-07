@@ -34,6 +34,7 @@ import {
 } from "./commands/indexWorkspace.js";
 import { registerOpenGraphViewCommand } from "./commands/openGraphView.js";
 import { createLogger, type Logger } from "./logger.js";
+import { LspCallResolver } from "./resolution/lspCallResolver.js";
 import { SymbolsTreeProvider } from "./tree/SymbolsTreeProvider.js";
 import { createWorkspaceWatcher } from "./watcher/workspaceWatcher.js";
 import { WebviewPanelManager } from "./webview/panel.js";
@@ -226,6 +227,25 @@ export async function activate(context: ActivationContext): Promise<void> {
       return listIndexedWorkspaces(globalStoragePath, workspaceRoot);
     },
     onSwitchWorkspace: handleSwitchWorkspace,
+  });
+
+  // indexing-engine-v2 phase 4 — wire the precise (LSP) call resolver. On node
+  // selection the webview posts `requestPreciseCalls`; this asks the user's
+  // language server for accurate callers/callees and posts them back as
+  // `precise`-tier edges. No server / no support → empty (heuristic stands).
+  const lspCallResolver = new LspCallResolver();
+  WebviewPanelManager.setPreciseCallsHandler(async (req) => {
+    const edges = await lspCallResolver.resolve(
+      { filePath: req.filePath, line: req.line, column: req.column },
+      req.direction,
+    );
+    return edges.map((e) => ({
+      name: e.name,
+      filePath: e.filePath,
+      line: e.line,
+      tier: "precise" as const,
+      confidence: e.confidence,
+    }));
   });
 
   // Slice 029 PR-B — wire inline-control rerenders. The webview posts

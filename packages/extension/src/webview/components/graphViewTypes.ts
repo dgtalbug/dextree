@@ -133,6 +133,29 @@ export interface GraphViewProps {
   onToggleSourceOnly?: () => void;
   sourceOnly?: boolean;
   isIndexing?: boolean;
+  /**
+   * indexing-engine-v2 phase 4 — request precise (LSP) callers/callees for a
+   * selected node. GraphView calls this with the node's file position + the
+   * desired direction; the host queries the user's language server.
+   */
+  onRequestPreciseCalls?: (req: {
+    nodeId: string;
+    filePath: string;
+    line: number;
+    column: number;
+    direction: "in" | "out";
+  }) => void;
+  /** Precise edges returned by the host for the last requested node. */
+  preciseCalls?: {
+    nodeId: string;
+    edges: {
+      name: string;
+      filePath: string;
+      line: number;
+      tier: "precise";
+      confidence: number;
+    }[];
+  };
 }
 
 /**

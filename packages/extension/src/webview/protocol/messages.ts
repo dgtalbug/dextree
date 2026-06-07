@@ -85,12 +85,29 @@ export interface MermaidPreviewMessage {
   preview: MermaidPreviewResult;
 }
 
+/** A precise caller/callee resolved by the user's language server (phase 4). */
+export interface PreciseCallEdgeResult {
+  name: string;
+  filePath: string;
+  line: number;
+  tier: "precise";
+  confidence: number;
+}
+
+/** Host → webview: precise callers/callees for a selected node (phase 4). */
+export interface PreciseCallsMessage {
+  type: "preciseCalls";
+  nodeId: string;
+  edges: PreciseCallEdgeResult[];
+}
+
 /** Union of all messages the extension host can send to the webview. */
 export type HostToWebviewMessage =
   | GraphMessage
   | IndexingMessage
   | WorkspaceListMessage
-  | MermaidPreviewMessage;
+  | MermaidPreviewMessage
+  | PreciseCallsMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension Host messages
@@ -200,6 +217,18 @@ export interface WebviewLogMessage {
   message: string;
 }
 
+/** Webview → host: request precise callers/callees for a selected node (phase 4). */
+export interface RequestPreciseCallsMessage {
+  type: "requestPreciseCalls";
+  nodeId: string;
+  filePath: string;
+  /** 0-based line. */
+  line: number;
+  /** 0-based column. */
+  column: number;
+  direction: "in" | "out";
+}
+
 /** Union of all messages the webview can send to the extension host. */
 export type WebviewToHostMessage =
   | NavigateMessage
@@ -211,6 +240,7 @@ export type WebviewToHostMessage =
   | SaveMermaidPreviewMessage
   | ExportCurrentViewMessage
   | ExportTraceSequenceMessage
+  | RequestPreciseCallsMessage
   | WebviewLogMessage;
 
 // ---------------------------------------------------------------------------
@@ -225,7 +255,8 @@ export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMe
     msg["type"] === "graph" ||
     msg["type"] === "indexing" ||
     msg["type"] === "workspaceList" ||
-    msg["type"] === "mermaidPreview"
+    msg["type"] === "mermaidPreview" ||
+    msg["type"] === "preciseCalls"
   );
 }
 

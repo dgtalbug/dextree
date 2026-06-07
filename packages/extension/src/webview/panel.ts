@@ -9,6 +9,8 @@ import type {
   IndexedWorkspaceRecord,
   IndexingMessage,
   MermaidPreviewMessage,
+  PreciseCallEdgeResult,
+  RequestPreciseCallsMessage,
   WorkspaceListMessage,
 } from "./protocol/messages.js";
 import { validateNavigateMessage } from "./validate.js";
@@ -51,6 +53,14 @@ let isWebviewReady = false;
 // undefined (the webview just sees no response).
 let listIndexedWorkspacesHandler: (() => Promise<IndexedWorkspaceRecord[]>) | undefined;
 let switchWorkspaceHandler: ((workspaceRoot: string) => Promise<void>) | undefined;
+
+// indexing-engine-v2 phase 4 — host-side precise-resolution handler. Injected by
+// extension.ts; queries the user's LSP for accurate callers/callees of the
+// selected node. Undefined → the webview keeps heuristic edges (graceful degrade).
+export type PreciseCallsRequest = Omit<RequestPreciseCallsMessage, "type">;
+let preciseCallsHandler:
+  | ((req: PreciseCallsRequest) => Promise<PreciseCallEdgeResult[]>)
+  | undefined;
 
 // Slice 029 PR-B — injected by extension.ts so panel.ts stays decoupled from
 // the indexer. Resolves a `requestMermaidPreview` from the webview against the
@@ -298,6 +308,29 @@ export const WebviewPanelManager = {
           return;
         }
 
+        // indexing-engine-v2 phase 4 — webview requests precise callers/callees
+        // for the selected node; host queries the user's LSP and posts results.
+        if (record["type"] === "requestPreciseCalls") {
+          const handler = preciseCallsHandler;
+          const req = record as unknown as PreciseCallsRequest & { type: string };
+          if (handler !== undefined && typeof req.filePath === "string") {
+            void handler({
+              nodeId: req.nodeId,
+              filePath: req.filePath,
+              line: req.line,
+              column: req.column,
+              direction: req.direction === "out" ? "out" : "in",
+            })
+              .then((edges) => {
+                postMessage({ type: "preciseCalls", nodeId: req.nodeId, edges });
+              })
+              .catch(() => {
+                postMessage({ type: "preciseCalls", nodeId: req.nodeId, edges: [] });
+              });
+          }
+          return;
+        }
+
         // Slice 024 — webview asks to switch to a different workspace
         if (record["type"] === "switchWorkspace") {
           const target = record["workspaceRoot"];
@@ -532,6 +565,17 @@ export const WebviewPanelManager = {
   }): void {
     listIndexedWorkspacesHandler = handlers.onRequestWorkspaceList;
     switchWorkspaceHandler = handlers.onSwitchWorkspace;
+  },
+
+  /**
+   * indexing-engine-v2 phase 4 — register the host-side precise-resolution
+   * handler (the user's LSP). Wired during activation; `undefined` clears it
+   * (tests / no-LSP), in which case the webview keeps heuristic edges.
+   */
+  setPreciseCallsHandler(
+    handler: ((req: PreciseCallsRequest) => Promise<PreciseCallEdgeResult[]>) | undefined,
+  ): void {
+    preciseCallsHandler = handler;
   },
 
   /**

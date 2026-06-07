@@ -56,6 +56,42 @@ const assetMatrix = [
       ...pnpmStore("tree-sitter-typescript@", "tree-sitter-typescript/tree-sitter-typescript.wasm"),
     ],
   },
+  {
+    // TSX grammar ships alongside the TypeScript grammar; used for .tsx files.
+    target: "tree-sitter-typescript/tree-sitter-tsx.wasm",
+    candidates: [
+      resolve(repoRoot, "node_modules/tree-sitter-typescript/tree-sitter-tsx.wasm"),
+      ...pnpmStore("tree-sitter-typescript@", "tree-sitter-typescript/tree-sitter-tsx.wasm"),
+    ],
+  },
+  {
+    target: "tree-sitter-javascript/tree-sitter-javascript.wasm",
+    candidates: [
+      resolve(repoRoot, "node_modules/tree-sitter-javascript/tree-sitter-javascript.wasm"),
+      ...pnpmStore("tree-sitter-javascript@", "tree-sitter-javascript/tree-sitter-javascript.wasm"),
+    ],
+  },
+  // Additional language grammars (indexing-engine-v2 phase 2). Each is data: a
+  // prebuilt wasm shipped by its official tree-sitter package.
+  ...[
+    { lang: "python", dir: "tree-sitter-python", wasm: "tree-sitter-python.wasm" },
+    { lang: "go", dir: "tree-sitter-go", wasm: "tree-sitter-go.wasm" },
+    { lang: "java", dir: "tree-sitter-java", wasm: "tree-sitter-java.wasm" },
+    { lang: "ruby", dir: "tree-sitter-ruby", wasm: "tree-sitter-ruby.wasm" },
+    { lang: "rust", dir: "tree-sitter-rust", wasm: "tree-sitter-rust.wasm" },
+    { lang: "c", dir: "tree-sitter-c", wasm: "tree-sitter-c.wasm" },
+    { lang: "cpp", dir: "tree-sitter-cpp", wasm: "tree-sitter-cpp.wasm" },
+    { lang: "csharp", dir: "tree-sitter-c-sharp", wasm: "tree-sitter-c_sharp.wasm" },
+    { lang: "php", dir: "tree-sitter-php", wasm: "tree-sitter-php.wasm" },
+    { lang: "elixir", dir: "tree-sitter-elixir", wasm: "tree-sitter-elixir.wasm" },
+    { lang: "scala", dir: "tree-sitter-scala", wasm: "tree-sitter-scala.wasm" },
+  ].map(({ dir, wasm }) => ({
+    target: `${dir}/${wasm}`,
+    candidates: [
+      resolve(repoRoot, `node_modules/${dir}/${wasm}`),
+      ...pnpmStore(`${dir}@`, `${dir}/${wasm}`),
+    ],
+  })),
   // Copy each platform's DuckDB native binding. Each entry is tagged with its
   // platform so VSCE_TARGET can filter to a single one in matrix release builds.
   ...DUCKDB_PLATFORMS.map((platform) => ({

@@ -368,6 +368,25 @@ const MIGRATION_007: Migration = {
   apply: runMigration007,
 };
 
+const MIGRATION_008: Migration = {
+  version: 8,
+  description: "add folder table for root→folder→file→symbol tree (CONTAINS edges)",
+  sql: `
+    CREATE TABLE IF NOT EXISTS folder (
+      id VARCHAR PRIMARY KEY,
+      path VARCHAR NOT NULL,
+      parent_id VARCHAR,
+      _schema_version UINTEGER NOT NULL DEFAULT 8
+    );
+    CREATE INDEX IF NOT EXISTS idx_folder_path ON folder(path);
+    CREATE INDEX IF NOT EXISTS idx_folder_parent ON folder(parent_id);
+
+    INSERT INTO _schema_version (version, description)
+    SELECT 8, 'add folder table for root→folder→file→symbol tree (CONTAINS edges)'
+    WHERE NOT EXISTS (SELECT 1 FROM _schema_version WHERE version = 8);
+  `,
+};
+
 const MIGRATIONS: readonly Migration[] = [
   MIGRATION_001,
   MIGRATION_002,
@@ -376,6 +395,7 @@ const MIGRATIONS: readonly Migration[] = [
   MIGRATION_005,
   MIGRATION_006,
   MIGRATION_007,
+  MIGRATION_008,
 ];
 
 export interface MigrationResultOk {

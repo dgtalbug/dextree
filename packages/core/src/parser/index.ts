@@ -1,9 +1,10 @@
 export {
-  createTypeScriptParser,
+  createParser,
+  getGrammarAsset,
+  hasGrammar,
   initializeParserRuntime,
-  loadTypeScriptLanguage,
-  parseTypeScriptSource,
-  TREE_SITTER_TYPESCRIPT_WASM,
+  loadGrammar,
+  parseSource,
   TREE_SITTER_WASM,
-} from "./parser.js";
-export { extractTypeScriptFile, extractTypeScriptSource } from "./extractor.js";
+} from "./grammars.js";
+export { detectLanguage, extractImportRefs, extractPlainFile } from "./extractor.js";

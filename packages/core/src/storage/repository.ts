@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { DuckDBConnection } from "@duckdb/node-api";
 import { v4 as uuidv4 } from "uuid";
 
@@ -332,7 +334,7 @@ function remapExtraEdges(
  * file targets are resolved immediately; cross-file targets remain null (pass-2).
  */
 async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: string): Promise<void> {
-  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS')`;
+  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES', 'RE_EXPORTS')`;
 
   // Step 1: source_id → actual symbol id, keyed by source_fqn (all kinds share this)
   await connection.run(
@@ -437,6 +439,83 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
         AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
     `,
     { file_id: fileId },
+  );
+
+  // Step 2e (REFERENCES): target_id → same-file symbol by referenced_name
+  // (type usage etc.). Cross-file references resolve in the workspace pass.
+  await connection.run(
+    `
+      UPDATE edge
+      SET target_id = COALESCE(
+        (
+          SELECT s.id FROM symbol s
+          WHERE s.file_id = $file_id
+            AND s.name = json_extract_string(edge.metadata, '$.referenced_name')
+          LIMIT 1
+        ),
+        target_id
+      )
+      WHERE kind = 'REFERENCES'
+        AND target_id IS NULL
+        AND source_id IN (SELECT id FROM symbol WHERE file_id = $file_id)
+    `,
+    { file_id: fileId },
+  );
+
+  await stampResolutionTier(connection);
+}
+
+/**
+ * Stamp every relational edge with an explicit resolution tier + confidence so a
+ * consumer can distinguish a real target from a guess (RULE-ARCH-010). Same-file
+ * + cross-file name resolution is the `heuristic` tier; the precise tier (the
+ * user's LSP) is applied later, by the host, and overrides this. Edges still
+ * without a target are `unresolved`. Idempotent — re-running only upgrades the
+ * tier field, never the target.
+ */
+export async function stampResolutionTier(connection: DuckDBConnection): Promise<void> {
+  // RE_EXPORTS is path-based (resolved at query time like IMPORTS), so it is not
+  // tier-stamped here — it gets the 'structural' tier below.
+  const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES')`;
+  // Resolved → heuristic (unless already marked precise by a higher tier).
+  await connection.run(
+    `
+      UPDATE edge
+      SET metadata = json_merge_patch(
+        metadata,
+        '{"resolution":"heuristic","confidence":0.6}'
+      )
+      WHERE kind IN ${RELATIONAL_KINDS}
+        AND target_id IS NOT NULL
+        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') <> 'precise'
+    `,
+  );
+  // Unresolved → explicit unresolved tier (never silently target-less).
+  await connection.run(
+    `
+      UPDATE edge
+      SET metadata = json_merge_patch(
+        metadata,
+        '{"resolution":"unresolved","confidence":0.0}'
+      )
+      WHERE kind IN ${RELATIONAL_KINDS}
+        AND target_id IS NULL
+        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') NOT IN ('precise', 'heuristic')
+    `,
+  );
+  // Structural / path-resolved edges (DEFINES, CONTAINS, RE_EXPORTS) are facts
+  // resolved structurally or at query time, not heuristic guesses — tag them
+  // 'structural' so coverage reporting has no 'unspecified' rows.
+  await connection.run(
+    `
+      UPDATE edge
+      SET metadata = json_merge_patch(
+        metadata,
+        '{"resolution":"structural","confidence":1.0}'
+      )
+      WHERE kind IN ('DEFINES', 'CONTAINS', 'RE_EXPORTS')
+        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') = ''
+    `,
   );
 }
 
@@ -695,6 +774,74 @@ export async function resolveWorkspaceCrossFileEdges(
     `,
     params,
   );
+
+  // Re-stamp tiers now that cross-file targets are filled in.
+  await stampResolutionTier(connection);
+}
+
+/** Deterministic folder id: stable across re-index so the tree doesn't reshuffle. */
+function folderId(path: string): string {
+  return `folder:${createHash("sha256").update(path, "utf8").digest("hex").slice(0, 32)}`;
+}
+
+/**
+ * Synthesize `folder` nodes + `CONTAINS` edges from the indexed files' relative
+ * paths, producing a connected root→folder→file tree. Deterministic ids (path
+ * hash) keep re-indexing stable. Rebuilt wholesale each call (idempotent): clear
+ * folders + CONTAINS, then re-derive from current files. Runs in finalize.
+ */
+export async function synthesizeFolderTree(connection: DuckDBConnection): Promise<void> {
+  await runInTransaction(connection, async () => {
+    await connection.run("DELETE FROM folder");
+    await connection.run("DELETE FROM edge WHERE kind = 'CONTAINS'");
+
+    const reader = await connection.run("SELECT id, relative_path FROM file");
+    const files = await reader.getRowObjects();
+    if (files.length === 0) return;
+
+    const folders = new Map<string, { id: string; parent: string | null }>();
+    const containsFileEdges: { folder: string; file: string }[] = [];
+
+    for (const f of files) {
+      const rel = String(f.relative_path);
+      const parts = rel.split("/");
+      parts.pop(); // drop the filename
+      // Register every ancestor folder ("" = root), chaining parent links.
+      let parentPath: string | null = null;
+      let accum = "";
+      // Root sentinel so top-level files attach to a single root node.
+      const rootId = folderId("");
+      if (!folders.has("")) folders.set("", { id: rootId, parent: null });
+      parentPath = "";
+      for (const part of parts) {
+        accum = accum === "" ? part : `${accum}/${part}`;
+        if (!folders.has(accum)) {
+          folders.set(accum, { id: folderId(accum), parent: folders.get(parentPath!)!.id });
+        }
+        parentPath = accum;
+      }
+      containsFileEdges.push({ folder: folders.get(parentPath)!.id, file: String(f.id) });
+    }
+
+    for (const [path, info] of folders) {
+      await connection.run(
+        "INSERT INTO folder (id, path, parent_id) VALUES ($id, $path, $parent)",
+        { id: info.id, path, parent: info.parent },
+      );
+      if (info.parent !== null) {
+        await connection.run(
+          "INSERT INTO edge (id, source_id, target_id, kind, metadata) VALUES ($id, $s, $t, 'CONTAINS', '{}')",
+          { id: `contains:${info.parent}->${info.id}`, s: info.parent, t: info.id },
+        );
+      }
+    }
+    for (const e of containsFileEdges) {
+      await connection.run(
+        "INSERT INTO edge (id, source_id, target_id, kind, metadata) VALUES ($id, $s, $t, 'CONTAINS', '{}')",
+        { id: `contains:${e.folder}->${e.file}`, s: e.folder, t: e.file },
+      );
+    }
+  });
 }
 
 /**

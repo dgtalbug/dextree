@@ -60,6 +60,7 @@ vi.mock("@dextree/core", () => ({
 const setWorkspaceHandlers = vi.fn();
 const setLogger = vi.fn();
 const setMermaidPreviewHandler = vi.fn();
+const setPreciseCallsHandler = vi.fn();
 const pushMermaidPreview = vi.fn();
 
 vi.mock("./webview/panel.js", () => ({
@@ -72,6 +73,7 @@ vi.mock("./webview/panel.js", () => ({
     setWorkspaceHandlers,
     setLogger,
     setMermaidPreviewHandler,
+    setPreciseCallsHandler,
   },
 }));
 
@@ -168,6 +170,10 @@ describe("activate", () => {
       getAllFiles: vi.fn(),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     });
 
@@ -236,6 +242,10 @@ describe("activate", () => {
         frameworks: [],
       }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -326,6 +336,10 @@ describe("activate", () => {
         frameworks: [],
       }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue(["DEFINES"]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       clearWorkspace: vi
         .fn()
         .mockResolvedValue({ deletedFiles: 0, deletedSymbols: 0, deletedEdges: 0 }),
@@ -429,6 +443,10 @@ describe("activate", () => {
         ]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -472,6 +490,10 @@ describe("activate", () => {
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -512,6 +534,10 @@ describe("activate", () => {
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     };
 
@@ -551,6 +577,10 @@ describe("activate", () => {
       getAllFiles: vi.fn().mockResolvedValue([]),
       getWorkspaceSubgraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       getPresentEdgeKinds: vi.fn().mockResolvedValue([]),
+      getCoverageReport: vi
+        .fn()
+        .mockResolvedValue({ rows: [], totalEdges: 0, resolvedEdges: 0, resolvedRatio: 0 }),
+      neighborhood: vi.fn().mockResolvedValue({ nodes: [], edges: [], truncated: false }),
       dispose: vi.fn(),
     });
 
