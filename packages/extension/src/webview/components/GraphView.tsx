@@ -420,6 +420,15 @@ export function GraphView({
         visibleEdgeIds,
       });
 
+      // TEMP diagnostic (remove after Circular is confirmed): shows which branch
+      // the layout-apply took. View in Webview Developer Tools console.
+      console.log(
+        `[layout] preset=${preset} active=${layoutSelection.activePreset} ` +
+          `nodes=${visibleNodeIds.size} → status=${result.status}` +
+          (result.status === "noop" ? ` reason=${result.reason}` : "") +
+          (result.status === "rejected" ? ` reason=${result.reason}` : ""),
+      );
+
       if (result.status === "applied") {
         setLayoutSelection({ activePreset: result.preset, notice: null });
         const sigma = sigmaRef.current;
