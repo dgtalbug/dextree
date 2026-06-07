@@ -80,6 +80,30 @@ describe("GenericTagsExtractor", () => {
     expect(helperCall?.metadata.source_fqn).toBe("src/c.ts:inner");
   });
 
+  it("emits INHERITS, IMPLEMENTS, and INSTANTIATES edges", async () => {
+    const source = `
+      interface Runner { run(): number; }
+      class Base {}
+      class Service extends Base implements Runner {
+        run() { return 1; }
+      }
+      function make() { return new Service(); }
+    `;
+    const result = await run(source, "src/e.ts", "typescript");
+    const kinds = result.edges.map((e) => e.kind);
+
+    expect(kinds).toContain("INHERITS");
+    expect(kinds).toContain("IMPLEMENTS");
+    expect(kinds).toContain("INSTANTIATES");
+
+    const inherits = result.edges.find((e) => e.kind === "INHERITS");
+    expect(inherits?.metadata.parent_name).toBe("Base");
+    const implementsEdge = result.edges.find((e) => e.kind === "IMPLEMENTS");
+    expect(implementsEdge?.metadata.interface_name).toBe("Runner");
+    const instantiates = result.edges.find((e) => e.kind === "INSTANTIATES");
+    expect(instantiates?.metadata.class_name).toBe("Service");
+  });
+
   it("is generic: the SAME engine extracts Python via its provider (data-only)", async () => {
     // Python provider is registered in Phase 2; this asserts the mechanism is
     // language-agnostic once a provider exists. Skipped until the provider lands.

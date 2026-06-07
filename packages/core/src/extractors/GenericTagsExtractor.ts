@@ -46,7 +46,7 @@ export class GenericTagsExtractor implements Extractor {
     const lang = await loadGrammar(input.language, this.wasmDir);
     const query = await this.compileQuery(provider, lang, input.language);
 
-    const { symbols, calls } = collectTags(
+    const { symbols, calls, relations } = collectTags(
       input.tree,
       query,
       provider,
@@ -64,7 +64,10 @@ export class GenericTagsExtractor implements Extractor {
 
     const edges = provider.config.structuralOnly
       ? []
-      : buildCallEdges(calls, symbols, input.fileId);
+      : [
+          ...buildCallEdges(calls, symbols, input.fileId),
+          ...buildRelationEdges(relations, symbols, input.fileId),
+        ];
 
     return { ...fileOnly(input, relativePath), symbols, imports, edges };
   }
@@ -88,13 +91,20 @@ interface CallSite {
   node: Node;
 }
 
+/** A non-call relation (INHERITS/IMPLEMENTS/INSTANTIATES) captured from the tagset. */
+interface RelationSite {
+  kind: string;
+  targetName: string;
+  node: Node;
+}
+
 interface DefRecord {
   symbol: StoredSymbol;
   node: Node;
   captureKind: string;
 }
 
-/** Run the query and split captures into definition symbols and call sites. */
+/** Run the query and split captures into definition symbols, calls, and relations. */
 function collectTags(
   tree: Tree,
   query: unknown,
@@ -102,19 +112,26 @@ function collectTags(
   relativePath: string,
   fileId: string,
   language: string,
-): { symbols: StoredSymbol[]; calls: CallSite[] } {
+): { symbols: StoredSymbol[]; calls: CallSite[]; relations: RelationSite[] } {
   // web-tree-sitter Query#matches typed loosely to avoid leaking the runtime type.
   const matches = (query as { matches(node: Node): QueryMatch[] }).matches(tree.rootNode);
 
   const defs: DefRecord[] = [];
   const calls: CallSite[] = [];
+  const relations: RelationSite[] = [];
   const callCaptureSet = new Set(provider.config.callCaptures);
+  const relationCaptures = provider.config.relationCaptures ?? {};
 
   for (const match of matches) {
     const nameCap = match.captures.find((c) => c.name === "name");
     for (const cap of match.captures) {
       if (callCaptureSet.has(cap.name) && nameCap) {
         calls.push({ callee: nameCap.node.text, node: cap.node });
+        continue;
+      }
+      const relationKind = relationCaptures[cap.name];
+      if (relationKind !== undefined && nameCap) {
+        relations.push({ kind: relationKind, targetName: nameCap.node.text, node: cap.node });
         continue;
       }
       if (cap.name.startsWith("definition.") && nameCap) {
@@ -162,7 +179,7 @@ function collectTags(
     }
   }
 
-  return { symbols: [...chosen.values()].map((c) => c.sym), calls };
+  return { symbols: [...chosen.values()].map((c) => c.sym), calls, relations };
 }
 
 /** Build a CALLS edge from the enclosing definition symbol to the callee name. */
@@ -180,6 +197,42 @@ function buildCallEdges(calls: CallSite[], symbols: StoredSymbol[], fileId: stri
         callee_name: call.callee,
         source_fqn: source ? source.fqn : null,
         call_site_range: rangeOf(call.node),
+      },
+    });
+  }
+  return edges;
+}
+
+// The target-name metadata key the resolution SQL expects, per edge kind.
+const TARGET_NAME_KEY: Record<string, string> = {
+  INHERITS: "parent_name",
+  INSTANTIATES: "class_name",
+  IMPLEMENTS: "interface_name",
+};
+
+/**
+ * Build INHERITS / IMPLEMENTS / INSTANTIATES edges from the enclosing definition
+ * to the referenced type, using the metadata key each kind's resolution SQL reads.
+ */
+function buildRelationEdges(
+  relations: RelationSite[],
+  symbols: StoredSymbol[],
+  fileId: string,
+): EdgeRow[] {
+  const edges: EdgeRow[] = [];
+  for (const rel of relations) {
+    const source = smallestEnclosingSymbol(symbols, rel.node);
+    const targetKey = TARGET_NAME_KEY[rel.kind];
+    if (targetKey === undefined) continue;
+    edges.push({
+      id: uuidv4(),
+      sourceId: source ? source.id : fileId,
+      targetId: null,
+      kind: rel.kind,
+      metadata: {
+        [targetKey]: rel.targetName,
+        source_fqn: source ? source.fqn : null,
+        reference_range: rangeOf(rel.node),
       },
     });
   }

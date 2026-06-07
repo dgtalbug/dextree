@@ -21,6 +21,14 @@ export interface ProviderConfig {
    */
   readonly callCaptures: readonly string[];
   /**
+   * Capture name → relational edge kind, for non-call relations the tagset
+   * surfaces: e.g. `{ "reference.extends": "INHERITS", "reference.implements":
+   * "IMPLEMENTS", "reference.class": "INSTANTIATES" }`. The engine emits an edge
+   * of that kind from the enclosing definition to the referenced name. Omitted →
+   * no such edges for the language.
+   */
+  readonly relationCaptures?: Readonly<Record<string, string>>;
+  /**
    * Structural-only formats (markdown/yaml/json) that have no call graph. When
    * true the engine still records file + definition nodes but fabricates no
    * call edges even if a capture exists.

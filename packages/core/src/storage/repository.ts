@@ -480,6 +480,19 @@ export async function stampResolutionTier(connection: DuckDBConnection): Promise
         AND COALESCE(json_extract_string(metadata, '$.resolution'), '') NOT IN ('precise', 'heuristic')
     `,
   );
+  // Structural edges (DEFINES, CONTAINS) are always-resolved facts, not guesses —
+  // tag them 'structural' so coverage reporting has no 'unspecified' rows.
+  await connection.run(
+    `
+      UPDATE edge
+      SET metadata = json_merge_patch(
+        metadata,
+        '{"resolution":"structural","confidence":1.0}'
+      )
+      WHERE kind IN ('DEFINES', 'CONTAINS')
+        AND COALESCE(json_extract_string(metadata, '$.resolution'), '') = ''
+    `,
+  );
 }
 
 export async function replaceFileGraph(

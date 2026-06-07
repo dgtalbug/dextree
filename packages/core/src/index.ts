@@ -29,6 +29,7 @@ import {
   replaceFileGraph,
   replaceWorkspaceFrameworks,
   resolveWorkspaceCrossFileEdges,
+  stampResolutionTier,
   synthesizeFolderTree,
   setFileFramework,
 } from "./storage/repository.js";
@@ -360,6 +361,8 @@ class DuckTreeIndexer implements Indexer {
     const database = this.requireDatabaseHandle();
     await resolveWorkspaceCrossFileEdges(database.connection, workspaceRoot);
     await synthesizeFolderTree(database.connection);
+    // Stamp tiers again so the just-created CONTAINS edges get a tier too.
+    await stampResolutionTier(database.connection);
     this.logger?.info("Finalized workspace cross-file edges + folder tree", { workspaceRoot });
   }
 

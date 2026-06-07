@@ -120,6 +120,15 @@ const TS_JS_TAGS = String.raw`
 (new_expression
   constructor: (identifier) @name) @reference.class
 
+; Dextree addition: class inheritance + interface implementation. The stock
+; tree-sitter tagset omits heritage; Dextree captures it so INHERITS / IMPLEMENTS
+; edges are produced. @reference.extends/@reference.implements name the parent;
+; the enclosing class is the source (resolved by range in the engine). The name
+; node type varies (identifier vs type_identifier), so match it with (_).
+(extends_clause (_) @name) @reference.extends
+
+(implements_clause (_) @name) @reference.implements
+
 ; Dextree addition: top-level value bindings (const/let/var without a function
 ; value) are modelled as variable symbols for graph parity. Tree-sitter's stock
 ; tagset omits these (they're not navigation targets), but Dextree surfaces them.
@@ -154,6 +163,11 @@ const TS_CONFIG: ProviderConfig = {
     module: "type",
   },
   callCaptures: ["reference.call"],
+  relationCaptures: {
+    "reference.extends": "INHERITS",
+    "reference.implements": "IMPLEMENTS",
+    "reference.class": "INSTANTIATES",
+  },
 };
 
 function tsProvider(language: string): LanguageProvider {
