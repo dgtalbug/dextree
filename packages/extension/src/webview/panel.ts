@@ -455,13 +455,20 @@ export const WebviewPanelManager = {
           return;
         }
 
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        const validated = validateNavigateMessage(msg, workspaceRoot);
-        if (validated === null) {
-          // Silent ignore — invalid or untrusted message
+        if (record["type"] === "navigate") {
+          const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          const validated = validateNavigateMessage(msg, workspaceRoot);
+          if (validated === null) {
+            // Invalid or untrusted navigate payload — ignore.
+            return;
+          }
+          void navigateToSymbol(validated.filePath, validated.line);
           return;
         }
-        void navigateToSymbol(validated.filePath, validated.line);
+
+        // Unknown message type — log so a protocol-version mismatch is
+        // diagnosable rather than silently dropped (was: fell through to navigate).
+        injectedLogger?.debug(`[webview] unknown message type: ${String(record["type"])}`);
       },
       undefined,
       context.subscriptions,
