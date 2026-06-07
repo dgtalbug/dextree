@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "./db.js";
 
 import { SCHEMA_VERSION } from "../types.js";
 
@@ -209,7 +209,7 @@ export const SCHEMA_STATEMENTS = [
   "CREATE INDEX IF NOT EXISTS idx_file_framework ON file(framework)",
 ] as const;
 
-export async function initializeSchema(connection: DuckDBConnection): Promise<void> {
+export async function initializeSchema(connection: GraphDbConnection): Promise<void> {
   for (const statement of SCHEMA_STATEMENTS) {
     await connection.run(statement);
   }

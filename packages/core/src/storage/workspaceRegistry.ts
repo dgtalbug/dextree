@@ -9,6 +9,7 @@
 
 import { basename } from "node:path";
 
+import { openReadOnlyDatabase } from "./adapters/duckdb.js";
 import { getPresentEdgeKinds } from "../query/presentEdgeKinds.js";
 import { getWorkspaceSubgraph } from "../query/subgraph.js";
 import type { WorkspaceSubgraph } from "../types.js";
@@ -49,9 +50,8 @@ export async function readWorkspaceIndexSummary(
   dbPath: string,
 ): Promise<WorkspaceIndexSummary | null> {
   try {
-    const { DuckDBInstance } = await import("@duckdb/node-api");
-    const instance = await DuckDBInstance.create(dbPath, { access_mode: "READ_ONLY" });
-    const connection = await instance.connect();
+    const handle = await openReadOnlyDatabase(dbPath);
+    const connection = handle.connection;
 
     try {
       const cacheRows = await (
@@ -96,8 +96,7 @@ export async function readWorkspaceIndexSummary(
         frameworks,
       };
     } finally {
-      connection.closeSync();
-      instance.closeSync();
+      handle.close();
     }
   } catch {
     return null;
@@ -127,16 +126,13 @@ export async function readWorkspaceGraph(
   workspaceRoot: string,
 ): Promise<ForeignWorkspaceGraph | null> {
   try {
-    const { DuckDBInstance } = await import("@duckdb/node-api");
-    const instance = await DuckDBInstance.create(dbPath, { access_mode: "READ_ONLY" });
-    const connection = await instance.connect();
+    const handle = await openReadOnlyDatabase(dbPath);
     try {
-      const subgraph = await getWorkspaceSubgraph(connection, workspaceRoot);
-      const presentEdgeKinds = await getPresentEdgeKinds(connection, workspaceRoot);
+      const subgraph = await getWorkspaceSubgraph(handle.connection, workspaceRoot);
+      const presentEdgeKinds = await getPresentEdgeKinds(handle.connection, workspaceRoot);
       return { subgraph, presentEdgeKinds };
     } finally {
-      connection.closeSync();
-      instance.closeSync();
+      handle.close();
     }
   } catch {
     return null;

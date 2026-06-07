@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "./db.js";
 
 import { initializeSchema, REQUIRED_TABLES } from "./schema.js";
 
@@ -26,7 +26,7 @@ function workspaceParams(workspaceRoot: string) {
 }
 
 async function countMatchingFiles(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<number> {
   const rows = await (
@@ -41,7 +41,7 @@ async function countMatchingFiles(
 }
 
 async function countMatchingSymbols(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<number> {
   const rows = await (
@@ -57,7 +57,7 @@ async function countMatchingSymbols(
 }
 
 async function countMatchingEdges(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<number> {
   // Two separate COUNT queries because DuckDB's named-parameter binding
@@ -88,7 +88,7 @@ async function countMatchingEdges(
 }
 
 export async function clearWorkspace(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<ClearWorkspaceResult> {
   const params = workspaceParams(workspaceRoot);
@@ -136,7 +136,7 @@ export async function clearWorkspace(
 }
 
 export async function clearFile(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   filePath: string,
 ): Promise<ClearFileResult> {
   const fileRows = await (
@@ -190,7 +190,7 @@ export async function clearFile(
   return { deletedFiles: 1, deletedSymbols, deletedEdges };
 }
 
-export async function clearAll(connection: DuckDBConnection): Promise<ClearAllResult> {
+export async function clearAll(connection: GraphDbConnection): Promise<ClearAllResult> {
   await connection.run("BEGIN TRANSACTION");
 
   try {

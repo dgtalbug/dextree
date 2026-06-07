@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 
 import type { StoredSymbol, SymbolRange } from "../types.js";
 
@@ -14,7 +14,7 @@ function normalizeRange(value: unknown): SymbolRange {
 }
 
 export async function getSymbolsForFile(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   relativePath: string,
 ): Promise<StoredSymbol[]> {
   const rows = await (

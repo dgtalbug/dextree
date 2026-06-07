@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 
 /**
  * Recompute graph-health attributes (`Symbol.fan_in`, `Symbol.is_core`,
@@ -25,7 +25,7 @@ import type { DuckDBConnection } from "@duckdb/node-api";
  * the real implementation lands — without re-touching `repository.ts` or the
  * indexer orchestration.
  */
-export async function recomputeGraphHealth(_connection: DuckDBConnection): Promise<void> {
+export async function recomputeGraphHealth(_connection: GraphDbConnection): Promise<void> {
   // Intentionally a no-op stub for the MVP foundation.
   // Throwing here would break the workspace-indexing loop once any caller wires
   // this in; instead the function is a no-op until real logic lands. The

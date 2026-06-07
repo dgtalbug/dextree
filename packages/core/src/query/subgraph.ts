@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 import { MultiDirectedGraph } from "graphology";
 
 import type {
@@ -80,7 +80,7 @@ function normalizeArchLayer(value: unknown): ArchitecturalLayer | undefined {
 }
 
 export async function getWorkspaceSubgraph(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<WorkspaceSubgraph> {
   const params = workspaceParams(workspaceRoot);

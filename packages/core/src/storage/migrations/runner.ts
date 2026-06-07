@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../db.js";
 
 import { SCHEMA_VERSION } from "../../types.js";
 import type { Logger } from "../../types.js";
@@ -31,7 +31,7 @@ interface Migration {
    * has to skip sidecar copy on fresh DBs that never had call_site/import_ref).
    * If present, the runner calls `apply` instead of `connection.run(sql)`.
    */
-  apply?: (connection: DuckDBConnection) => Promise<void>;
+  apply?: (connection: GraphDbConnection) => Promise<void>;
 }
 
 const MIGRATION_001: Migration = {
@@ -108,7 +108,7 @@ const MIGRATION_002: Migration = {
 // these tables, so the runner skips the copy step when they're absent — but
 // still registers v3 and ensures the sidecars are dropped if a stale install
 // somehow created them.
-async function runMigration003(connection: DuckDBConnection): Promise<void> {
+async function runMigration003(connection: GraphDbConnection): Promise<void> {
   // Relax edge.target_id from NOT NULL to nullable. Pass-1 IMPORTS edges and
   // naive CALLS edges may not have a resolved target yet. Check the column's
   // current nullability via information_schema BEFORE running ALTER — running it
@@ -185,7 +185,7 @@ async function runMigration003(connection: DuckDBConnection): Promise<void> {
   `);
 }
 
-async function tableExists(connection: DuckDBConnection, tableName: string): Promise<boolean> {
+async function tableExists(connection: GraphDbConnection, tableName: string): Promise<boolean> {
   const reader = await connection.run(
     `SELECT 1 AS present FROM information_schema.tables
      WHERE table_schema = 'main' AND table_name = '${tableName}'`,
@@ -195,7 +195,7 @@ async function tableExists(connection: DuckDBConnection, tableName: string): Pro
 }
 
 async function columnExists(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   tableName: string,
   columnName: string,
 ): Promise<boolean> {
@@ -208,7 +208,7 @@ async function columnExists(
 }
 
 async function columnIsNotNull(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   tableName: string,
   columnName: string,
 ): Promise<boolean> {
@@ -295,7 +295,7 @@ const MIGRATION_005: Migration = {
 // classification values from classifySymbol(), so the NULLs are short-lived.
 // The subgraph projection coalesces NULL to the conservative fallback so
 // any read between migration and reindex still renders sensibly.
-async function runMigration006(connection: DuckDBConnection): Promise<void> {
+async function runMigration006(connection: GraphDbConnection): Promise<void> {
   const hasEntryKind = await columnExists(connection, "symbol", "entry_kind");
   const hasArchLayer = await columnExists(connection, "symbol", "arch_layer");
 
@@ -338,7 +338,7 @@ const MIGRATION_006: Migration = {
 // rewrites every symbol row with the parent class id populated by the
 // extractor's tree-sitter parent walk. NULL is also the correct steady-state
 // value for any top-level symbol that is not a member of a class-like parent.
-async function runMigration007(connection: DuckDBConnection): Promise<void> {
+async function runMigration007(connection: GraphDbConnection): Promise<void> {
   const hasEnclosingId = await columnExists(connection, "symbol", "enclosing_symbol_id");
 
   if (!hasEnclosingId) {
@@ -414,7 +414,7 @@ export interface MigrationResultFailed {
 
 export type MigrationResult = MigrationResultOk | MigrationResultFailed;
 
-async function readCurrentVersion(connection: DuckDBConnection): Promise<number> {
+async function readCurrentVersion(connection: GraphDbConnection): Promise<number> {
   const reader = await connection.run(
     "SELECT COALESCE(MAX(version), 0) AS version FROM _schema_version",
   );
@@ -443,7 +443,7 @@ async function readCurrentVersion(connection: DuckDBConnection): Promise<number>
  * `DuckTreeIndexer.initialize`) decide whether failure is fatal.
  */
 export async function applyMigrations(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   logger?: Logger,
 ): Promise<MigrationResult> {
   const applied: string[] = [];

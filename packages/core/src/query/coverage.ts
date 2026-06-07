@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 
 import type { CoverageReport, CoverageRow } from "../types.js";
 
@@ -10,7 +10,7 @@ export type { CoverageReport, CoverageRow };
  * tier comes from `metadata.resolution` (stamped during resolution);
  * `precise`/`heuristic` count as resolved, `unresolved` does not.
  */
-export async function getCoverageReport(connection: DuckDBConnection): Promise<CoverageReport> {
+export async function getCoverageReport(connection: GraphDbConnection): Promise<CoverageReport> {
   const reader = await connection.run(
     `
       SELECT

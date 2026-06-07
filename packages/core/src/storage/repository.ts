@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "./db.js";
 import { v4 as uuidv4 } from "uuid";
 
 import type { EdgeRow } from "../extractors/types.js";
@@ -38,7 +38,7 @@ function importRangeParams(importRef: ExtractedImportRef): Record<string, number
 }
 
 async function findExistingFileId(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   absolutePath: string,
 ): Promise<string | null> {
   const rows = await (
@@ -52,7 +52,7 @@ async function findExistingFileId(
 }
 
 async function deleteExistingRows(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   existingFileId: string,
 ): Promise<void> {
   // Two separate statements because DuckDB's named-parameter binding fails
@@ -77,7 +77,7 @@ async function deleteExistingRows(
   });
 }
 
-async function insertFile(connection: DuckDBConnection, input: ExtractedIndexData): Promise<void> {
+async function insertFile(connection: GraphDbConnection, input: ExtractedIndexData): Promise<void> {
   // _schema_version, is_core, fan_in, tags, labels, metadata, last_modified,
   // last_author, change_count_30d are omitted from the column list — they take
   // their schema-defined default values. fan_in/is_core are populated later by
@@ -114,7 +114,7 @@ async function insertFile(connection: DuckDBConnection, input: ExtractedIndexDat
   );
 }
 
-async function updateFile(connection: DuckDBConnection, input: ExtractedIndexData): Promise<void> {
+async function updateFile(connection: GraphDbConnection, input: ExtractedIndexData): Promise<void> {
   // Update only the columns that change when a file is re-indexed (path metadata,
   // size, hash, last_indexed). is_core, fan_in, tags, labels, metadata, and the
   // git-derived columns are deliberately NOT reset: they're owned by other
@@ -147,7 +147,7 @@ const DEFAULT_CLASSIFICATION: SymbolClassificationRecord = {
 };
 
 async function insertSymbol(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   symbol: StoredSymbol,
   classification: SymbolClassificationRecord = DEFAULT_CLASSIFICATION,
 ): Promise<void> {
@@ -205,7 +205,7 @@ async function insertSymbol(
 }
 
 async function insertDefinesEdges(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   input: ExtractedIndexData,
 ): Promise<void> {
   for (const symbol of input.symbols) {
@@ -224,7 +224,7 @@ async function insertDefinesEdges(
 }
 
 async function insertImportRefs(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   input: ExtractedIndexData,
 ): Promise<void> {
   // Post-v3: imports are stored as `edge` rows with kind='IMPORTS'. The sidecar
@@ -274,7 +274,7 @@ async function insertImportRefs(
 }
 
 async function insertExtraEdges(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   edges: readonly EdgeRow[],
 ): Promise<void> {
   // Generic insert path for extractor-emitted edges (e.g. `CALLS` rows).
@@ -333,7 +333,10 @@ function remapExtraEdges(
  * Step 2 — target_id: the per-kind metadata key names the target symbol. Same-
  * file targets are resolved immediately; cross-file targets remain null (pass-2).
  */
-async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: string): Promise<void> {
+async function resolveCallEdgeSymbols(
+  connection: GraphDbConnection,
+  fileId: string,
+): Promise<void> {
   const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES', 'RE_EXPORTS')`;
 
   // Step 1: source_id → actual symbol id, keyed by source_fqn (all kinds share this)
@@ -473,7 +476,7 @@ async function resolveCallEdgeSymbols(connection: DuckDBConnection, fileId: stri
  * without a target are `unresolved`. Idempotent — re-running only upgrades the
  * tier field, never the target.
  */
-export async function stampResolutionTier(connection: DuckDBConnection): Promise<void> {
+export async function stampResolutionTier(connection: GraphDbConnection): Promise<void> {
   // RE_EXPORTS is path-based (resolved at query time like IMPORTS), so it is not
   // tier-stamped here — it gets the 'structural' tier below.
   const RELATIONAL_KINDS = `('CALLS', 'INHERITS', 'INSTANTIATES', 'IMPLEMENTS', 'REFERENCES')`;
@@ -520,7 +523,7 @@ export async function stampResolutionTier(connection: DuckDBConnection): Promise
 }
 
 export async function replaceFileGraph(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   input: ExtractedIndexData,
   extraEdges: readonly EdgeRow[] = [],
   classifications: ReadonlyMap<string, SymbolClassificationRecord> = new Map(),
@@ -604,7 +607,7 @@ function isAnnotationLikeRow(row: unknown): row is AnnotationLikeRow {
  * NULL FK to `symbol`, and extractors must not invent synthetic targets.
  */
 async function insertAnnotations(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   annotations: readonly unknown[],
   validSymbolIds: ReadonlySet<string>,
 ): Promise<void> {
@@ -671,7 +674,7 @@ async function insertAnnotations(
  * workspace's own symbols (not symbols from other indexed workspaces).
  */
 export async function resolveWorkspaceCrossFileEdges(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   workspaceRoot: string,
 ): Promise<void> {
   const prefix = workspaceRoot.endsWith("/") ? workspaceRoot : `${workspaceRoot}/`;
@@ -789,7 +792,7 @@ function folderId(path: string): string {
  * hash) keep re-indexing stable. Rebuilt wholesale each call (idempotent): clear
  * folders + CONTAINS, then re-derive from current files. Runs in finalize.
  */
-export async function synthesizeFolderTree(connection: DuckDBConnection): Promise<void> {
+export async function synthesizeFolderTree(connection: GraphDbConnection): Promise<void> {
   await runInTransaction(connection, async () => {
     await connection.run("DELETE FROM folder");
     await connection.run("DELETE FROM edge WHERE kind = 'CONTAINS'");
@@ -849,7 +852,7 @@ export async function synthesizeFolderTree(connection: DuckDBConnection): Promis
  * Empty input clears the table (workspace has no detected frameworks).
  */
 export async function replaceWorkspaceFrameworks(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   rows: readonly DetectedFrameworkRow[],
 ): Promise<void> {
   await runInTransaction(connection, async () => {
@@ -880,7 +883,7 @@ export async function replaceWorkspaceFrameworks(
  * values is a no-op at the DB level.
  */
 export async function setFileFramework(
-  connection: DuckDBConnection,
+  connection: GraphDbConnection,
   fileId: string,
   framework: string | null,
   role: string | null,

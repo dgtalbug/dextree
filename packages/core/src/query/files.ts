@@ -1,8 +1,8 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
+import type { GraphDbConnection } from "../storage/db.js";
 
 import type { StoredFile } from "../types.js";
 
-export async function getAllFilesQuery(connection: DuckDBConnection): Promise<StoredFile[]> {
+export async function getAllFilesQuery(connection: GraphDbConnection): Promise<StoredFile[]> {
   const rows = await (
     await connection.run(`
       SELECT
