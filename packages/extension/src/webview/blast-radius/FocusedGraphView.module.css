@@ -1,0 +1,22 @@
+/* Focused (React Flow) view canvas. VS Code variables only. */
+
+.canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--vscode-editor-background);
+}
+
+.truncationNotice {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  pointer-events: none;
+}
