@@ -87,3 +87,24 @@ export function validateScopedMermaidExport(
 
   return { status: "ok", nodeCount, edgeCount };
 }
+
+/**
+ * Single-tier hard-cap check shared by the class- and sequence-diagram
+ * validators (the scoped validator above is two-tier and not a consumer).
+ * Returns the breach reason for the first dimension over its cap, or null when
+ * every dimension is within budget. Each dimension supplies its own reason
+ * builder so the messages stay diagram-specific (a class diagram says
+ * "classes", a sequence diagram says "participants").
+ */
+export interface CapDimension {
+  count: number;
+  cap: number;
+  reason: (count: number, cap: number) => string;
+}
+
+export function firstCapBreach(dimensions: readonly CapDimension[]): string | null {
+  for (const { count, cap, reason } of dimensions) {
+    if (count > cap) return reason(count, cap);
+  }
+  return null;
+}
