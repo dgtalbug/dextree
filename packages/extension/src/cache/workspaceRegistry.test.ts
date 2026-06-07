@@ -15,13 +15,15 @@ import {
   type WorkspaceRegistry,
 } from "./workspaceRegistry.js";
 
+const { mockedReadSummary } = vi.hoisted(() => ({ mockedReadSummary: vi.fn() }));
+
 vi.mock("@dextree/core", () => ({
-  readWorkspaceIndexSummary: vi.fn(),
+  // The registry reads foreign summaries via a DuckDbForeignGraphReader instance;
+  // mock the class so its instance method is the shared spy.
+  DuckDbForeignGraphReader: class {
+    readWorkspaceIndexSummary = mockedReadSummary;
+  },
 }));
-
-import { readWorkspaceIndexSummary } from "@dextree/core";
-
-const mockedReadSummary = vi.mocked(readWorkspaceIndexSummary);
 
 let scratchDir: string;
 

@@ -12,30 +12,9 @@ import { buildBaselineFileRecord, createDefaultExtractorRegistry } from "./extra
 import type { ExtractorRegistry } from "./extractors/types.js";
 import { detectLanguage } from "./parser/extractor.js";
 import { parseSource } from "./parser/grammars.js";
-import { getCoverageReport } from "./query/coverage.js";
-import {
-  neighborhood,
-  type NeighborhoodOptions,
-  type NeighborhoodResult,
-} from "./query/neighborhood.js";
-import { getAllFilesQuery } from "./query/files.js";
-import { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
-import { querySessionSummary } from "./query/sessionSummary.js";
-import { getWorkspaceSubgraph } from "./query/subgraph.js";
-import { getSymbolsForFile } from "./query/symbols.js";
-import { clearAll, clearFile, clearWorkspace } from "./storage/clear.js";
-import { openDatabase, type DatabaseHandle } from "./storage/db.js";
-import {
-  replaceFileGraph,
-  replaceWorkspaceFrameworks,
-  resolveWorkspaceCrossFileEdges,
-  stampResolutionTier,
-  synthesizeFolderTree,
-  setFileFramework,
-} from "./storage/repository.js";
-import { applyMigrations } from "./storage/migrations/runner.js";
-import { initializeSchema } from "./storage/schema.js";
-import { validateWorkspaceCache, writeWorkspaceCacheSnapshot } from "./storage/workspaceCache.js";
+import type { NeighborhoodOptions, NeighborhoodResult } from "./query/neighborhood.js";
+import { openDatabase } from "./storage/db.js";
+import { DuckDbGraphRepository } from "./storage/adapters/duckdbGraphRepository.js";
 import {
   SCHEMA_VERSION,
   type ClearAllSummary,
@@ -110,9 +89,6 @@ export type {
   ExtractorRegistry,
   KnownSymbol,
 } from "./extractors/types.js";
-export { getPresentEdgeKinds } from "./query/presentEdgeKinds.js";
-export { getCoverageReport } from "./query/coverage.js";
-export { neighborhood } from "./query/neighborhood.js";
 export type {
   CallResolver,
   ResolvedEdge,
@@ -122,7 +98,8 @@ export type {
   PreciseLocationResolver,
 } from "./resolution/types.js";
 export type { ForeignWorkspaceGraph, WorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
-export { readWorkspaceGraph, readWorkspaceIndexSummary } from "./storage/workspaceRegistry.js";
+export type { ForeignGraphReader, GraphRepository } from "./storage/graphRepository.js";
+export { DuckDbForeignGraphReader } from "./storage/adapters/duckdbGraphRepository.js";
 
 // NOTE: Lens utilities are NOT re-exported here. They're published via the
 // `@dextree/core/lenses` subpath export so webview bundlers (Rollup/Vite)
@@ -144,7 +121,7 @@ export class SchemaError extends Error {
 }
 
 class DuckTreeIndexer implements Indexer {
-  private databaseHandle: DatabaseHandle | null = null;
+  private repo: DuckDbGraphRepository | null = null;
   private initializationPromise: Promise<void> | null = null;
   private readonly registry: ExtractorRegistry;
   private readonly frameworkCache = new Map<string, readonly DetectedFramework[]>();
@@ -172,9 +149,10 @@ class DuckTreeIndexer implements Indexer {
         await mkdir(dirname(this.dbPath), { recursive: true });
       }
 
-      this.databaseHandle = await openDatabase(this.dbPath);
-      await initializeSchema(this.databaseHandle.connection);
-      const migrationResult = await applyMigrations(this.databaseHandle.connection, this.logger);
+      const handle = await openDatabase(this.dbPath);
+      this.repo = new DuckDbGraphRepository(handle, this.logger);
+      await this.repo.initializeSchema();
+      const migrationResult = await this.repo.applyMigrations();
       if (migrationResult.status === "failed") {
         throw new SchemaError(migrationResult.reason);
       }
@@ -221,7 +199,7 @@ class DuckTreeIndexer implements Indexer {
     const startedAt = Date.now();
     await this.initialize();
 
-    const database = this.requireDatabaseHandle();
+    const repo = this.requireRepo();
 
     const language = detectLanguage(absolutePath);
     const source = await readFile(absolutePath, "utf8");
@@ -299,27 +277,20 @@ class DuckTreeIndexer implements Indexer {
         );
       }
 
-      await replaceFileGraph(
-        database.connection,
-        extracted,
-        extraEdges,
-        classifications,
-        result.annotations ?? [],
-      );
+      await repo.replaceFileGraph(extracted, extraEdges, classifications, result.annotations ?? []);
 
       if (detected.length > 0) {
-        await setFileFramework(
-          database.connection,
+        await repo.setFileFramework(
           extracted.file.id,
           attribution?.framework ?? null,
           attribution?.role ?? null,
         );
       }
 
-      const files = await getAllFilesQuery(database.connection);
-      const graph = await getWorkspaceSubgraph(database.connection, workspaceRoot);
+      const files = await repo.getAllFiles();
+      const graph = await repo.getWorkspaceSubgraph(workspaceRoot);
 
-      await writeWorkspaceCacheSnapshot(database.connection, {
+      await repo.writeWorkspaceCacheSnapshot({
         identity: cacheIdentity ?? {
           cacheKey: workspaceRoot,
           workspaceRoot,
@@ -332,7 +303,7 @@ class DuckTreeIndexer implements Indexer {
         graphEdgeCount: graph.edges.length,
       });
 
-      const symbols = await getSymbolsForFile(database.connection, extracted.file.relativePath);
+      const symbols = await repo.getSymbolsForFile(extracted.file.relativePath);
 
       const elapsedMs = Date.now() - startedAt;
       this.logger?.debug("indexFile complete", {
@@ -354,11 +325,10 @@ class DuckTreeIndexer implements Indexer {
 
   async detectWorkspaceFrameworks(workspaceRoot: string): Promise<readonly FrameworkInfo[]> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
+    const repo = this.requireRepo();
     const detected = await detectFrameworks(createNodeFsIO(workspaceRoot, this.logger));
     this.frameworkCache.set(workspaceRoot, detected);
-    await replaceWorkspaceFrameworks(
-      database.connection,
+    await repo.replaceWorkspaceFrameworks(
       detected.map((row) => ({
         frameworkName: row.frameworkName,
         detectionSource: row.detectionSource,
@@ -374,11 +344,11 @@ class DuckTreeIndexer implements Indexer {
 
   async finalizeWorkspace(workspaceRoot: string): Promise<void> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    await resolveWorkspaceCrossFileEdges(database.connection, workspaceRoot);
-    await synthesizeFolderTree(database.connection);
+    const repo = this.requireRepo();
+    await repo.resolveWorkspaceCrossFileEdges(workspaceRoot);
+    await repo.synthesizeFolderTree();
     // Stamp tiers again so the just-created CONTAINS edges get a tier too.
-    await stampResolutionTier(database.connection);
+    await repo.stampResolutionTier();
     this.logger?.info("Finalized workspace cross-file edges + folder tree", { workspaceRoot });
   }
 
@@ -389,86 +359,86 @@ class DuckTreeIndexer implements Indexer {
       throw new Error("neighborhood: nodeId must be a non-empty string");
     }
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return neighborhood(database.connection, nodeId, options);
+    const repo = this.requireRepo();
+    return repo.neighborhood(nodeId, options);
   }
 
   async validateWorkspaceCache(identity: WorkspaceCacheIdentity) {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return validateWorkspaceCache(database.connection, identity);
+    const repo = this.requireRepo();
+    return repo.validateWorkspaceCache(identity);
   }
 
   async getSymbols(relativePath: string): Promise<StoredSymbol[]> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return getSymbolsForFile(database.connection, relativePath);
+    const repo = this.requireRepo();
+    return repo.getSymbolsForFile(relativePath);
   }
 
   async getAllFiles(): Promise<StoredFile[]> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return getAllFilesQuery(database.connection);
+    const repo = this.requireRepo();
+    return repo.getAllFiles();
   }
 
   async getWorkspaceSubgraph(workspaceRoot: string) {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return getWorkspaceSubgraph(database.connection, workspaceRoot);
+    const repo = this.requireRepo();
+    return repo.getWorkspaceSubgraph(workspaceRoot);
   }
 
   async getPresentEdgeKinds(workspaceRoot: string): Promise<readonly string[]> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return getPresentEdgeKinds(database.connection, workspaceRoot);
+    const repo = this.requireRepo();
+    return repo.getPresentEdgeKinds(workspaceRoot);
   }
 
   async getCoverageReport(): Promise<CoverageReport> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return getCoverageReport(database.connection);
+    const repo = this.requireRepo();
+    return repo.getCoverageReport();
   }
 
   async getSessionSummary(workspaceRoot: string): Promise<SessionSummary> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return querySessionSummary(database.connection, workspaceRoot);
+    const repo = this.requireRepo();
+    return repo.getSessionSummary(workspaceRoot);
   }
 
   async clearWorkspace(workspaceRoot: string): Promise<ClearWorkspaceSummary> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
+    const repo = this.requireRepo();
     this.frameworkCache.delete(workspaceRoot);
-    return clearWorkspace(database.connection, workspaceRoot);
+    return repo.clearWorkspace(workspaceRoot);
   }
 
   async clearFile(filePath: string): Promise<ClearFileSummary> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return clearFile(database.connection, filePath);
+    const repo = this.requireRepo();
+    return repo.clearFile(filePath);
   }
 
   async clearAll(): Promise<ClearAllSummary> {
     await this.initialize();
-    const database = this.requireDatabaseHandle();
-    return clearAll(database.connection);
+    const repo = this.requireRepo();
+    return repo.clearAll();
   }
 
   async dispose(): Promise<void> {
-    if (this.databaseHandle !== null) {
-      this.databaseHandle.close();
-      this.databaseHandle = null;
+    if (this.repo !== null) {
+      this.repo.dispose();
+      this.repo = null;
     }
 
     this.initializationPromise = null;
   }
 
-  private requireDatabaseHandle(): DatabaseHandle {
-    if (this.databaseHandle === null) {
+  private requireRepo(): DuckDbGraphRepository {
+    if (this.repo === null) {
       throw new Error("Indexer has not been initialized");
     }
 
-    return this.databaseHandle;
+    return this.repo;
   }
 }
 

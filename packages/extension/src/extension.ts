@@ -1,4 +1,4 @@
-import { createIndexer, readWorkspaceGraph, type Indexer } from "@dextree/core";
+import { createIndexer, DuckDbForeignGraphReader, type Indexer } from "@dextree/core";
 import { generateMermaidPreview, type MermaidPreviewResult } from "@dextree/exporters";
 import { basename, join } from "node:path";
 import * as vscode from "vscode";
@@ -199,7 +199,10 @@ export async function activate(context: ActivationContext): Promise<void> {
       return;
     }
 
-    const result = await readWorkspaceGraph(entry.dbPath, targetWorkspaceRoot);
+    const result = await new DuckDbForeignGraphReader().readWorkspaceGraph(
+      entry.dbPath,
+      targetWorkspaceRoot,
+    );
     if (result === null) {
       await vscode.window.showErrorMessage(
         `Could not open workspace ${basename(targetWorkspaceRoot)}. The index may be missing or corrupt.`,
