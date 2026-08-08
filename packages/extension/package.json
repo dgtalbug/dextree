@@ -53,7 +53,7 @@
     "graphology-shortest-path": "^2.1.0",
     "graphology-traversal": "^0.3.1",
     "graphology-types": "^0.24.8",
-    "mermaid": "^11.15.0",
+    "mermaid": "^11.16.1",
     "sigma": "^3.0.2",
     "zustand": "^5.0.2"
   },
