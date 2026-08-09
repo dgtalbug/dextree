@@ -44,7 +44,7 @@
     "@sigma/node-border": "^3.0.0",
     "@sigma/node-square": "^3.0.0",
     "@xyflow/react": "^12.11.0",
-    "dompurify": "^3.4.7",
+    "dompurify": "^3.4.13",
     "graphology": "^0.26.0",
     "graphology-communities-louvain": "^2.0.2",
     "graphology-dag": "^0.4.1",
